@@ -1,0 +1,12 @@
+[meta]
+name     = "CGF Support Library"
+author   = "XertroV"
+category = "CGF"
+version  = "0.1.0"
+
+[script]
+#__DEFINES__
+# dependencies = ["MLHook", "MLFeedRaceData", "VehicleState", "Camera"]
+module = "CGF"
+exports = ["ExportCode.as"]
+shared_exports = ["ExportShared.as"]

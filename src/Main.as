@@ -1,0 +1,73 @@
+// Game::Client@ c1 = null;
+
+void Main() {
+    startnew(Loop);
+}
+
+void Loop() {
+    auto x = Game::Client();
+    sleep(1000);
+    x.SendChat("test chat: " + Time::Now);
+    sleep(5000);
+}
+
+
+void OnDestroyed() { _Unload(); }
+void OnDisabled() { _Unload(); }
+void _Unload() {
+    // if (c1 !is null) c1.socket.Close();
+}
+
+void Render() {
+}
+
+void RenderInterface() {
+}
+
+void RenderMenu() {
+}
+
+/** Render function called every frame intended only for menu items in the main menu of the `UI`.
+*/
+void RenderMenuMain() {
+}
+
+UI::InputBlocking OnKeyPress(bool down, VirtualKey key) {
+    return UI::InputBlocking::DoNothing;
+}
+
+/** Called when a setting in the settings panel was changed. */
+void OnSettingsChanged() {
+}
+
+/*
+    Utility functions
+*/
+
+//
+void NotifyDepError(const string &in msg) {
+    warn(msg);
+    UI::ShowNotification(Meta::ExecutingPlugin().Name + ": Dependency Error", msg, vec4(.9, .6, .1, .5), 15000);
+}
+
+void NotifyError(const string &in msg) {
+    warn(msg);
+    UI::ShowNotification(Meta::ExecutingPlugin().Name + ": Error", msg, vec4(.9, .6, .1, .5), 15000);
+}
+
+void NotifyInfo(const string &in msg) {
+    print("[INFO] " + msg);
+    UI::ShowNotification(Meta::ExecutingPlugin().Name, msg, vec4(.1, .6, .9, .5), 10000);
+}
+
+void AddSimpleTooltip(const string &in msg) {
+    if (UI::IsItemHovered()) {
+        UI::BeginTooltip();
+        UI::Text(msg);
+        UI::EndTooltip();
+    }
+}
+
+const string MsToSeconds(int t) {
+    return Text::Format("%.3f", float(t) / 1000.0);
+}
