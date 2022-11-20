@@ -11,6 +11,18 @@ void Loop() {
     sleep(5000);
 }
 
+// namespace CGF {
+//     Game::Client@ mainClient = null;
+
+//     Game::Client@ GetMainClient() {
+//         while (mainClient is null) {
+//             yield();
+//             @mainClient = Game::Client();
+//         }
+//     }
+// }
+
+
 
 void OnDestroyed() { _Unload(); }
 void OnDisabled() { _Unload(); }
@@ -22,9 +34,13 @@ void Render() {
 }
 
 void RenderInterface() {
+
+    // does nothing without sig_developer
+    Debug::RenderInterface();
 }
 
 void RenderMenu() {
+    Debug::RenderMenu();
 }
 
 /** Render function called every frame intended only for menu items in the main menu of the `UI`.
@@ -47,17 +63,22 @@ void OnSettingsChanged() {
 //
 void NotifyDepError(const string &in msg) {
     warn(msg);
-    UI::ShowNotification(Meta::ExecutingPlugin().Name + ": Dependency Error", msg, vec4(.9, .6, .1, .5), 15000);
+    UI::ShowNotification(Meta::ExecutingPlugin().Name + ": Dependency Error", msg, vec4(.9, .3, .1, .3), 15000);
 }
 
 void NotifyError(const string &in msg) {
     warn(msg);
-    UI::ShowNotification(Meta::ExecutingPlugin().Name + ": Error", msg, vec4(.9, .6, .1, .5), 15000);
+    UI::ShowNotification(Meta::ExecutingPlugin().Name + ": Error", msg, vec4(.9, .3, .1, .3), 15000);
+}
+
+void NotifyWarning(const string &in msg) {
+    warn(msg);
+    UI::ShowNotification(Meta::ExecutingPlugin().Name + ": Error", msg, vec4(.9, .6, .2, .3), 15000);
 }
 
 void NotifyInfo(const string &in msg) {
     print("[INFO] " + msg);
-    UI::ShowNotification(Meta::ExecutingPlugin().Name, msg, vec4(.1, .6, .9, .5), 10000);
+    UI::ShowNotification(Meta::ExecutingPlugin().Name, msg, vec4(.1, .5, .9, .3), 10000);
 }
 
 void AddSimpleTooltip(const string &in msg) {
