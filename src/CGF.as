@@ -17,12 +17,15 @@ namespace Game {
         ClientState state = ClientState::Uninitialized;
         int connectedAt;
 
+        dictionary currentPlayers;
+
         Json::Value@ latestServerInfo;
         // Json::Value@ lobbyInfo;
         LobbyInfo@ lobbyInfo;
         RoomInfo@ roomInfo;
 
         Scope currScope = Scope::MainLobby;
+        Scope priorScope = Scope::MainLobby;
         string scopeName;
 
         Json::Value@[] globalChat = array<Json::Value@>(100);
@@ -43,6 +46,12 @@ namespace Game {
             AddMessageHandler("ENTERED_LOBBY", CGF::MessageHandler(MsgHandler_LobbyInfo));
             AddMessageHandler("LOBBY_INFO", CGF::MessageHandler(MsgHandler_LobbyInfo));
             AddMessageHandler("ROOM_INFO", CGF::MessageHandler(MsgHandler_RoomInfo));
+            AddMessageHandler("PLAYER_LEFT", CGF::MessageHandler(MsgHandler_PlayerEvent));
+            AddMessageHandler("PLAYER_JOINED", CGF::MessageHandler(MsgHandler_PlayerEvent));
+            AddMessageHandler("PLAYER_LIST", CGF::MessageHandler(MsgHandler_PlayerEvent));
+            // AddMessageHandler("PLAYER_JOINED_TEAM", CGF::MessageHandler(MsgHandler_PlayerJoinedTeam));
+            // AddMessageHandler("PLAYER_READY", CGF::MessageHandler(MsgHandler_PlayerJoinedTeam));
+            // AddMessageHandler("ROOM_STATUS_INFO", CGF::MessageHandler(MsgHandler_PlayerJoinedTeam));
 
             name = _name.Length == 0 ? LocalPlayersName : _name;
             fileName = StorageFileTemplate.Replace("|CLIENTNAME|", name);
@@ -68,8 +77,8 @@ namespace Game {
                 yield();
                 if (!socket.CanWrite() && !socket.CanRead() && socket.Available() == 0) state = ClientState::Disconnected;
                 if (IsDisconnected || IsTimedOut) {
-                    warn("[ReconnectIfPossible] in 2.5s");
-                    sleep(2500);  // sleep 2.5s to avoid trying again too soon
+                    warn("[ReconnectIfPossible] in 0.5s");
+                    sleep(500);  // sleep .5s to avoid trying again too soon
                     Reconnect();
                 }
             }
@@ -77,7 +86,7 @@ namespace Game {
 
         void Connect(uint timeout = 5000) {
             state = ClientState::Connecting;
-            // we must initialize a new socket here b/c otherwise we'll hang on reuse (i.e., via reconnect)
+            // we must initialize a new socket here b/c otherwise we'll hang on reuse (i.e., via reconnect); fix is to restart the server (wtf?)
             @socket = Net::Socket();
             uint startTime = Time::Now;
             uint timeoutAt = startTime + timeout;
@@ -115,6 +124,7 @@ namespace Game {
         }
 
         void OnConnected() {
+            priorScope = currScope;
             // expect server version
             auto msg = ReadMessage();
             if (msg is null) {
@@ -154,8 +164,22 @@ namespace Game {
                     warn("Error, got a bad response for registration request: " + Json::Write(resp));
                 }
             }
+            RejoinIfPriorScope();
             startnew(CoroutineFunc(SendPingLoop));  // send PING every 5s
             startnew(CoroutineFunc(ReadAllMessagesForever));
+        }
+
+        void RejoinIfPriorScope() {
+            // if we were connected and in a game lobby, room, or game
+            if (priorScope > 0 && lobbyInfo !is null) {
+                SendPayload("JOIN_LOBBY", JsonObject1("name", lobbyInfo.name));
+                if (priorScope > 1 && roomInfo !is null) {
+                    if (roomInfo.join_code.IsSome())
+                        SendPayload("JOIN_CODE", JsonObject1("code", roomInfo.join_code.GetOr("")));
+                    else
+                        SendPayload("JOIN_ROOM", JsonObject1("name", roomInfo.name));
+                }
+            }
         }
 
         void ReadAllMessagesForever() {
@@ -269,11 +293,20 @@ namespace Game {
             this.SendRaw(sendMsg);
     	}
 
+    	void SendPayload(const string&in type, Json::Value@ payload) {
+            SendPayload(type, payload, CGF::Visibility::global);
+        }
+
+
         void SendRaw(const string &in msg) {
             uint16 len = msg.Length;
             socket.Write(len);
             if (len > 5) dev_print("Sending message of length: " + len + ": " + msg);
             socket.WriteRaw(msg);
+        }
+
+        void SendLeave() {
+            SendPayload("LEAVE", Json::Object(), CGF::Visibility::global);
         }
 
     	CGF::User@ get_User() override {
@@ -309,6 +342,11 @@ namespace Game {
             this.currScope = Scope(string(j["scope"])[0] - 0x30);
             this.scopeName = string(j["scope"]).SubStr(2);
             // on scope change
+            OnChangedScope();
+        }
+
+        void OnChangedScope() {
+            this.currentPlayers.DeleteAll();
             // reset chat by strategically setting values to null -- very cheap
             @mainChat[chatNextIx == 0 ? (mainChat.Length - 1) : (chatNextIx - 1)] = null;
             @mainChat[chatNextIx] = null;
@@ -324,6 +362,41 @@ namespace Game {
         bool MsgHandler_RoomInfo(Json::Value@ j) {
             @roomInfo = RoomInfo(j['payload']);
             return true;
+        }
+
+        // todo: finish this
+        bool MsgHandler_PlayerEvent(Json::Value@ j) {
+            string type = j['type'];
+            Json::Value@ pl = j['payload'];
+            if (type == "PLAYER_LEFT") RemovePlayer(pl['uid']);
+            else if (type == "PLAYER_JOINED") AddPlayer(pl['uid'], pl['username']);
+            else if (type == "PLAYER_LIST") UpdatePlayersFromCanonical(pl['players']);
+            else {
+                throw("Msg of incorrect type sent to PlayerEvent handler: " + type);
+                return false;
+            }
+            return true;
+        }
+
+        void RemovePlayer(const string &in uid) {
+            currentPlayers.Delete(uid);
+            currentPlayers.Delete(uid);
+        }
+
+        void AddPlayer(const string &in uid, const string &in username) {
+            currentPlayers[uid] = username;
+        }
+
+        void UpdatePlayersFromCanonical(const Json::Value@ players) {
+            if (players is null || players.GetType() != Json::Type::Array) {
+                warn("UpdatePlayersFromCanonical given a json value that wasn't an array");
+                return;
+            }
+            currentPlayers.DeleteAll();
+            for (uint i = 0; i < players.Length; i++) {
+                auto item = players[i];
+                currentPlayers[item['uid']] = string(item['username']);
+            }
         }
 
         bool get_IsMainLobby() { return currScope == Scope::MainLobby; }
@@ -371,11 +444,11 @@ namespace Game {
 
         bool MsgHandler_Chat(Json::Value@ j) {
             print("Handling chat msg: ["+int(float(j['ts']))+"]" + Json::Write(j));
-            if ((IsMainLobby || IsInGameLobby) && j['visibility'] == "global") {
-                InsertToMainChat(j);
-                return true;
-            }
-            return false;
+            InsertToMainChat(j);
+            return true;
+            // if ((IsMainLobby || IsInGameLobby) && j['visibility'] == "global") {
+            // }
+            // return false;
         }
 
         /* Exposed Methods */
@@ -395,7 +468,8 @@ namespace Game {
 
         void LeaveLobby() {
             // if (currScope != Scope::InGameLobby) return;
-            SendPayload("LEAVE_LOBBY", "", CGF::Visibility::global);
+            // SendPayload("LEAVE", Json::Object(), CGF::Visibility::global);
+            SendLeave();
         }
 
         void AddMessageHandler(const string &in type, CGF::MessageHandler@ handler) {

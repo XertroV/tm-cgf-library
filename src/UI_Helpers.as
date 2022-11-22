@@ -12,3 +12,9 @@ void SubHeading(const string &in text) {
     UI::Text(text);
     UI::PopFont();
 }
+
+void PaddedSep(float scale=1.0) {
+    UI::Dummy(vec2(0, 6. * scale));
+    UI::Separator();
+    UI::Dummy(vec2(0, 6. * scale));
+}

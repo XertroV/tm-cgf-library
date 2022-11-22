@@ -58,6 +58,7 @@ class DebugClientWindow {
     LobbiesTab@ lobbiesTab;
     ChatTab@ chatTab;
     RoomsTab@ roomsTab;
+    InRoomTab@ inRoomTab;
     Tab@[] tabs;
 
     DebugClientWindow(Game::Client@ client) {
@@ -65,9 +66,11 @@ class DebugClientWindow {
         @lobbiesTab = LobbiesTab(this);
         @chatTab = ChatTab(this);
         @roomsTab = RoomsTab(this);
+        @inRoomTab = InRoomTab(this);
         tabs.InsertLast(chatTab);
         tabs.InsertLast(lobbiesTab);
         tabs.InsertLast(roomsTab);
+        tabs.InsertLast(inRoomTab);
         windowVisible = true;
         client.AddMessageHandler("LOBBY_LIST", CGF::MessageHandler(lobbiesTab.OnLobbyList));
     }
@@ -204,6 +207,16 @@ class LobbiesTab : Tab {
 
     string m_LobbyName;
 
+    void DrawTab() override
+    {
+        UI::BeginDisabled(parent.client.currScope >= 2);
+        if (UI::BeginTabItem(tabName, TabFlags)) {
+            DrawInner();
+            UI::EndTabItem();
+        }
+        UI::EndDisabled();
+    }
+
     void DrawInner() override {
         UI::AlignTextToFramePadding();
         UI::Text("There are " + nbLobbies + " Lobbies");
@@ -287,6 +300,16 @@ class RoomsTab : Tab {
     uint createRoomTimeout = 0;
     string m_joinCode;
 
+    void DrawTab() override
+    {
+        UI::BeginDisabled(parent.client.currScope >= 2);
+        if (UI::BeginTabItem(tabName, TabFlags)) {
+            DrawInner();
+            UI::EndTabItem();
+        }
+        UI::EndDisabled();
+    }
+
     void DrawInner() override {
         if (parent.client.lobbyInfo is null) return;
         auto li = parent.client.lobbyInfo;
@@ -294,6 +317,7 @@ class RoomsTab : Tab {
         auto rooms = li.rooms;
         string idSuffix = "##" + parent.client.name + "-" + li.name;
         UI::AlignTextToFramePadding();
+        UI::Text("Lobby Name: " + li.name);
         UI::Text("Nb Rooms: " + nbRooms);
         UI::Separator();
         bool changed;
@@ -371,6 +395,116 @@ class RoomsTab : Tab {
     }
 }
 
+
+
+class InRoomTab : Tab {
+    DebugClientWindow@ parent;
+    bool markReady = false;
+
+    InRoomTab(DebugClientWindow@ parent) {
+        @this.parent = parent;
+        super("Current Room");
+    }
+
+    const string get_RoomName() {
+        if (parent.client.roomInfo is null) return "";
+        return parent.client.roomInfo.name;
+    }
+
+    void DrawTab() override
+    {
+        if (parent.client.currScope < 2) return;
+        if (UI::BeginTabItem(tabName, TabFlags)) {
+            DrawInner();
+            UI::EndTabItem();
+        }
+    }
+
+    void DrawInner() override {
+        vec2 initPos = UI::GetCursorPos();
+        UI::SetCursorPos(initPos + vec2(UI::GetWindowContentRegionWidth() - 60, 10));
+        if (UI::Button("Leave##leave-room")) {
+            parent.client.SendLeave();
+        }
+        UI::SetCursorPos(initPos);
+        UI::Text("Name: " + RoomName);
+        uint currNPlayers = parent.client.roomInfo.n_players;
+        uint pLimit = parent.client.roomInfo.player_limit;
+        uint nTeams = parent.client.roomInfo.n_teams;
+        string joinCode = parent.client.roomInfo.join_code.GetOr("???");
+        UI::Text("Players: " + currNPlayers + " / " + pLimit);
+        UI::Text("N Teams: " + nTeams);
+        DrawJoinCode(joinCode);
+        PaddedSep();
+        auto pos = UI::GetCursorPos();
+        UI::SetCursorPos(pos + vec2(UI::GetWindowContentRegionWidth() / 2. - 35., 0));
+        bool newReady = UI::Checkbox("Ready?##room-to-game", markReady);
+        if (newReady != markReady)
+            parent.client.SendPayload("MARK_READY", JsonObject1("ready", Json::Value(newReady)), CGF::Visibility::global);
+        markReady = newReady;
+        PaddedSep();
+        UI::Separator();
+        UI::Text("\nSelect a team:\n");
+        DrawTeamSelection();
+    }
+
+    bool jcHidden = true;
+    void DrawJoinCode(const string &in jc) {
+        UI::AlignTextToFramePadding();
+        auto txt = jcHidden ? "- - - - - -" : jc;
+        UI::Text("Join Code: ");
+        UI::SameLine();
+        auto jcPos = UI::GetCursorPos();
+        UI::Text(txt);
+        UI::SetCursorPos(jcPos + vec2(60, 0));
+        if (UI::Button("Copy")) IO::SetClipboard(jc);
+        UI::SameLine();
+        UI::Dummy(vec2(20, 0));
+        UI::SameLine();
+        if (UI::Button("Reveal")) jcHidden = !jcHidden;
+    }
+
+    void DrawTeamSelection() {
+        uint nTeams = parent.client.roomInfo.n_teams;
+        if (UI::BeginTable("team selection", nTeams+2, UI::TableFlags::SizingStretchProp)) {
+            UI::TableNextRow();
+            UI::TableNextColumn(); // the first of the extra 2 columns; the second is implicit
+            for (uint i = 0; i < nTeams; i++) {
+                UI::TableNextColumn();
+                UI::Text("Team: " + (i + 1));
+            }
+
+            UI::TableNextRow();
+            UI::TableNextColumn();
+            for (uint i = 0; i < nTeams; i++) {
+                UI::TableNextColumn();
+                if (UI::Button("Join Team " + (i + 1))) {
+                    parent.client.SendPayload("JOIN_TEAM", JsonObject1("team_n", Json::Value(i)), CGF::Visibility::global);
+                }
+            }
+
+            uint maxPlayersInAnyTeam = 2;
+            bool teamNoPlayers = true;
+
+            for (uint pn = 0; pn < maxPlayersInAnyTeam; pn++) {
+                UI::TableNextRow();
+                UI::TableNextColumn();
+                for (uint i = 0; i < nTeams; i++) {
+                    UI::TableNextColumn();
+                    if (pn == 0 && teamNoPlayers) {
+                        UI::Text("No players in team " + (i + 1));
+                    } else if (teamNoPlayers) {
+                        continue;
+                    } else {
+                        // todo: draw player name
+                    }
+                }
+            }
+
+            UI::EndTable();
+        }
+    }
+}
 
 
 
