@@ -162,13 +162,13 @@ class ChatTab : Tab {
         if (parent.client is null) return;
         UI::Separator();
         if (UI::BeginChild("##debug-chat", vec2(), true, UI::WindowFlags::AlwaysAutoResize)) {
-            UI::Text("Chat Ix: " + parent.client.globalChatNextIx);
-            auto @chat = parent.client.globalChat;
-            for (int i = 0; i < parent.client.globalChat.Length; i++) {
-                auto thisIx = (int(parent.client.globalChatNextIx) - i - 1 + chat.Length) % chat.Length;
-                UI::Text("thisIx: " + thisIx);
+            UI::Text("Chat Ix: " + parent.client.chatNextIx);
+            auto @chat = parent.client.mainChat;
+            for (int i = 0; i < parent.client.mainChat.Length; i++) {
+                auto thisIx = (int(parent.client.chatNextIx) - i - 1 + chat.Length) % chat.Length;
                 auto msg = chat[thisIx];
-                if (msg is null) continue;
+                if (msg is null) break;
+                UI::Text("" + thisIx + ".");
                 UI::SameLine();
                 UI::TextWrapped(Time::FormatString("%H:%M", int64(msg['ts'])) + " [ " + string(msg['from']['username']) + " ]: " + string(msg['payload']['content']));
             }

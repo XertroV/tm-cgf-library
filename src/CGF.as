@@ -79,21 +79,22 @@ namespace Game {
             state = ClientState::Connecting;
             // we must initialize a new socket here b/c otherwise we'll hang on reuse (i.e., via reconnect)
             @socket = Net::Socket();
-            uint timeoutAt = Time::Now + timeout;
+            uint startTime = Time::Now;
+            uint timeoutAt = startTime + timeout;
             try {
                 socket.Connect(S_Host, S_Port);
             } catch {
                 warn("Failed to init connection to CGF server: " + getExceptionInfo());
             }
             while (Time::Now < timeoutAt && !socket.CanWrite() && !socket.CanRead()) {
-                trace('waiting...');
                 yield();
             }
-            if (Time::Now > timeoutAt) {
+            if (Time::Now >= timeoutAt) {
                 warn("Timeout connecting to " + S_Host + ":" + S_Port);
                 this.Disconnect();
                 state = ClientState::TimedOut;
             } else {
+                warn("Connected in " + (Time::Now - startTime) + " ms");
                 state = ClientState::Connected;
             }
             if (IsConnected) {
@@ -307,6 +308,11 @@ namespace Game {
             // format: "<int>|<string>"
             this.currScope = Scope(string(j["scope"])[0] - 0x30);
             this.scopeName = string(j["scope"]).SubStr(2);
+            // on scope change
+            // reset chat by strategically setting values to null -- very cheap
+            @mainChat[chatNextIx == 0 ? (mainChat.Length - 1) : (chatNextIx - 1)] = null;
+            @mainChat[chatNextIx] = null;
+            @mainChat[(chatNextIx + 1) % mainChat.Length] = null;
         }
 
         bool MsgHandler_LobbyInfo(Json::Value@ j) {
@@ -320,15 +326,56 @@ namespace Game {
             return true;
         }
 
+        bool get_IsMainLobby() { return currScope == Scope::MainLobby; }
+        bool get_IsInGameLobby() { return currScope == Scope::InGameLobby; }
+        bool get_IsInRoom() { return currScope == Scope::InRoom; }
+        bool get_IsInGame() { return currScope == Scope::InGame; }
+
+        array<Json::Value@>@ get_mainChat() {
+            if (IsMainLobby) return this.globalChat;
+            if (IsInGameLobby) return this.lobbyChat;
+            if (IsInRoom) return this.roomChat;
+            if (IsInGame) return this.roomChat;
+            return null;
+        }
+
+        uint chatNextIx {
+            get {
+                if (IsMainLobby) return this.globalChatNextIx;
+                if (IsInGameLobby) return this.lobbyChatNextIx;
+                if (IsInRoom) return this.roomChatNextIx;
+                if (IsInGame) return this.roomChatNextIx;
+                return 9999;  // should never be true
+            }
+            set {
+                if (IsMainLobby) this.globalChatNextIx = value;
+                if (IsInGameLobby) this.lobbyChatNextIx = value;
+                if (IsInRoom) this.roomChatNextIx = value;
+                if (IsInGame) this.roomChatNextIx = value;
+            }
+        }
+
+        array<Json::Value@>@ get_currSecondaryChatArray() {
+            if (IsMainLobby) return null;
+            if (IsInGameLobby) return null;
+            if (IsInRoom) return null;
+            if (IsInGame) return this.mapChat;
+            return null;
+        }
+
+        void InsertToMainChat(Json::Value@ j) {
+            @mainChat[chatNextIx] = j;
+            chatNextIx = (chatNextIx + 1) % mainChat.Length;
+            @mainChat[chatNextIx] = null;
+        }
+
         bool MsgHandler_Chat(Json::Value@ j) {
             print("Handling chat msg: ["+int(float(j['ts']))+"]" + Json::Write(j));
-            if (currScope == Scope::MainLobby && j['visibility'] == "global") {
-                @globalChat[globalChatNextIx] = j;
-                globalChatNextIx = (globalChatNextIx + 1) % globalChat.Length;
-            } else {
-                return false;
+            if ((IsMainLobby || IsInGameLobby) && j['visibility'] == "global") {
+                InsertToMainChat(j);
+                return true;
             }
-            return true;
+            return false;
         }
 
         /* Exposed Methods */
