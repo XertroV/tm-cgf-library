@@ -1,14 +1,17 @@
 // Game::Client@ c1 = null;
 
+
+
 void Main() {
     startnew(Loop);
+    startnew(Debug::Main);
 }
 
 void Loop() {
-    auto x = Game::Client();
-    sleep(1000);
-    x.SendChat("test chat: " + Time::Now);
-    sleep(5000);
+    // auto x = Game::Client();
+    // sleep(1000);
+    // x.SendChat("test chat: " + Time::Now);
+    // sleep(5000);
 }
 
 // namespace CGF {
