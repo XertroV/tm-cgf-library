@@ -11,6 +11,9 @@ namespace Game {
 
     class Client : CGF::Client {
         Net::Socket@ socket = Net::Socket();
+        string host;
+        uint16 port;
+
         string name;
         string fileName;
         bool accountExists;
@@ -18,6 +21,10 @@ namespace Game {
         int connectedAt;
 
         dictionary currentPlayers;
+        string[] currAdmins;
+        string[] currMods;
+        string[][] currTeams;
+        dictionary uidToTeamNb;
 
         Json::Value@ latestServerInfo;
         // Json::Value@ lobbyInfo;
@@ -42,6 +49,8 @@ namespace Game {
 
         // alternative user name is the optional param -- for testing
         Client(const string &in _name = "") {
+            host = S_Host;
+            port = S_Port;
             AddMessageHandler("SEND_CHAT", CGF::MessageHandler(MsgHandler_Chat));
             AddMessageHandler("ENTERED_LOBBY", CGF::MessageHandler(MsgHandler_LobbyInfo));
             AddMessageHandler("LOBBY_INFO", CGF::MessageHandler(MsgHandler_LobbyInfo));
@@ -49,7 +58,10 @@ namespace Game {
             AddMessageHandler("PLAYER_LEFT", CGF::MessageHandler(MsgHandler_PlayerEvent));
             AddMessageHandler("PLAYER_JOINED", CGF::MessageHandler(MsgHandler_PlayerEvent));
             AddMessageHandler("PLAYER_LIST", CGF::MessageHandler(MsgHandler_PlayerEvent));
-            // AddMessageHandler("PLAYER_JOINED_TEAM", CGF::MessageHandler(MsgHandler_PlayerJoinedTeam));
+            AddMessageHandler("ADMIN_MOD_STATUS", CGF::MessageHandler(MsgHandler_AdminModStatus));
+            AddMessageHandler("LIST_TEAMS", CGF::MessageHandler(MsgHandler_TeamsEvent));
+            AddMessageHandler("PLAYER_JOINED_TEAM", CGF::MessageHandler(MsgHandler_TeamsEvent));
+
             // AddMessageHandler("PLAYER_READY", CGF::MessageHandler(MsgHandler_PlayerJoinedTeam));
             // AddMessageHandler("ROOM_STATUS_INFO", CGF::MessageHandler(MsgHandler_PlayerJoinedTeam));
 
@@ -91,7 +103,7 @@ namespace Game {
             uint startTime = Time::Now;
             uint timeoutAt = startTime + timeout;
             try {
-                socket.Connect(S_Host, S_Port);
+                socket.Connect(host, port);
             } catch {
                 warn("Failed to init connection to CGF server: " + getExceptionInfo());
             }
@@ -99,7 +111,7 @@ namespace Game {
                 yield();
             }
             if (Time::Now >= timeoutAt) {
-                warn("Timeout connecting to " + S_Host + ":" + S_Port);
+                warn("Timeout connecting to " + host + ":" + port);
                 this.Disconnect();
                 state = ClientState::TimedOut;
             } else {
@@ -114,8 +126,11 @@ namespace Game {
 
         int get_ConnectionDuration() { return IsConnected ? (Time::Now - connectedAt) : 0; }
         bool get_IsConnected() { return state == ClientState::Connected; }
+        bool get_IsConnecting() { return state == ClientState::Connecting; }
         bool get_IsDisconnected() { return state == ClientState::Disconnected; }
         bool get_IsTimedOut() { return state == ClientState::TimedOut; }
+        bool get_IsDoNotReconnect() { return state == ClientState::DoNotReconnect; }
+        bool get_IsReconnectable() { return IsDisconnected || IsTimedOut; }
 
         void Reconnect(uint timeout = 5000) {
             if (!IsDisconnected && !IsTimedOut) return;
@@ -284,7 +299,7 @@ namespace Game {
             return true;
         }
 
-    	void SendPayload(const string&in type, Json::Value@ payload, CGF::Visibility visibility) {
+    	void SendPayload(const string&in type, const Json::Value@ payload, CGF::Visibility visibility) {
             auto toSend = Json::Object();
             toSend['type'] = type;
             toSend['payload'] = payload;
@@ -293,8 +308,12 @@ namespace Game {
             this.SendRaw(sendMsg);
     	}
 
-    	void SendPayload(const string&in type, Json::Value@ payload) {
+    	void SendPayload(const string&in type, const Json::Value@ payload) {
             SendPayload(type, payload, CGF::Visibility::global);
+        }
+
+    	void SendPayload(const string&in type) {
+            SendPayload(type, EMPTY_JSON_OBJ, CGF::Visibility::global);
         }
 
 
@@ -347,6 +366,10 @@ namespace Game {
 
         void OnChangedScope() {
             this.currentPlayers.DeleteAll();
+            currAdmins.Resize(0);
+            currMods.Resize(0);
+            currTeams.Resize(0);
+            uidToTeamNb.DeleteAll();
             // reset chat by strategically setting values to null -- very cheap
             @mainChat[chatNextIx == 0 ? (mainChat.Length - 1) : (chatNextIx - 1)] = null;
             @mainChat[chatNextIx] = null;
@@ -361,6 +384,12 @@ namespace Game {
 
         bool MsgHandler_RoomInfo(Json::Value@ j) {
             @roomInfo = RoomInfo(j['payload']);
+            if (roomInfo.n_teams != currTeams.Length) {
+                currTeams.Resize(roomInfo.n_teams);
+                for (uint i = 0; i < currTeams.Length; i++) {
+                    currTeams[i].Resize(0);
+                }
+            }
             return true;
         }
 
@@ -380,7 +409,7 @@ namespace Game {
 
         void RemovePlayer(const string &in uid) {
             currentPlayers.Delete(uid);
-            currentPlayers.Delete(uid);
+            RemovePlayerFromTeams(uid);
         }
 
         void AddPlayer(const string &in uid, const string &in username) {
@@ -397,6 +426,65 @@ namespace Game {
                 auto item = players[i];
                 currentPlayers[item['uid']] = string(item['username']);
             }
+        }
+
+        bool MsgHandler_AdminModStatus(Json::Value@ j) {
+            auto admins = j['payload']['admins'];
+            auto mods = j['payload']['mods'];
+            currAdmins.Resize(admins.Length);
+            currMods.Resize(mods.Length);
+            for (uint i = 0; i < admins.Length; i++) {
+                currAdmins[i] = admins[i];
+            }
+            for (uint i = 0; i < mods.Length; i++) {
+                currMods[i] = mods[i];
+            }
+            return true;
+        }
+
+        void RemovePlayerFromTeams(const string &in uid) {
+            uidToTeamNb.Delete(uid);
+            for (uint i = 0; i < currTeams.Length; i++) {
+                auto @team = currTeams[i];
+                int ix = team.Find(uid);
+                while (ix >= 0) {
+                    team.RemoveAt(uint(ix));
+                    ix = team.Find(uid);
+                }
+            }
+        }
+
+        void AddPlayerToTeam(const string &in uid, int team) {
+            if (team < 0 or team >= roomInfo.n_teams) {
+                warn("Tried to add player to invalid team");
+                return;
+            }
+            uidToTeamNb[uid] = team;
+            currTeams[team].InsertLast(uid);
+        }
+
+        bool MsgHandler_TeamsEvent(Json::Value@ j) {
+            string type = j['type'];
+            if (type == "PLAYER_JOINED_TEAM") {
+                string uid = j['payload']['uid'];
+                int team = j['payload']['team'];
+                RemovePlayerFromTeams(uid);
+                AddPlayerToTeam(uid, team);
+            } else if (type == "LIST_TEAMS") {
+                auto teams = j['payload']['teams'];
+                if (IsJsonArray(teams) && IsJsonArray(teams[0])) {
+                    uidToTeamNb.DeleteAll();
+                    currTeams.Resize(teams.Length);
+                    for (uint i = 0; i < teams.Length; i++) {
+                        auto players = teams[i];
+                        currTeams[i].Resize(players.Length);
+                        for (uint pn = 0; pn < players.Length; pn++) {
+                            currTeams[i][pn] = players[pn];
+                        }
+                    }
+                } else warn("LIST_TEAMS incorrect payload format: " + Json::Write(j));
+            }
+            return true;
         }
 
         bool get_IsMainLobby() { return currScope == Scope::MainLobby; }
@@ -452,6 +540,12 @@ namespace Game {
         }
 
         /* Exposed Methods */
+
+        const string GetPlayerName(const string &in uid) {
+            string name;
+            if (currentPlayers.Get(uid, name)) return name;
+            return "??? " + uid.SubStr(0, 6);
+        }
 
         void SendChat(const string &in msg, CGF::Visibility visibility = CGF::Visibility::global) {
             auto pl = Json::Object();

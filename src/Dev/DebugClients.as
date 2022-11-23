@@ -444,7 +444,12 @@ class InRoomTab : Tab {
         markReady = newReady;
         PaddedSep();
         UI::Separator();
-        UI::Text("\nSelect a team:\n");
+        UI::AlignTextToFramePadding();
+        UI::Text("Select a team:");
+        UI::SameLine();
+        if (UI::Button(Icons::Refresh)) {
+            parent.client.SendPayload("LIST_TEAMS");
+        }
         DrawTeamSelection();
     }
 
@@ -456,7 +461,7 @@ class InRoomTab : Tab {
         UI::SameLine();
         auto jcPos = UI::GetCursorPos();
         UI::Text(txt);
-        UI::SetCursorPos(jcPos + vec2(60, 0));
+        UI::SetCursorPos(jcPos + vec2(70, 0));
         if (UI::Button("Copy")) IO::SetClipboard(jc);
         UI::SameLine();
         UI::Dummy(vec2(20, 0));
@@ -466,7 +471,7 @@ class InRoomTab : Tab {
 
     void DrawTeamSelection() {
         uint nTeams = parent.client.roomInfo.n_teams;
-        if (UI::BeginTable("team selection", nTeams+2, UI::TableFlags::SizingStretchProp)) {
+        if (UI::BeginTable("team selection", nTeams+2, UI::TableFlags::SizingFixedSame)) {
             UI::TableNextRow();
             UI::TableNextColumn(); // the first of the extra 2 columns; the second is implicit
             for (uint i = 0; i < nTeams; i++) {
@@ -483,20 +488,23 @@ class InRoomTab : Tab {
                 }
             }
 
-            uint maxPlayersInAnyTeam = 2;
-            bool teamNoPlayers = true;
+            uint maxPlayersInAnyTeam = parent.client.roomInfo.player_limit;
 
             for (uint pn = 0; pn < maxPlayersInAnyTeam; pn++) {
+                bool foundAnyPlayers = false;
                 UI::TableNextRow();
                 UI::TableNextColumn();
                 for (uint i = 0; i < nTeams; i++) {
+                    auto @team = parent.client.currTeams[i];
                     UI::TableNextColumn();
-                    if (pn == 0 && teamNoPlayers) {
+                    if (pn == 0 && team.Length == 0) {
                         UI::Text("No players in team " + (i + 1));
-                    } else if (teamNoPlayers) {
+                    } else if (pn >= team.Length) {
                         continue;
                     } else {
                         // todo: draw player name
+                        foundAnyPlayers = true;
+                        UI::Text(parent.client.GetPlayerName(team[pn]));
                     }
                 }
             }
@@ -506,6 +514,27 @@ class InRoomTab : Tab {
     }
 }
 
+
+
+// todo
+class AdminTab : Tab {
+    DebugClientWindow@ parent;
+
+    // todo: test permission system works
+
+    AdminTab(DebugClientWindow@ parent) {
+        @this.parent = parent;
+        super("Admin (Lobby/Room)");
+    }
+
+    // if: scope => info => admins => incl this account => show tab
+    // add/rm admins/mods, kick players
+    // if room => change room settings?
+
+    void DrawTab() override {
+        // if (parent.client)
+    }
+}
 
 
 

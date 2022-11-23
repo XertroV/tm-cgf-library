@@ -10,3 +10,22 @@ Json::Value@ JsonObject2(const string &in key, Json::Value@ v, const string &in 
     j[key2] = v2;
     return j;
 }
+
+
+const Json::Value@ EMPTY_JSON_OBJ = Json::Object();
+
+
+bool IsJsonArray(Json::Value@ j) {
+    if (j is null) return false;
+    return j.GetType() == Json::Type::Array;
+}
+
+bool IsJsonObject(Json::Value@ j) {
+    if (j is null) return false;
+    return j.GetType() == Json::Type::Object;
+}
+
+bool IsJsonString(Json::Value@ j) {
+    if (j is null) return false;
+    return j.GetType() == Json::Type::String;
+}
