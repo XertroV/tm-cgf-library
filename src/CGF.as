@@ -17,14 +17,21 @@ namespace Game {
         string name;
         string fileName;
         bool accountExists;
+        string clientUid;
         ClientState state = ClientState::Uninitialized;
         int connectedAt;
 
         dictionary currentPlayers;
+        dictionary readyStatus;
+        uint readyCount;
         string[] currAdmins;
         string[] currMods;
         string[][] currTeams;
         dictionary uidToTeamNb;
+        // timestamp of game start
+        float gameStartTS = -1.;
+        // game start relative to `Time::Now`
+        float gameStartTime = -1.;
 
         Json::Value@ latestServerInfo;
         // Json::Value@ lobbyInfo;
@@ -61,13 +68,15 @@ namespace Game {
             AddMessageHandler("ADMIN_MOD_STATUS", CGF::MessageHandler(MsgHandler_AdminModStatus));
             AddMessageHandler("LIST_TEAMS", CGF::MessageHandler(MsgHandler_TeamsEvent));
             AddMessageHandler("PLAYER_JOINED_TEAM", CGF::MessageHandler(MsgHandler_TeamsEvent));
-
-            // AddMessageHandler("PLAYER_READY", CGF::MessageHandler(MsgHandler_PlayerJoinedTeam));
-            // AddMessageHandler("ROOM_STATUS_INFO", CGF::MessageHandler(MsgHandler_PlayerJoinedTeam));
+            AddMessageHandler("PLAYER_READY", CGF::MessageHandler(MsgHandler_ReadyEvent));
+            AddMessageHandler("LIST_READY_STATUS", CGF::MessageHandler(MsgHandler_ReadyEvent));
+            AddMessageHandler("GAME_STARTING_AT", CGF::MessageHandler(MsgHandler_GameStartHandler));
+            AddMessageHandler("GAME_START_ABORT", CGF::MessageHandler(MsgHandler_GameStartHandler));
 
             name = _name.Length == 0 ? LocalPlayersName : _name;
             fileName = StorageFileTemplate.Replace("|CLIENTNAME|", name);
             accountExists = IO::FileExists(fileName);
+            OnChangedScope();
             Connect();
             while (!IsConnected) {
                 warn("Attempting reconnect during init in 1s");
@@ -155,6 +164,7 @@ namespace Game {
             // login if possible
             if (accountExists) {
                 auto deets = Json::FromFile(fileName);
+                clientUid = deets['uid'];
                 if (!Login(deets)) {
                     NotifyError("Failed to log in :(");
                     IO::Move(fileName, fileName + "_bak_" + Time::Stamp);
@@ -174,6 +184,7 @@ namespace Game {
                 else if ("REGISTERED" == resp['type']) {
                     accountExists = true;
                     Json::ToFile(fileName, resp['payload']);
+                    clientUid = resp['payload']['uid'];
                     NotifyInfo("Account Registered!");
                 } else {
                     warn("Error, got a bad response for registration request: " + Json::Write(resp));
@@ -236,7 +247,7 @@ namespace Game {
         bool Login(Json::Value@ account) {
             SendPayload("LOGIN", account, CGF::Visibility::none);
             auto resp = ReadMessage();
-            if (resp.GetType() != Json::Type::Object) return false;
+            if (!IsJsonObject(resp)) return false;
             if ("LOGGED_IN" != resp['type']) {
                 return false;
             }
@@ -365,11 +376,14 @@ namespace Game {
         }
 
         void OnChangedScope() {
-            this.currentPlayers.DeleteAll();
+            currentPlayers.DeleteAll();
+            readyStatus.DeleteAll();
             currAdmins.Resize(0);
             currMods.Resize(0);
             currTeams.Resize(0);
             uidToTeamNb.DeleteAll();
+            gameStartTS = -1.;
+            gameStartTime = -1.;
             // reset chat by strategically setting values to null -- very cheap
             @mainChat[chatNextIx == 0 ? (mainChat.Length - 1) : (chatNextIx - 1)] = null;
             @mainChat[chatNextIx] = null;
@@ -409,11 +423,14 @@ namespace Game {
 
         void RemovePlayer(const string &in uid) {
             currentPlayers.Delete(uid);
+            readyStatus.Delete(uid);
             RemovePlayerFromTeams(uid);
+            RecalcReadyCount();
         }
 
         void AddPlayer(const string &in uid, const string &in username) {
             currentPlayers[uid] = username;
+            readyStatus[uid] = false;
         }
 
         void UpdatePlayersFromCanonical(const Json::Value@ players) {
@@ -424,7 +441,9 @@ namespace Game {
             currentPlayers.DeleteAll();
             for (uint i = 0; i < players.Length; i++) {
                 auto item = players[i];
-                currentPlayers[item['uid']] = string(item['username']);
+                string uid = item['uid'];
+                currentPlayers[uid] = string(item['username']);
+                if (!readyStatus.Exists(uid)) readyStatus[uid] = false;
             }
         }
 
@@ -487,6 +506,49 @@ namespace Game {
             return true;
         }
 
+        bool MsgHandler_ReadyEvent(Json::Value@ j) {
+            string type = j['type'];
+            if (type == "LIST_READY_STATUS") {
+                auto uids = j['payload']['uids'];
+                auto ready = j['payload']['ready'];
+                if (IsJsonArray(uids) && IsJsonArray(ready)) {
+                    for (uint i = 0; i < uids.Length; i++) {
+                        readyStatus[uids[i]] = bool(ready[i]);
+                    }
+                }
+            }
+            else if (type == "PLAYER_READY") {
+                bool is_ready = j['payload']['is_ready'];
+                string uid = j['payload']['uid'];
+                readyStatus[uid] = is_ready;
+            }
+            RecalcReadyCount();
+            return true;
+        }
+
+        void RecalcReadyCount() {
+            readyCount = 0;
+            auto @keys = readyStatus.GetKeys();
+            for (uint i = 0; i < keys.Length; i++) {
+                if (bool(readyStatus[keys[i]])) readyCount += 1;
+            }
+        }
+
+        bool MsgHandler_GameStartHandler(Json::Value@ j) {
+            string type = j['type'];
+            if (type == "GAME_START_ABORT") {
+                gameStartTS = -1.;
+                gameStartTime = -1.;
+            }
+            else if (type == "GAME_STARTING_AT") {
+                auto pl = j['payload'];
+                gameStartTS = pl['start_time'];
+                gameStartTime = Time::Now + float(pl['wait_time']);
+            }
+            else throw("Uknown event");
+            return true;
+        }
+
         bool get_IsMainLobby() { return currScope == Scope::MainLobby; }
         bool get_IsInGameLobby() { return currScope == Scope::InGameLobby; }
         bool get_IsInRoom() { return currScope == Scope::InRoom; }
@@ -517,11 +579,21 @@ namespace Game {
         }
 
         array<Json::Value@>@ get_currSecondaryChatArray() {
-            if (IsMainLobby) return null;
-            if (IsInGameLobby) return null;
-            if (IsInRoom) return null;
+            // if (IsMainLobby) return null;
+            // if (IsInGameLobby) return null;
+            // if (IsInRoom) return null;
             if (IsInGame) return this.mapChat;
             return null;
+        }
+
+        uint secChatNextIx {
+            get {
+                if (IsInGame) return this.mapChatNextIx;
+                return 9999;  // should never be true
+            }
+            set {
+                if (IsInGame) this.roomChatNextIx = value;
+            }
         }
 
         void InsertToMainChat(Json::Value@ j) {
@@ -545,6 +617,17 @@ namespace Game {
             string name;
             if (currentPlayers.Get(uid, name)) return name;
             return "??? " + uid.SubStr(0, 6);
+        }
+
+        void MarkReady(bool isReady) {
+            readyStatus[clientUid] = isReady;
+            SendPayload("MARK_READY", JsonObject1("ready", Json::Value(isReady)));
+        }
+
+        bool GetReadyStatus(const string &in uid) {
+            bool rs;
+            if (readyStatus.Get(uid, rs)) return rs;
+            return false;
         }
 
         void SendChat(const string &in msg, CGF::Visibility visibility = CGF::Visibility::global) {

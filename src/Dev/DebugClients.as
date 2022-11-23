@@ -438,9 +438,10 @@ class InRoomTab : Tab {
         PaddedSep();
         auto pos = UI::GetCursorPos();
         UI::SetCursorPos(pos + vec2(UI::GetWindowContentRegionWidth() / 2. - 35., 0));
+        markReady = parent.client.GetReadyStatus(parent.client.clientUid);
         bool newReady = UI::Checkbox("Ready?##room-to-game", markReady);
         if (newReady != markReady)
-            parent.client.SendPayload("MARK_READY", JsonObject1("ready", Json::Value(newReady)), CGF::Visibility::global);
+            parent.client.MarkReady(newReady);
         markReady = newReady;
         PaddedSep();
         UI::Separator();
@@ -471,7 +472,7 @@ class InRoomTab : Tab {
 
     void DrawTeamSelection() {
         uint nTeams = parent.client.roomInfo.n_teams;
-        if (UI::BeginTable("team selection", nTeams+2, UI::TableFlags::SizingFixedSame)) {
+        if (UI::BeginTable("team selection", nTeams+2, UI::TableFlags::SizingStretchProp)) {
             UI::TableNextRow();
             UI::TableNextColumn(); // the first of the extra 2 columns; the second is implicit
             for (uint i = 0; i < nTeams; i++) {
@@ -504,7 +505,9 @@ class InRoomTab : Tab {
                     } else {
                         // todo: draw player name
                         foundAnyPlayers = true;
-                        UI::Text(parent.client.GetPlayerName(team[pn]));
+                        string uid = team[pn];
+                        bool ready = parent.client.GetReadyStatus(uid);
+                        UI::Text((ready ? Icons::Check : Icons::Times) + " | " + parent.client.GetPlayerName(uid));
                     }
                 }
             }

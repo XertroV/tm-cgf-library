@@ -6,29 +6,28 @@ class RoomInfo {
   private uint _player_limit;
   private MaybeOfString@ _join_code;
   private bool _is_public;
+  private uint _ready_count;
 
   /* Methods // Mixin: Default Constructor */
-  RoomInfo(const string &in name, uint n_teams, uint n_players, uint player_limit, MaybeOfString@ join_code, bool is_public) {
+  RoomInfo(const string &in name, uint n_teams, uint n_players, uint player_limit, MaybeOfString@ join_code, bool is_public, uint ready_count) {
     this._name = name;
     this._n_teams = n_teams;
     this._n_players = n_players;
     this._player_limit = player_limit;
     @this._join_code = join_code;
     this._is_public = is_public;
+    this._ready_count = ready_count;
   }
 
   /* Methods // Mixin: ToFrom JSON Object */
   RoomInfo(const Json::Value@ j) {
-    // try {
-      this._name = string(j["name"]);
-      this._n_teams = uint(j["n_teams"]);
-      this._n_players = uint(j["n_players"]);
-      this._player_limit = uint(j["player_limit"]);
-      @this._join_code = MaybeOfString(j["join_code"]);
-      this._is_public = bool(j["is_public"]);
-    // } catch {
-    //   OnFromJsonError(j);
-    // }
+    this._name = string(j["name"]);
+    this._n_teams = uint(j["n_teams"]);
+    this._n_players = uint(j["n_players"]);
+    this._player_limit = uint(j["player_limit"]);
+    @this._join_code = MaybeOfString(j["join_code"]);
+    this._is_public = bool(j["is_public"]);
+    this._ready_count = uint(j["ready_count"]);
   }
 
   Json::Value@ ToJson() {
@@ -39,6 +38,7 @@ class RoomInfo {
     j["player_limit"] = _player_limit;
     j["join_code"] = _join_code.ToJson();
     j["is_public"] = _is_public;
+    j["ready_count"] = _ready_count;
     return j;
   }
 
@@ -72,10 +72,14 @@ class RoomInfo {
     return this._is_public;
   }
 
+  uint get_ready_count() const {
+    return this._ready_count;
+  }
+
   /* Methods // Mixin: ToString */
   const string ToString() {
     return 'RoomInfo('
-      + string::Join({'name=' + name, 'n_teams=' + '' + n_teams, 'n_players=' + '' + n_players, 'player_limit=' + '' + player_limit, 'join_code=' + join_code.ToString(), 'is_public=' + '' + is_public}, ', ')
+      + string::Join({'name=' + name, 'n_teams=' + tostring(n_teams), 'n_players=' + tostring(n_players), 'player_limit=' + tostring(player_limit), 'join_code=' + join_code.ToString(), 'is_public=' + tostring(is_public), 'ready_count=' + tostring(ready_count)}, ', ')
       + ')';
   }
 
@@ -91,6 +95,7 @@ class RoomInfo {
       && _player_limit == other.player_limit
       && _join_code == other.join_code
       && _is_public == other.is_public
+      && _ready_count == other.ready_count
       ;
   }
 }
