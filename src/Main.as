@@ -3,8 +3,8 @@
 
 
 void Main() {
-    startnew(Loop);
-    startnew(Debug::Main);
+    // startnew(Loop);
+    // startnew(Debug::Main);
 }
 
 void Loop() {

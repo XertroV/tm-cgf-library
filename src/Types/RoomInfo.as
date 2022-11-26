@@ -79,7 +79,7 @@ class RoomInfo {
   /* Methods // Mixin: ToString */
   const string ToString() {
     return 'RoomInfo('
-      + string::Join({'name=' + name, 'n_teams=' + tostring(n_teams), 'n_players=' + tostring(n_players), 'player_limit=' + tostring(player_limit), 'join_code=' + join_code.ToString(), 'is_public=' + tostring(is_public), 'ready_count=' + tostring(ready_count)}, ', ')
+      + string::Join({'name=' + name, 'n_teams=' + tostring(n_teams), 'n_players=' + tostring(n_players), 'player_limit=' + tostring(player_limit), 'join_code=' + join_code.GetOr(""), 'is_public=' + tostring(is_public), 'ready_count=' + tostring(ready_count)}, ', ')
       + ')';
   }
 

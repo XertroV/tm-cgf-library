@@ -9,7 +9,7 @@ DebugClientWindow@[] allWindows;
 
 
 void Main() {
-    clientsTab.CreateAndAddNewClient();
+    // clientsTab.CreateAndAddNewClient();
 }
 
 
@@ -357,7 +357,9 @@ class RoomsTab : Tab {
                 auto room = rooms[i];
                 UI::TableNextColumn();
                 UI::AlignTextToFramePadding();
-                UI::Text(room.name);
+                auto nameParts = room.name.Split("##", 2);
+                auto _name = nameParts.Length > 1 ? nameParts [0] + " \\$888" + nameParts[1] : nameParts[0];
+                UI::Text(_name);
                 UI::TableNextColumn();
                 UI::Text(tostring(room.n_players) + " / " + tostring(room.player_limit));
                 UI::TableNextColumn();

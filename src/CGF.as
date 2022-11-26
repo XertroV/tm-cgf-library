@@ -106,6 +106,10 @@ namespace Game {
         }
 
         void Connect(uint timeout = 5000) {
+            if (state == ClientState::DoNotReconnect) {
+                warn("Refusing to reconnect since client state is DoNotReconnect");
+                return;
+            }
             state = ClientState::Connecting;
             // we must initialize a new socket here b/c otherwise we'll hang on reuse (i.e., via reconnect); fix is to restart the server (wtf?)
             @socket = Net::Socket();
@@ -327,12 +331,17 @@ namespace Game {
             SendPayload(type, EMPTY_JSON_OBJ, CGF::Visibility::global);
         }
 
-
         void SendRaw(const string &in msg) {
             uint16 len = msg.Length;
-            socket.Write(len);
-            if (len > 5) dev_print("Sending message of length: " + len + ": " + msg);
-            socket.WriteRaw(msg);
+            bool wrote = socket.Write(len);
+            if (wrote) {
+                if (len > 5) dev_print("Sending message of length: " + len + ": " + msg);
+                wrote = socket.WriteRaw(msg);
+            }
+            if (!wrote) {
+                // socket disconnected
+                this.Disconnect();
+            }
         }
 
         void SendLeave() {
@@ -345,8 +354,9 @@ namespace Game {
 
         void Disconnect() {
             if (IsDisconnected || IsTimedOut) return;
-            SendRaw("END");
+            // set disconnected first b/c SendRaw will try to disconnect upon failure
             state = ClientState::Disconnected;
+            SendRaw("END");
             print("Client for " + name + " sent END and disconnected.");
             this.socket.Close();
         }

@@ -1,5 +1,4 @@
 class Tab {
-    bool isSelected = false;
     bool canCloseTab = false;
 
     string tabName;
