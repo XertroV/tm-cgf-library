@@ -297,6 +297,9 @@ class RoomsTab : Tab {
     bool m_isPublic = true;
     int m_playerLimit = 2;
     int m_nbTeams = 2;
+    int m_nbMapsReq = 2;
+    int m_mapMinSecs = 15;
+    int m_mapMaxSecs = 45;
     uint createRoomTimeout = 0;
     string m_joinCode;
 
@@ -310,6 +313,36 @@ class RoomsTab : Tab {
         UI::EndDisabled();
     }
 
+    void DrawMapsNumMinMax() {
+        if (UI::BeginTable("creat-room-maps-min-max", 5, UI::TableFlags::SizingStretchProp)) {
+            UI::TableNextColumn();
+            UI::AlignTextToFramePadding();
+            TextSameLine("# Maps: ");
+            m_nbMapsReq = UI::SliderInt("##nb-maps", m_nbMapsReq, 1, 100);
+
+            UI::TableNextColumn();
+            UI::Dummy(vec2(20, 0));
+
+            UI::TableNextColumn();
+            TextSameLine("Min Len (s): ");
+            m_mapMinSecs = UI::InputInt("##min-len-s", m_mapMinSecs, 15);
+            m_mapMinSecs = Math::Floor(m_mapMinSecs / 15.0) * 15.0;
+
+            UI::TableNextColumn();
+            UI::Dummy(vec2(20, 0));
+
+            UI::TableNextColumn();
+            TextSameLine("Max Len (s): ");
+            m_mapMaxSecs = UI::InputInt("##max-len-s", m_mapMaxSecs, 15);
+            m_mapMaxSecs = Math::Ceil(m_mapMaxSecs / 15.0) * 15.0;
+            auto tmp = m_mapMinSecs;
+            m_mapMinSecs = Math::Max(0, Math::Min(m_mapMinSecs, m_mapMaxSecs));
+            m_mapMaxSecs = Math::Min(600, Math::Max(tmp, m_mapMaxSecs));
+
+            UI::EndTable();
+        }
+    }
+
     void DrawInner() override {
         if (parent.client.lobbyInfo is null) return;
         auto li = parent.client.lobbyInfo;
@@ -319,6 +352,7 @@ class RoomsTab : Tab {
         UI::AlignTextToFramePadding();
         UI::Text("Lobby Name: " + li.name);
         UI::Text("Nb Rooms: " + nbRooms);
+
         UI::Separator();
         bool changed;
         if (UI::CollapsingHeader("Create Room")) {
@@ -328,6 +362,7 @@ class RoomsTab : Tab {
             m_playerLimit = Math::Max(MIN_PLAYERS, Math::Min(MAX_PLAYERS, m_playerLimit));  // manual values can be inputed outside minmax range
             m_nbTeams = UI::SliderInt("Nb Teams", m_nbTeams, MIN_TEAMS, MAX_TEAMS);
             m_nbTeams = Math::Max(MIN_TEAMS, Math::Min(m_nbTeams, MAX_TEAMS));  // manual values can be inputed outside minmax range
+            DrawMapsNumMinMax();
             UI::BeginDisabled(Time::Now < createRoomTimeout);
             if (UI::Button("Create Room" + idSuffix)) {
                 createRoomTimeout = Time::Now + ROOM_TIMEOUT_MS;
@@ -391,6 +426,9 @@ class RoomsTab : Tab {
         pl['name'] = m_roomName;
         pl['player_limit'] = m_playerLimit;
         pl['n_teams'] = m_nbTeams;
+        pl['maps_required'] = m_nbMapsReq;
+        pl['min_secs'] = m_mapMinSecs;
+        pl['max_secs'] = m_mapMaxSecs;
         auto vis = m_isPublic ? CGF::Visibility::global : CGF::Visibility::none;
         parent.client.SendPayload("CREATE_ROOM", pl, vis);
         m_roomName = "";
@@ -437,16 +475,9 @@ class InRoomTab : Tab {
         UI::Text("Players: " + currNPlayers + " / " + pLimit);
         UI::Text("N Teams: " + nTeams);
         DrawJoinCode(joinCode);
-        PaddedSep();
-        auto pos = UI::GetCursorPos();
-        UI::SetCursorPos(pos + vec2(UI::GetWindowContentRegionWidth() / 2. - 35., 0));
-        markReady = parent.client.GetReadyStatus(parent.client.clientUid);
-        bool newReady = UI::Checkbox("Ready?##room-to-game", markReady);
-        if (newReady != markReady)
-            parent.client.MarkReady(newReady);
-        markReady = newReady;
-        PaddedSep();
-        UI::Separator();
+
+        DrawReadySection();
+
         UI::AlignTextToFramePadding();
         UI::Text("Select a team:");
         UI::SameLine();
@@ -454,6 +485,30 @@ class InRoomTab : Tab {
             parent.client.SendPayload("LIST_TEAMS");
         }
         DrawTeamSelection();
+    }
+
+    void DrawReadySection() {
+        PaddedSep();
+        auto pos = UI::GetCursorPos();
+        UI::SetCursorPos(pos + vec2(UI::GetWindowContentRegionWidth() / 3. - 35., 0));
+        markReady = parent.client.GetReadyStatus(parent.client.clientUid);
+        bool newReady = UI::Checkbox("Ready?##room-to-game", markReady);
+        if (newReady != markReady)
+            parent.client.MarkReady(newReady);
+        markReady = newReady;
+
+        UI::SetCursorPos(pos + vec2(UI::GetWindowContentRegionWidth() * 2. / 3. - 50., 0));
+        if (parent.client.IsGameNotStarted) {
+            UI::Text("Players Ready: " + parent.client.readyCount + " / " + parent.client.roomInfo.n_players);
+        } else if (parent.client.IsGameStartingSoon) {
+            UI::Text("Game Starting in " + Text::Format("%.1f", parent.client.GameStartingIn) + " (s)");
+        } else if (parent.client.IsGameStarted) {
+            UI::Text("Started");
+        } else {
+            UI::Text("Game State Unknown: " + tostring(parent.client.CurrGameState));
+        }
+
+        PaddedSep();
     }
 
     bool jcHidden = true;

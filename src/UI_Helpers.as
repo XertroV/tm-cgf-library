@@ -18,3 +18,8 @@ void PaddedSep(float scale=1.0) {
     UI::Separator();
     UI::Dummy(vec2(0, 6. * scale));
 }
+
+void TextSameLine(const string &in msg) {
+    UI::Text(msg);
+    UI::SameLine();
+}

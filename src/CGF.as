@@ -9,6 +9,10 @@ namespace Game {
         Uninitialized, Connecting, Connected, Disconnected, DoNotReconnect, TimedOut
     }
 
+    enum GameState {
+        None, NotStarted, StartingSoon, Started
+    }
+
     class Client : CGF::Client {
         Net::Socket@ socket = Net::Socket();
         string host;
@@ -33,6 +37,7 @@ namespace Game {
         // game start relative to `Time::Now`
         float gameStartTime = -1.;
 
+
         Json::Value@ latestServerInfo;
         // Json::Value@ lobbyInfo;
         LobbyInfo@ lobbyInfo;
@@ -53,6 +58,17 @@ namespace Game {
 
         Json::Value@ pendingMsgs;
         dictionary messageHandlers;
+
+        /**
+         *
+         *  dP""b8  dP"Yb  88b 88 88b 88 888888  dP""b8 888888 88  dP"Yb  88b 88
+         * dP   `" dP   Yb 88Yb88 88Yb88 88__   dP   `"   88   88 dP   Yb 88Yb88
+         * Yb      Yb   dP 88 Y88 88 Y88 88""   Yb        88   88 Yb   dP 88 Y88
+         *  YboodP  YbodP  88  Y8 88  Y8 888888  YboodP   88   88  YbodP  88  Y8
+         *
+         * CONNECTION
+         *
+         */
 
         // alternative user name is the optional param -- for testing
         Client(const string &in _name = "") {
@@ -248,26 +264,6 @@ namespace Game {
             }
         }
 
-        bool Login(Json::Value@ account) {
-            SendPayload("LOGIN", account, CGF::Visibility::none);
-            auto resp = ReadMessage();
-            if (!IsJsonObject(resp)) return false;
-            if ("LOGGED_IN" != resp['type']) {
-                return false;
-            }
-            return true;
-        }
-
-        Json::Value@ RegisterAccount() {
-            auto pl = Json::Object();
-            pl['username'] = name.StartsWith("DebugClient-") ? name : LocalPlayersName;
-            pl['wsid'] = LocalPlayersWSID;
-            SendPayload("REGISTER", pl, CGF::Visibility::none);
-            auto acct = ReadMessage();
-            dev_print("Got account: " + Json::Write(acct));
-            return acct;
-        }
-
         Json::Value@ ReadMessage() {
             while (IsConnected && !socket.CanRead() && socket.Available() < 2) yield();
             if (socket.Available() < 2) {
@@ -360,6 +356,79 @@ namespace Game {
             print("Client for " + name + " sent END and disconnected.");
             this.socket.Close();
         }
+
+        /**
+         * 88      dP"Yb   dP""b8 88 88b 88    dP    db    88   88 888888 88  88
+         * 88     dP   Yb dP   `" 88 88Yb88   dP    dPYb   88   88   88   88  88
+         * 88  .o Yb   dP Yb  "88 88 88 Y88  dP    dP__Yb  Y8   8P   88   888888
+         * 88ood8  YbodP   YboodP 88 88  Y8 dP    dP""""Yb `YbodP'   88   88  88
+         *
+         * LOGIN/AUTH
+         */
+
+        bool Login(Json::Value@ account) {
+            SendPayload("LOGIN", account, CGF::Visibility::none);
+            auto resp = ReadMessage();
+            if (!IsJsonObject(resp)) return false;
+            if ("LOGGED_IN" != resp['type']) {
+                return false;
+            }
+            return true;
+        }
+
+        Json::Value@ RegisterAccount() {
+            auto pl = Json::Object();
+            pl['username'] = name.StartsWith("DebugClient-") ? name : LocalPlayersName;
+            pl['wsid'] = LocalPlayersWSID;
+            SendPayload("REGISTER", pl, CGF::Visibility::none);
+            auto acct = ReadMessage();
+            dev_print("Got account: " + Json::Write(acct));
+            return acct;
+        }
+
+
+        /**
+         * .dP"Y8 888888    db    888888 888888
+         * `Ybo."   88     dPYb     88   88__
+         * o.`Y8b   88    dP__Yb    88   88""
+         * 8bodP'   88   dP""""Yb   88   888888
+         *
+         * STATE
+         */
+
+        // The current game state (room -> game)
+        GameState get_CurrGameState() {
+            if (IsInGame) return GameState::Started;
+            if (IsInRoom) {
+                if (gameStartTime < 0) return GameState::NotStarted;
+                if (gameStartTime > Time::Now) return GameState::StartingSoon;
+                if (gameStartTime <= Time::Now) return GameState::Started;
+            }
+            if (IsMainLobby || IsInGameLobby) return GameState::None;
+            warn("CurrGameState found all conditions were false, returning None as default.");
+            return GameState::None;
+        }
+
+        bool get_IsGameStartingSoon() { return CurrGameState == GameState::StartingSoon; }
+        bool get_IsGameStarted() { return CurrGameState == GameState::Started; }
+        bool get_IsGameNotStarted() { return CurrGameState == GameState::NotStarted; }
+        bool get_IsGameNone() { return CurrGameState == GameState::None; }
+
+        float get_GameStartingIn() {
+            if (IsGameStartingSoon || IsGameStarted) {
+                return float(gameStartTime - Time::Now) / 1000.;
+            }
+            return -1;
+        }
+
+        /**
+         * 88  88    db    88b 88 8888b.  88     888888     8b    d8 .dP"Y8  dP""b8 .dP"Y8
+         * 88  88   dPYb   88Yb88  8I  Yb 88     88__       88b  d88 `Ybo." dP   `" `Ybo."
+         * 888888  dP__Yb  88 Y88  8I  dY 88  .o 88""       88YbdP88 o.`Y8b Yb  "88 o.`Y8b
+         * 88  88 dP""""Yb 88  Y8 8888Y"  88ood8 888888     88 YY 88 8bodP'  YboodP 8bodP'
+         *
+         * HANDLE MSGs
+         */
 
         CGF::MessageHandler@[] emptyMsgHandlers;
         CGF::MessageHandler@[]@ GetMessageHandlers(const string &in type) {
@@ -553,7 +622,7 @@ namespace Game {
             else if (type == "GAME_STARTING_AT") {
                 auto pl = j['payload'];
                 gameStartTS = pl['start_time'];
-                gameStartTime = Time::Now + float(pl['wait_time']);
+                gameStartTime = Time::Now + float(pl['wait_time'] * 1000.);
             }
             else throw("Uknown event");
             return true;

@@ -7,9 +7,16 @@ class RoomInfo {
   private MaybeOfString@ _join_code;
   private bool _is_public;
   private uint _ready_count;
+  private uint _n_maps;
+  private uint _min_secs;
+  private uint _max_secs;
 
   /* Methods // Mixin: Default Constructor */
-  RoomInfo(const string &in name, uint n_teams, uint n_players, uint player_limit, MaybeOfString@ join_code, bool is_public, uint ready_count) {
+  RoomInfo(
+    const string &in name, uint n_teams, uint n_players, uint player_limit,
+    MaybeOfString@ join_code, bool is_public, uint ready_count,
+    uint n_maps, uint min_secs, uint max_secs
+  ) {
     this._name = name;
     this._n_teams = n_teams;
     this._n_players = n_players;
@@ -17,6 +24,9 @@ class RoomInfo {
     @this._join_code = join_code;
     this._is_public = is_public;
     this._ready_count = ready_count;
+    this._n_maps = n_maps;
+    this._min_secs = min_secs;
+    this._max_secs = max_secs;
   }
 
   /* Methods // Mixin: ToFrom JSON Object */
@@ -28,6 +38,9 @@ class RoomInfo {
     @this._join_code = MaybeOfString(j["join_code"]);
     this._is_public = bool(j["is_public"]);
     this._ready_count = uint(j["ready_count"]);
+    this._n_maps = uint(j["n_maps"]);
+    this._min_secs = uint(j["min_secs"]);
+    this._max_secs = uint(j["max_secs"]);
   }
 
   Json::Value@ ToJson() {
@@ -39,6 +52,9 @@ class RoomInfo {
     j["join_code"] = _join_code.ToJson();
     j["is_public"] = _is_public;
     j["ready_count"] = _ready_count;
+    j["n_maps"] = _n_maps;
+    j["min_secs"] = _min_secs;
+    j["max_secs"] = _max_secs;
     return j;
   }
 
@@ -76,10 +92,27 @@ class RoomInfo {
     return this._ready_count;
   }
 
+  uint get_n_maps() const {
+    return this._n_maps;
+  }
+
+  uint get_min_secs() const {
+    return this._min_secs;
+  }
+
+  uint get_max_secs() const {
+    return this._max_secs;
+  }
+
   /* Methods // Mixin: ToString */
   const string ToString() {
     return 'RoomInfo('
-      + string::Join({'name=' + name, 'n_teams=' + tostring(n_teams), 'n_players=' + tostring(n_players), 'player_limit=' + tostring(player_limit), 'join_code=' + join_code.GetOr(""), 'is_public=' + tostring(is_public), 'ready_count=' + tostring(ready_count)}, ', ')
+      + string::Join({
+        'name=' + name, 'n_teams=' + tostring(n_teams), 'n_players=' + tostring(n_players),
+        'player_limit=' + tostring(player_limit), 'join_code=' + join_code.GetOr(""), 'is_public=' + tostring(is_public),
+        'ready_count=' + tostring(ready_count),
+        'n_maps=' + n_maps, 'min_secs=' + min_secs, 'max_secs=' + max_secs
+      }, ', ')
       + ')';
   }
 
@@ -96,6 +129,9 @@ class RoomInfo {
       && _join_code == other.join_code
       && _is_public == other.is_public
       && _ready_count == other.ready_count
+      && _n_maps == other.n_maps
+      && _min_secs == other.min_secs
+      && _max_secs == other.max_secs
       ;
   }
 }
