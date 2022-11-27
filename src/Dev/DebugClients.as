@@ -95,6 +95,14 @@ class DebugClientWindow {
 }
 
 
+
+void DrawRoomName(RoomInfo@ room) {
+    auto nameParts = room.name.Split("##", 2);
+    auto _name = nameParts.Length > 1 ? nameParts [0] + " \\$888" + nameParts[1] : nameParts[0];
+    UI::Text(_name);
+}
+
+
 class ClientsTab : Tab {
     ClientsTab() {
         super("Clients");
@@ -392,9 +400,7 @@ class RoomsTab : Tab {
                 auto room = rooms[i];
                 UI::TableNextColumn();
                 UI::AlignTextToFramePadding();
-                auto nameParts = room.name.Split("##", 2);
-                auto _name = nameParts.Length > 1 ? nameParts [0] + " \\$888" + nameParts[1] : nameParts[0];
-                UI::Text(_name);
+                DrawRoomName(room);
                 UI::TableNextColumn();
                 UI::Text(tostring(room.n_players) + " / " + tostring(room.player_limit));
                 UI::TableNextColumn();
@@ -467,7 +473,9 @@ class InRoomTab : Tab {
             parent.client.SendLeave();
         }
         UI::SetCursorPos(initPos);
-        UI::Text("Name: " + RoomName);
+        UI::Text("Name: ");
+        UI::SameLine();
+        DrawRoomName(parent.client.roomInfo);
         uint currNPlayers = parent.client.roomInfo.n_players;
         uint pLimit = parent.client.roomInfo.player_limit;
         uint nTeams = parent.client.roomInfo.n_teams;
