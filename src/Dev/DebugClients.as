@@ -8,6 +8,15 @@ Game::Client@[] allClients;
 DebugClientWindow@[] allWindows;
 
 
+void RemoveDebugClient(Game::Client@ client, DebugClientWindow@ window) {
+    auto c = allClients.FindByRef(client);
+    auto w = allWindows.FindByRef(window);
+    if (c >= 0) @allClients[c] = null;
+    if (w >= 0) @allWindows[w] = null;
+    client.Shutdown();
+}
+
+
 void Main() {
     // clientsTab.CreateAndAddNewClient();
 }
@@ -15,6 +24,7 @@ void Main() {
 
 void RenderInterface() {
     for (uint i = 0; i < allWindows.Length; i++) {
+        if (allWindows[i] is null) continue;
         allWindows[i].RenderInterface();
     }
     if (!S_ShowClientsDebugWindow) return;
@@ -79,7 +89,14 @@ class DebugClientWindow {
         if (!windowVisible) return;
         UI::SetNextWindowSize(850, 600);
         if (UI::Begin(Meta::ExecutingPlugin().Name + " Client Debug: " + client.name, windowVisible)) {
+            vec2 pos = UI::GetCursorPos();
             UI::Text("State: " + tostring(client.state));
+            vec2 nextPos = UI::GetCursorPos();
+            UI::SetCursorPos(pos + vec2(UI::GetWindowContentRegionWidth() - 100, 0));
+            if (UI::Button("Disconnect")) {
+                RemoveDebugClient(client, this);
+            }
+            UI::SetCursorPos(nextPos);
             UI::Text("Connected For: " + Time::Format(uint32(client.ConnectionDuration), false, true, false));
             UI::Text("Curr Scope: " + tostring(client.currScope));
             if (client.lobbyInfo !is null) UI::Text("Curr Lobby Info: " + client.lobbyInfo.PrettyString());
@@ -126,6 +143,7 @@ class ClientsTab : Tab {
         } else {
             for (uint i = 0; i < allWindows.Length; i++) {
                 auto window = allWindows[i];
+                if (window is null) continue;
                 window.client.DrawDebug();
                 if (UI::Button((window.windowVisible ? "Hide" : "Show") + "##" + window.client.name)) {
                     window.windowVisible = !window.windowVisible;

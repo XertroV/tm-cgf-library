@@ -6,7 +6,7 @@ namespace Game {
     }
 
     enum ClientState {
-        Uninitialized, Connecting, Connected, Disconnected, DoNotReconnect, TimedOut
+        Uninitialized, Connecting, Connected, Disconnected, DoNotReconnect, TimedOut, Shutdown
     }
 
     enum GameState {
@@ -109,9 +109,15 @@ namespace Game {
             Disconnect();
         }
 
+        void Shutdown() {
+            Disconnect();
+            state = ClientState::Shutdown;
+        }
+
         void ReconnectIfPossible() {
-            while (state != ClientState::DoNotReconnect) {
+            while (!IsDoNotReconnect && !IsShutdown) {
                 yield();
+                if (IsShutdown || IsDoNotReconnect) return;
                 if (!socket.CanWrite() && !socket.CanRead() && socket.Available() == 0) state = ClientState::Disconnected;
                 if (IsDisconnected || IsTimedOut) {
                     warn("[ReconnectIfPossible] in 0.5s");
@@ -122,8 +128,8 @@ namespace Game {
         }
 
         void Connect(uint timeout = 5000) {
-            if (state == ClientState::DoNotReconnect) {
-                warn("Refusing to reconnect since client state is DoNotReconnect");
+            if (IsDoNotReconnect || IsShutdown) {
+                warn("Refusing to reconnect since client state is DoNotReconnect or Shutdown");
                 return;
             }
             state = ClientState::Connecting;
@@ -159,6 +165,7 @@ namespace Game {
         bool get_IsDisconnected() { return state == ClientState::Disconnected; }
         bool get_IsTimedOut() { return state == ClientState::TimedOut; }
         bool get_IsDoNotReconnect() { return state == ClientState::DoNotReconnect; }
+        bool get_IsShutdown() { return state == ClientState::Shutdown; }
         bool get_IsReconnectable() { return IsDisconnected || IsTimedOut; }
 
         void Reconnect(uint timeout = 5000) {
@@ -349,7 +356,7 @@ namespace Game {
         }
 
         void Disconnect() {
-            if (IsDisconnected || IsTimedOut) return;
+            if (IsDisconnected || IsTimedOut || IsShutdown) return;
             // set disconnected first b/c SendRaw will try to disconnect upon failure
             state = ClientState::Disconnected;
             SendRaw("END");
