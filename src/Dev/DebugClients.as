@@ -69,6 +69,7 @@ class DebugClientWindow {
     ChatTab@ chatTab;
     RoomsTab@ roomsTab;
     InRoomTab@ inRoomTab;
+    InGameTab@ inGameTab;
     Tab@[] tabs;
 
     DebugClientWindow(Game::Client@ client) {
@@ -77,10 +78,12 @@ class DebugClientWindow {
         @chatTab = ChatTab(this);
         @roomsTab = RoomsTab(this);
         @inRoomTab = InRoomTab(this);
+        @inGameTab = InGameTab(this);
         tabs.InsertLast(chatTab);
         tabs.InsertLast(lobbiesTab);
         tabs.InsertLast(roomsTab);
         tabs.InsertLast(inRoomTab);
+        tabs.InsertLast(inGameTab);
         windowVisible = true;
         client.AddMessageHandler("LOBBY_LIST", CGF::MessageHandler(lobbiesTab.OnLobbyList));
     }
@@ -323,7 +326,7 @@ class RoomsTab : Tab {
     bool m_isPublic = true;
     int m_playerLimit = 2;
     int m_nbTeams = 2;
-    int m_nbMapsReq = 2;
+    int m_nbMapsReq = 9;
     int m_mapMinSecs = 15;
     int m_mapMaxSecs = 45;
     uint createRoomTimeout = 0;
@@ -461,6 +464,42 @@ class RoomsTab : Tab {
 
 
 
+class InGameTab : Tab {
+    DebugClientWindow@ parent;
+    TicTacGo@ ttg;
+
+    InGameTab(DebugClientWindow@ parent) {
+        @this.parent = parent;
+        @this.ttg = TicTacGo(parent.client);
+        @parent.client.gameEngine = this.ttg;
+        super("Current Game");
+    }
+
+    void Reset() {
+        this.ttg.ResetState();
+    }
+
+    int lastScope = -1;
+
+    void DrawTab() override
+    {
+        if (lastScope != parent.client.currScope) Reset();
+        if (parent.client.currScope < 3) return;
+        if (parent.client.gameInfoFull is null) return;
+        if (UI::BeginTabItem(tabName, TabFlags)) {
+            DrawInner();
+            UI::EndTabItem();
+        }
+    }
+
+    void DrawInner() override {
+        // UI::Text(parent.client.gameInfoFull.ToString());
+        this.ttg.RenderInterface();
+    }
+}
+
+
+
 class InRoomTab : Tab {
     DebugClientWindow@ parent;
     bool markReady = false;
@@ -516,22 +555,30 @@ class InRoomTab : Tab {
     void DrawReadySection() {
         PaddedSep();
         auto pos = UI::GetCursorPos();
-        UI::SetCursorPos(pos + vec2(UI::GetWindowContentRegionWidth() / 3. - 35., 0));
-        markReady = parent.client.GetReadyStatus(parent.client.clientUid);
-        bool newReady = UI::Checkbox("Ready?##room-to-game", markReady);
-        if (newReady != markReady)
-            parent.client.MarkReady(newReady);
-        markReady = newReady;
 
-        UI::SetCursorPos(pos + vec2(UI::GetWindowContentRegionWidth() * 2. / 3. - 50., 0));
-        if (parent.client.IsGameNotStarted) {
-            UI::Text("Players Ready: " + parent.client.readyCount + " / " + parent.client.roomInfo.n_players);
-        } else if (parent.client.IsGameStartingSoon) {
-            UI::Text("Game Starting in " + Text::Format("%.1f", parent.client.GameStartingIn) + " (s)");
-        } else if (parent.client.IsGameStarted) {
-            UI::Text("Started");
+        if (parent.client.roomInfo.game_start_time <= float(Time::Stamp)) {
+            UI::SetCursorPos(pos + vec2(UI::GetWindowContentRegionWidth() / 2. - 50., 0));
+            if (UI::Button("Game started. Rejoin!")) {
+                parent.client.SendPayload("JOIN_GAME_NOW");
+            }
         } else {
-            UI::Text("Game State Unknown: " + tostring(parent.client.CurrGameState));
+            UI::SetCursorPos(pos + vec2(UI::GetWindowContentRegionWidth() / 3. - 35., 0));
+            markReady = parent.client.GetReadyStatus(parent.client.clientUid);
+            bool newReady = UI::Checkbox("Ready?##room-to-game", markReady);
+            if (newReady != markReady)
+                parent.client.MarkReady(newReady);
+            markReady = newReady;
+
+            UI::SetCursorPos(pos + vec2(UI::GetWindowContentRegionWidth() * 2. / 3. - 50., 0));
+            if (parent.client.IsGameNotStarted) {
+                UI::Text("Players Ready: " + parent.client.readyCount + " / " + parent.client.roomInfo.n_players);
+            } else if (parent.client.IsGameStartingSoon) {
+                UI::Text("Game Starting in " + Text::Format("%.1f", parent.client.GameStartingIn) + " (s)");
+            } else if (parent.client.IsGameStarted) {
+                UI::Text("Started");
+            } else {
+                UI::Text("Game State Unknown: " + tostring(parent.client.CurrGameState));
+            }
         }
 
         PaddedSep();

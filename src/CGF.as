@@ -37,11 +37,11 @@ namespace Game {
         // game start relative to `Time::Now`
         float gameStartTime = -1.;
 
-
         Json::Value@ latestServerInfo;
         // Json::Value@ lobbyInfo;
         LobbyInfo@ lobbyInfo;
         RoomInfo@ roomInfo;
+        GameInfoFull@ gameInfoFull;
 
         Scope currScope = Scope::MainLobby;
         Scope priorScope = Scope::MainLobby;
@@ -58,6 +58,8 @@ namespace Game {
 
         Json::Value@ pendingMsgs;
         dictionary messageHandlers;
+
+        Engine@ gameEngine;
 
         /**
          *
@@ -88,6 +90,8 @@ namespace Game {
             AddMessageHandler("LIST_READY_STATUS", CGF::MessageHandler(MsgHandler_ReadyEvent));
             AddMessageHandler("GAME_STARTING_AT", CGF::MessageHandler(MsgHandler_GameStartHandler));
             AddMessageHandler("GAME_START_ABORT", CGF::MessageHandler(MsgHandler_GameStartHandler));
+            //
+            AddMessageHandler("GAME_INFO_FULL", CGF::MessageHandler(MsgHandler_GameInfoFull));
 
             name = _name.Length == 0 ? LocalPlayersName : _name;
             fileName = StorageFileTemplate.Replace("|CLIENTNAME|", name);
@@ -217,23 +221,27 @@ namespace Game {
                     warn("Error, got a bad response for registration request: " + Json::Write(resp));
                 }
             }
-            RejoinIfPriorScope();
+            // RejoinIfPriorScope();
             startnew(CoroutineFunc(SendPingLoop));  // send PING every 5s
             startnew(CoroutineFunc(ReadAllMessagesForever));
         }
 
-        void RejoinIfPriorScope() {
-            // if we were connected and in a game lobby, room, or game
-            if (priorScope > 0 && lobbyInfo !is null) {
-                SendPayload("JOIN_LOBBY", JsonObject1("name", lobbyInfo.name));
-                if (priorScope > 1 && roomInfo !is null) {
-                    if (roomInfo.join_code.IsSome())
-                        SendPayload("JOIN_CODE", JsonObject1("code", roomInfo.join_code.GetOr("")));
-                    else
-                        SendPayload("JOIN_ROOM", JsonObject1("name", roomInfo.name));
-                }
-            }
-        }
+        // rejoin handled on server side now
+        // void RejoinIfPriorScope() {
+        //     // if we were connected and in a game lobby, room, or game
+        //     if (priorScope > 0 && lobbyInfo !is null) {
+        //         SendPayload("JOIN_LOBBY", JsonObject1("name", lobbyInfo.name));
+        //         if (priorScope > 1 && roomInfo !is null) {
+        //             if (roomInfo.join_code.IsSome())
+        //                 SendPayload("JOIN_CODE", JsonObject1("code", roomInfo.join_code.GetOr("")));
+        //             else
+        //                 SendPayload("JOIN_ROOM", JsonObject1("name", roomInfo.name));
+        //             if (priorScope > 2 && gameInfoFull !is null) {
+        //                 SendPayload("JOIN_GAME_NOW");
+        //             }
+        //         }
+        //     }
+        // }
 
         void ReadAllMessagesForever() {
             string type;
@@ -252,10 +260,14 @@ namespace Game {
                     else if (msg["type"].GetType() != Json::Type::String) warn("msg type not a string: " + Json::Write(msg));
                     else {
                         type = msg["type"];
-                        auto handlers = GetMessageHandlers(type);
-                        if (handlers is null) throw("handlers should never be null!");
-                        for (uint i = 0; i < handlers.Length; i++) handlers[i](msg);
-                        if (handlers.Length == 0) warn("Unhandled message of type: " + type);
+                        if (type.StartsWith("G_") && IsInGame) {
+                            gameEngine.MessageHandler(msg);
+                        } else {
+                            auto handlers = GetMessageHandlers(type);
+                            if (handlers is null) throw("handlers should never be null!");
+                            for (uint i = 0; i < handlers.Length; i++) handlers[i](msg);
+                            if (handlers.Length == 0) warn("Unhandled message of type: " + type);
+                        }
                     }
                 }
             }
@@ -455,6 +467,7 @@ namespace Game {
 
         void MsgHandler_Scope(Json::Value@ j) {
             // format: "<int>|<string>"
+            priorScope = currScope;
             this.currScope = Scope(string(j["scope"])[0] - 0x30);
             this.scopeName = string(j["scope"]).SubStr(2);
             // on scope change
@@ -466,7 +479,7 @@ namespace Game {
             readyStatus.DeleteAll();
             currAdmins.Resize(0);
             currMods.Resize(0);
-            currTeams.Resize(0);
+            // currTeams.Resize(0);
             uidToTeamNb.DeleteAll();
             gameStartTS = -1.;
             gameStartTime = -1.;
@@ -474,6 +487,13 @@ namespace Game {
             @mainChat[chatNextIx == 0 ? (mainChat.Length - 1) : (chatNextIx - 1)] = null;
             @mainChat[chatNextIx] = null;
             @mainChat[(chatNextIx + 1) % mainChat.Length] = null;
+            //
+            if (IsInGame) {
+                startnew(CoroutineFunc(gameEngine.OnGameStart));
+            }
+            if (priorScope == 3 && IsInRoom) {
+                startnew(CoroutineFunc(gameEngine.OnGameEnd));
+            }
         }
 
         bool MsgHandler_LobbyInfo(Json::Value@ j) {
@@ -630,8 +650,21 @@ namespace Game {
                 auto pl = j['payload'];
                 gameStartTS = pl['start_time'];
                 gameStartTime = Time::Now + float(pl['wait_time'] * 1000.);
+                startnew(CoroutineFunc(JoinGameWhenReady));
             }
             else throw("Uknown event");
+            return true;
+        }
+
+        void JoinGameWhenReady() {
+            while (IsGameStartingSoon)
+                yield();
+            if (!IsGameStarted) return;
+            SendPayload("JOIN_GAME_NOW");
+        }
+
+        bool MsgHandler_GameInfoFull(Json::Value@ j) {
+            @gameInfoFull = GameInfoFull(j["payload"]);
             return true;
         }
 

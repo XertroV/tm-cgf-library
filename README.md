@@ -13,8 +13,8 @@ GL HF
 
 todo:
 
-- reconnect
-  - DNRC command (do not reconnect)
-- rooms
+- DNRC command (do not reconnect)
 - games
-  - elo / ranked
+  - join game on start timer expiry
+  - game engine
+  - elo / ranked?

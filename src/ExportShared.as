@@ -20,4 +20,8 @@ namespace CGF {
         const string get_Name();
         const string get_Id();
     }
+
+    interface GameEngine {
+        // void ProcessGameMessage(const string &in )
+    }
 }

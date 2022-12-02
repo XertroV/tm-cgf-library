@@ -10,12 +10,13 @@ class RoomInfo {
   private uint _n_maps;
   private uint _min_secs;
   private uint _max_secs;
+  private float _game_start_time;
 
   /* Methods // Mixin: Default Constructor */
   RoomInfo(
     const string &in name, uint n_teams, uint n_players, uint player_limit,
     MaybeOfString@ join_code, bool is_public, uint ready_count,
-    uint n_maps, uint min_secs, uint max_secs
+    uint n_maps, uint min_secs, uint max_secs, float game_start_time
   ) {
     this._name = name;
     this._n_teams = n_teams;
@@ -27,6 +28,7 @@ class RoomInfo {
     this._n_maps = n_maps;
     this._min_secs = min_secs;
     this._max_secs = max_secs;
+    this._game_start_time = game_start_time;
   }
 
   /* Methods // Mixin: ToFrom JSON Object */
@@ -41,6 +43,7 @@ class RoomInfo {
     this._n_maps = uint(j["n_maps"]);
     this._min_secs = uint(j["min_secs"]);
     this._max_secs = uint(j["max_secs"]);
+    this._game_start_time = float(j["game_start_time"]);
   }
 
   Json::Value@ ToJson() {
@@ -102,6 +105,10 @@ class RoomInfo {
 
   uint get_max_secs() const {
     return this._max_secs;
+  }
+
+  float get_game_start_time() const {
+    return this._game_start_time;
   }
 
   /* Methods // Mixin: ToString */
