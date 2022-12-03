@@ -5,6 +5,7 @@ enum TTGSquareState {
 }
 
 UI::Font@ boardFont = UI::LoadFont("DroidSans.ttf", 40., -1, -1, true, true, true);
+UI::Font@ hoverUiFont = UI::LoadFont("DroidSans.ttf", 20., -1, -1, true, true, true);
 int defaultNvgFont = nvg::LoadFont("DroidSans.ttf", true, true);
 
 enum TTGGameState {
@@ -91,10 +92,15 @@ class TicTacGo : Game::Engine {
     }
 
     const string get_OpponentsName() {
-        string uid = (GameInfo.teams[0][0] == client.clientUid)
-            ? GameInfo.teams[1][0]
-            : GameInfo.teams[0][0];
-        return client.GetPlayerName(uid);
+        return client.GetPlayerName(GameInfo.teams[int(TheyArePlayer)][0]);
+    }
+
+    const string get_MyName() {
+        return client.GetPlayerName(GameInfo.teams[int(IAmPlayer)][0]);
+    }
+
+    const string GetPlayersName(TTGSquareState p) {
+        return client.GetPlayerName(GameInfo.teams[int(p)][0]);
     }
 
     void SetPlayers() {
@@ -141,24 +147,38 @@ class TicTacGo : Game::Engine {
         return IAmPlayer == boardState[col][row];
     }
 
+    bool SquareOwnedByThem(int col, int row) const {
+        return TheyArePlayer == boardState[col][row];
+    }
+
     void Render() {
         if (!CurrentlyInMap) return;
         // print("render? " + challengeStartTime + ", gt: " + currGameTime);
         if (challengeStartTime < 0) return;
         if (currGameTime < 0) return;
+        if (!challengeRunActive) return;
         // print("render going ahead");
-        auto duration = currGameTime - challengeStartTime;
+        auto duration = challengeEndTime - challengeStartTime;
         string sign = duration < 0 ? "-" : "";
         duration = Math::Abs(duration);
         nvg::Reset();
         nvg::TextAlign(nvg::Align::Center | nvg::Align::Top);
         nvg::FontFace(defaultNvgFont);
-        nvg::FontSize(150);
+        auto fs = Draw::GetHeight() * 0.07;
+        nvg::FontSize(fs);
         auto textPos = S_TimerPosition;
         nvg::FillColor(vec4(0, 0, 0, 1));
-        nvg::Text(textPos + vec2(13, 13), sign + Time::Format(duration));
+        nvg::Text(textPos + vec2(5, 5), sign + Time::Format(duration));
         nvg::FillColor(vec4(1, 1, 1, 1));
         nvg::Text(textPos, sign + Time::Format(duration));
+        if (challengeResult.HasResultFor(TheyArePlayer)) {
+            textPos += vec2(0, fs * 1.05);
+            fs /= 2.;
+            nvg::FontSize(fs);
+            nvg::FillColor(vec4(.8, .4, 0, 1));
+            nvg::Text(textPos, OpponentsName + "'s Time: " + Time::Format(challengeResult.GetResultFor(TheyArePlayer)));
+
+        }
     }
 
     void RenderInterface() {
@@ -269,10 +289,12 @@ class TicTacGo : Game::Engine {
         string id = "##sq-" + col + "," + row;
 
         bool isBeingChallenged = IsInChallenge && challengeResult.col == col && challengeResult.row == row;
+        bool ownedByMe = SquareOwnedByMe(col, row);
+        bool ownedByThem = SquareOwnedByThem(col, row);
 
         UI::PushFont(boardFont);
-        UI::BeginDisabled(IsInChallenge || IsGameFinished || not IsMyTurn || waitingForOwnMove || SquareOwnedByMe(col, row));
-        bool clicked = _SquareButton(label + id, size, isBeingChallenged);
+        UI::BeginDisabled(IsInChallenge || IsGameFinished || not IsMyTurn || waitingForOwnMove || ownedByMe);
+        bool clicked = _SquareButton(label + id, size, col, row, isBeingChallenged, ownedByMe, ownedByThem);
         UI::EndDisabled();
         UI::PopFont();
 
@@ -287,12 +309,36 @@ class TicTacGo : Game::Engine {
 
     vec4 btnChallengeCol = vec4(.8, .4, 0, 1);
 
-    bool _SquareButton(const string &in id, vec2 size, bool isBeingChallenged) {
+    bool _SquareButton(const string &in id, vec2 size, int col, int row, bool isBeingChallenged, bool  ownedByMe, bool ownedByThem) {
         if (isBeingChallenged) {
             UI::PushStyleColor(UI::Col::Button, btnChallengeCol);
         }
         bool clicked = UI::Button(id, size);
+        bool isHovered = UI::IsItemHovered();
         if (isBeingChallenged) UI::PopStyleColor(1);
+        if (isHovered) {
+            UI::BeginTooltip();
+            UI::PushFont(hoverUiFont);
+
+            if (ownedByMe) {
+                // button disabled so never hovers
+                // UI::Text("(You already claimed this square)");
+            } else if (ownedByThem) {
+                UI::Text("Challenge " + OpponentsName);
+                UI::Separator();
+                auto map = GetMap(col, row);
+                int tid = map['TrackID'];
+                UI::Text(ColoredString(map['Name']));
+                UI::Text(map['LengthName']);
+                UI::Text(map['DifficultyName']);
+                DrawThumbnail(tostring(tid), 256);
+            } else {
+                UI::Text("Go Here.\nMystery Map.");
+            }
+
+            UI::PopFont();
+            UI::EndTooltip();
+        }
         return clicked;
     }
 
@@ -470,6 +516,8 @@ class TicTacGo : Game::Engine {
             if (!challengeResult.active) throw("challenge is not active");
             challengeResult.SetPlayersTime(lastFrom, int(pl['time']));
             if (challengeResult.IsResolved) {
+                if (seq >= client.GameReplayNbMsgs)
+                    sleep(3000); // sleep a little to show result; otherwise rush thru b/c it's a replay event
                 challengeResult.Reset();
                 SetSquareState(challengeResult.col, challengeResult.row, challengeResult.Winner);
                 state = TTGGameState::WaitingForMove;
@@ -486,7 +534,7 @@ class TicTacGo : Game::Engine {
                 if (sqState == TTGSquareState::Unclaimed) throw('invalid, square claimed');
                 if (sqState == ActivePlayer) throw('invalid, cant challenge self');
                 // begin challenge
-                challengeResult.Activate(col, row);
+                challengeResult.Activate(col, row, ActivePlayer);
                 state = TTGGameState::InChallenge;
                 // if (seq >= client.GameReplayNbMsgs)
                 startnew(CoroutineFunc(BeginChallengeSoon));
@@ -507,14 +555,18 @@ class TicTacGo : Game::Engine {
     void BeginChallengeSoon() {
         auto col = challengeResult.col;
         auto row = challengeResult.row;
-        int mapIx = row * 3 + col;
-        if (mapIx >= client.mapsList.Length) throw('bad map index');
-        auto map = client.mapsList[mapIx];
+        auto map = GetMap(col, row);
         @currMap = map;
         currTrackId = map['TrackID'];
         currTrackIdStr = tostring(currTrackId);
         challengeResult.startTime = Time::Now + 3000;
         sleep(3000);
+    }
+
+    Json::Value@ GetMap(int col, int row) {
+        int mapIx = row * 3 + col;
+        if (mapIx >= client.mapsList.Length) throw('bad map index');
+        return client.mapsList[mapIx];
     }
 
     // void LoadMapNow(const string &in url) {
@@ -528,6 +580,7 @@ class TicTacGo : Game::Engine {
 
     void DrawChallengeWindow() {
         if (!IsInChallenge || CurrentlyInMap) return;
+        if (currMap is null) return;
         auto flags = UI::WindowFlags::NoTitleBar
             | UI::WindowFlags::AlwaysAutoResize;
         UI::PushStyleVar(UI::StyleVar::FramePadding, vec2(20, 20));
@@ -547,39 +600,56 @@ class TicTacGo : Game::Engine {
             UI::Text("Restarting does not zero timer!");
             UI::Separator();
             UI::Text("Map: " + ColoredString(currMap['Name']) + " (" + string(currMap['LengthName']) + ")");
+            UI::Text(currMap['DifficultyName']);
             UI::AlignTextToFramePadding();
-            if (challengeResult.startTime > Time::Now) {
-                auto timeLeft = float(challengeResult.startTime - Time::Now) / 1000.;
-                UI::Text("Starting in: " + Text::Format("%.1f", timeLeft));
+            if (challengeResult.IsResolved) {
+                UI::Text("-- RESULT --");
+                UI::Text(MyName + ": " + FormatChallengeTime(challengeResult.GetResultFor(IAmPlayer)));
+                UI::Text(OpponentsName + ": " + FormatChallengeTime(challengeResult.GetResultFor(TheyArePlayer)));
+                UI::AlignTextToFramePadding();
+                UI::Text("Winner: " + GetPlayersName(challengeResult.Winner));
+            } else if (challengeResult.HasResultFor(IAmPlayer)) {
+                UI::Text("Waiting for " + OpponentsName + " to set a time.");
+                UI::Text(MyName + ": " + FormatChallengeTime(challengeResult.GetResultFor(IAmPlayer)));
             } else {
-                if (UI::Button("LAUNCH MAP")) {
-                    startnew(CoroutineFunc(RunChallengeAndReportResult));
+                if (challengeResult.startTime > Time::Now) {
+                    auto timeLeft = float(challengeResult.startTime - Time::Now) / 1000.;
+                    UI::Text("Starting in: " + Text::Format("%.1f", timeLeft));
+                } else {
+                    UI::BeginDisabled(disableLaunchMapBtn);
+                    if (UI::Button("LAUNCH MAP")) {
+                        disableLaunchMapBtn = true;
+                        startnew(CoroutineFunc(RunChallengeAndReportResult));
+                    }
+                    UI::EndDisabled();
                 }
             }
             UI::PopFont();
             UI::Separator();
-            if (!client.MapDoesNotHaveThumbnail(currTrackIdStr)) {
-                auto @tex = client.GetCachedMapThumb(currTrackIdStr);
-                if (tex is null) {
-                    UI::Text("Loading thumbnail..");
-                } else {
-                    auto s = UI::GetWindowContentRegionWidth();
-                    UI::Image(tex.ui);
-                }
-            }
+            DrawThumbnail(currTrackIdStr);
         }
         UI::End();
         UI::PopStyleColor(1);
         UI::PopStyleVar(3);
     }
 
+    const string FormatChallengeTime(int time) {
+        if (time >= 86400000) return "DNF";
+        return Time::Format(time);
+    }
+
+    // relative to Time::Now to avoid pause menu strats
     int challengeStartTime = -1;
+    int challengeEndTime = -1;
     int currGameTime = -1;
+    bool challengeRunActive = false;
+    bool disableLaunchMapBtn = false;
 
     void RunChallengeAndReportResult() {
         challengeStartTime = -1;
         currGameTime = -1;
         // join map
+        challengeRunActive = true;
         LoadMapNow(MapUrl(currMap));
         while (!CurrentlyInMap) yield();
         sleep(50);
@@ -591,30 +661,62 @@ class TicTacGo : Game::Engine {
         while (cp.UIConfigs.Length < 0) yield();
         auto uiConfig = cp.UIConfigs[0];
         while (uiConfig.UISequence != CGamePlaygroundUIConfig::EUISequence::Intro) yield();
+        // re enable the launch map button here, is good enough and pretty close to the first time we can safely re-enable
+        disableLaunchMapBtn = false;
         while (uiConfig.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
         sleep(300); // we don't need to get the time immediately, so give some time for values to update
         while (player.StartTime < 0) yield();
         // record start
-        challengeStartTime = player.StartTime;
+        currGameTime = GetApp().PlaygroundScript.Now;
+        challengeStartTime = Time::Now + (player.StartTime - currGameTime);
         log_info("Set challenge start time: " + challengeStartTime);
         // wait for finish timer
-        while (uiConfig.UISequence != CGamePlaygroundUIConfig::EUISequence::Finish) {
-            if (GetApp().PlaygroundScript is null) {
+        while (uiConfig is null || uiConfig.UISequence != CGamePlaygroundUIConfig::EUISequence::Finish) {
+            if (GetApp().PlaygroundScript is null || uiConfig is null) {
                 // player quit
-                client.SendPayload("G_CHALLENGE_RESULT", JsonObject1("time", 9999999));
-                warn("Player quit game");
-                ReturnToMenu();
+                ReportChallengeResult(86400999); // more than 24 hrs, just
+                warn("Player quit map");
+                EndChallenge();
                 return;
             }
             currGameTime = GetApp().PlaygroundScript.Now;
+            challengeEndTime = Time::Now;
             yield();
         }
-        auto endTime = GetApp().PlaygroundScript.Now;
-        auto duration = int(endTime) - challengeStartTime;
+        auto challengeEndTime = Time::Now;
+        auto duration = challengeEndTime - challengeStartTime;
         // report result
-        client.SendPayload("G_CHALLENGE_RESULT", JsonObject1("time", duration));
+        ReportChallengeResult(duration);
         sleep(2000);
+        EndChallenge();
+    }
+
+    void DrawThumbnail(const string &in trackId, float sideLen = 0.) {
+        if (!client.MapDoesNotHaveThumbnail(trackId)) {
+            auto @tex = client.GetCachedMapThumb(trackId);
+            if (tex is null) {
+                UI::Text("Loading thumbnail..");
+            } else {
+                if (sideLen <= 0)
+                    UI::Image(tex.ui);
+                else
+                    UI::Image(tex.ui, vec2(sideLen, sideLen));
+            }
+        } else {
+            UI::Text("(No Thumbnail)");
+        }
+    }
+
+    void EndChallenge() {
+        challengeRunActive = false;
         ReturnToMenu();
+    }
+
+    void ReportChallengeResult(int duration) {
+        auto pl = JsonObject1("time", duration);
+        pl['col'] = challengeResult.col;
+        pl['row'] = challengeResult.row;
+        client.SendPayload("G_CHALLENGE_RESULT", pl);
     }
 
     void LogPlayerStartTime() {
@@ -659,21 +761,23 @@ class ChallengeResultState {
     int row = -1;
     int col = -1;
     int startTime = -1;
+    TTGSquareState challenger = TTGSquareState::Unclaimed;
+    TTGSquareState defender = TTGSquareState::Unclaimed;
 
     void Reset() {
         startTime = -1;
-        player1Time = -1;
-        player2Time = -1;
         active = false;
-        col = -1;
-        row = -1;
     }
 
-    void Activate(uint col, uint row) {
+    void Activate(uint col, uint row, TTGSquareState challenger) {
         if (active) throw("already active");
         this.col = int(col);
         this.row = int(row);
         active = true;
+        player1Time = -1;
+        player2Time = -1;
+        this.challenger = challenger;
+        this.defender = challenger == TTGSquareState::Player1 ? TTGSquareState::Player2 : TTGSquareState::Player1;
     }
 
     bool get_IsResolved() const {
@@ -682,6 +786,7 @@ class ChallengeResultState {
 
     TTGSquareState get_Winner() const {
         if (!IsResolved) return TTGSquareState::Unclaimed;
+        if (player1Time == player2Time) return defender;
         if (player1Time < player2Time) return TTGSquareState::Player1;
         return TTGSquareState::Player2;
     }
@@ -709,5 +814,10 @@ class ChallengeResultState {
     bool HasResultFor(TTGSquareState player) const {
         if (player == TTGSquareState::Unclaimed) throw("should never pass unclaimed, here");
         return (player == TTGSquareState::Player1 && HavePlayer1Res) || (player == TTGSquareState::Player2 && HavePlayer2Res);
+    }
+
+    int GetResultFor(TTGSquareState player) const {
+        if (player == TTGSquareState::Unclaimed) throw("should never pass unclaimed, here");
+        return player == TTGSquareState::Player1 ? player1Time : player2Time;
     }
 }

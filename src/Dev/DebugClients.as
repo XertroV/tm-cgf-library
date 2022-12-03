@@ -173,7 +173,11 @@ class ClientsTab : Tab {
     }
 
     void CreateAndAddNewClient() {
-        auto client = Game::Client("DebugClient-" + allClients.Length);
+        string name = LocalPlayersName + "-DC";
+        if (S_LocalDev) {
+            name = "DebugClient";
+        }
+        auto client = Game::Client(name + "-" + tostring(allClients.Length));
         auto window = DebugClientWindow(client);
         allClients.InsertLast(client);
         allWindows.InsertLast(window);

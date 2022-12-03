@@ -404,7 +404,7 @@ namespace Game {
 
         Json::Value@ RegisterAccount() {
             auto pl = Json::Object();
-            pl['username'] = name.StartsWith("DebugClient-") ? name : LocalPlayersName;
+            pl['username'] = name; // name.StartsWith("DebugClient-") ? name : LocalPlayersName;
             pl['wsid'] = LocalPlayersWSID;
             SendPayload("REGISTER", pl, CGF::Visibility::none);
             auto acct = ReadMessage();
