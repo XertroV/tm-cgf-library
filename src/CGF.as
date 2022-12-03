@@ -60,6 +60,8 @@ namespace Game {
         dictionary messageHandlers;
 
         Engine@ gameEngine;
+        protected bool _GameReplayInProgress;
+        protected int _GameReplayNbMsgs;
 
         /**
          *
@@ -90,6 +92,8 @@ namespace Game {
             AddMessageHandler("LIST_READY_STATUS", CGF::MessageHandler(MsgHandler_ReadyEvent));
             AddMessageHandler("GAME_STARTING_AT", CGF::MessageHandler(MsgHandler_GameStartHandler));
             AddMessageHandler("GAME_START_ABORT", CGF::MessageHandler(MsgHandler_GameStartHandler));
+            AddMessageHandler("GAME_REPLAY_START", CGF::MessageHandler(MsgHandler_GameReplayHandler));
+            AddMessageHandler("GAME_REPLAY_END", CGF::MessageHandler(MsgHandler_GameReplayHandler));
             //
             AddMessageHandler("GAME_INFO_FULL", CGF::MessageHandler(MsgHandler_GameInfoFull));
 
@@ -638,6 +642,27 @@ namespace Game {
             for (uint i = 0; i < keys.Length; i++) {
                 if (bool(readyStatus[keys[i]])) readyCount += 1;
             }
+        }
+
+        bool MsgHandler_GameReplayHandler(Json::Value@ j) {
+            string type = j['type'];
+            if (type == "GAME_REPLAY_START") {
+                this._GameReplayInProgress = true;
+                this._GameReplayNbMsgs = int(j['payload']['n_msgs']);
+            } else if (type == "GAME_REPLAY_END") {
+                this._GameReplayInProgress = false;
+                // this.gameEngine.OnReplayEnd();
+            } else return false;
+            return true;
+        }
+
+        bool get_GameReplayInProgress() {
+            return _GameReplayInProgress;
+        }
+
+        int get_GameReplayNbMsgs() {
+            if (GameReplayInProgress) return 0;
+            return _GameReplayNbMsgs;
         }
 
         bool MsgHandler_GameStartHandler(Json::Value@ j) {

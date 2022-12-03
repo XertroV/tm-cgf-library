@@ -117,8 +117,12 @@ class DebugClientWindow {
 
 
 void DrawRoomName(RoomInfo@ room) {
-    auto nameParts = room.name.Split("##", 2);
-    auto _name = nameParts.Length > 1 ? nameParts [0] + " \\$888" + nameParts[1] : nameParts[0];
+    string _name;
+    if (room is null) _name = "?? unknown";
+    else {
+        auto nameParts = room.name.Split("##", 2);
+        _name = nameParts.Length > 1 ? nameParts [0] + " \\$888" + nameParts[1] : nameParts[0];
+    }
     UI::Text(_name);
 }
 
@@ -484,6 +488,7 @@ class InGameTab : Tab {
     void DrawTab() override
     {
         if (lastScope != parent.client.currScope) Reset();
+        lastScope = parent.client.currScope;
         if (parent.client.currScope < 3) return;
         if (parent.client.gameInfoFull is null) return;
         if (UI::BeginTabItem(tabName, TabFlags)) {
@@ -556,7 +561,7 @@ class InRoomTab : Tab {
         PaddedSep();
         auto pos = UI::GetCursorPos();
 
-        if (parent.client.roomInfo.game_start_time <= float(Time::Stamp)) {
+        if (parent.client.roomInfo.HasStarted) {
             UI::SetCursorPos(pos + vec2(UI::GetWindowContentRegionWidth() / 2. - 50., 0));
             if (UI::Button("Game started. Rejoin!")) {
                 parent.client.SendPayload("JOIN_GAME_NOW");

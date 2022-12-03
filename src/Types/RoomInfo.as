@@ -111,6 +111,12 @@ class RoomInfo {
     return this._game_start_time;
   }
 
+  // Custom props
+
+  bool get_HasStarted() const {
+    return 0 < game_start_time && game_start_time < float(Time::Stamp);
+  }
+
   /* Methods // Mixin: ToString */
   const string ToString() {
     return 'RoomInfo('
