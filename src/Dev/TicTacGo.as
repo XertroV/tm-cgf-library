@@ -173,11 +173,11 @@ class TicTacGo : Game::Engine {
         nvg::Text(textPos, sign + Time::Format(duration));
         if (challengeResult.HasResultFor(TheyArePlayer)) {
             textPos += vec2(0, fs * 1.05);
-            fs /= 2.;
-            nvg::FontSize(fs);
+            nvg::FontSize(fs * .7);
+            nvg::FillColor(vec4(0, 0, 0, 1));
+            nvg::Text(textPos + vec2(5, 5), OpponentsName + "'s Time: " + Time::Format(challengeResult.GetResultFor(TheyArePlayer)));
             nvg::FillColor(vec4(.8, .4, 0, 1));
             nvg::Text(textPos, OpponentsName + "'s Time: " + Time::Format(challengeResult.GetResultFor(TheyArePlayer)));
-
         }
     }
 
