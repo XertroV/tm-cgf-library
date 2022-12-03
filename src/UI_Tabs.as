@@ -13,6 +13,10 @@ class Tab {
             ;
     }
 
+    void Render() {
+        // for nvg stuff etc
+    }
+
     void DrawTab() {
         if (UI::BeginTabItem(tabName, TabFlags)) {
             DrawInner();

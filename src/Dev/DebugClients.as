@@ -22,6 +22,13 @@ void Main() {
 }
 
 
+void Render() {
+    for (uint i = 0; i < allWindows.Length; i++) {
+        if (allWindows[i] is null) continue;
+        allWindows[i].Render();
+    }
+}
+
 void RenderInterface() {
     for (uint i = 0; i < allWindows.Length; i++) {
         if (allWindows[i] is null) continue;
@@ -86,6 +93,12 @@ class DebugClientWindow {
         tabs.InsertLast(inGameTab);
         windowVisible = true;
         client.AddMessageHandler("LOBBY_LIST", CGF::MessageHandler(lobbiesTab.OnLobbyList));
+    }
+
+    void Render() {
+        for (uint i = 0; i < tabs.Length; i++) {
+            tabs[i].Render();
+        }
     }
 
     void RenderInterface() {
@@ -484,6 +497,10 @@ class InGameTab : Tab {
     }
 
     int lastScope = -1;
+
+    void Render() override {
+        ttg.Render();
+    }
 
     void DrawTab() override
     {

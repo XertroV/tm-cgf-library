@@ -96,6 +96,7 @@ namespace Game {
             AddMessageHandler("GAME_REPLAY_START", CGF::MessageHandler(MsgHandler_GameReplayHandler));
             AddMessageHandler("GAME_REPLAY_END", CGF::MessageHandler(MsgHandler_GameReplayHandler));
             //
+            AddMessageHandler("GAME_INFO", CGF::MessageHandler(MsgHandler_GameInfo));
             AddMessageHandler("GAME_INFO_FULL", CGF::MessageHandler(MsgHandler_GameInfoFull));
             AddMessageHandler("MAPS_INFO_FULL", CGF::MessageHandler(MsgHandler_MapsInfoFull));
 
@@ -693,6 +694,12 @@ namespace Game {
                 yield();
             if (!IsGameStarted) return;
             SendPayload("JOIN_GAME_NOW");
+        }
+
+        bool MsgHandler_GameInfo(Json::Value@ j) {
+            // {n_msgs: int}
+            // @gameInfoFull = GameInfoFull(j["payload"]);
+            return true;
         }
 
         bool MsgHandler_GameInfoFull(Json::Value@ j) {

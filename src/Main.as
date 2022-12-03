@@ -5,6 +5,10 @@
 void Main() {
     // startnew(Loop);
     // startnew(Debug::Main);
+    sleep(100);
+    if (S_TimerPosition.x == 0) {
+        S_TimerPosition.x = Draw::GetWidth() / 2.;
+    }
 }
 
 void Loop() {
@@ -34,6 +38,7 @@ void _Unload() {
 }
 
 void Render() {
+    Debug::Render();
 }
 
 void RenderInterface() {
@@ -46,10 +51,10 @@ void RenderMenu() {
     Debug::RenderMenu();
 }
 
-/** Render function called every frame intended only for menu items in the main menu of the `UI`.
-*/
-void RenderMenuMain() {
-}
+// /** Render function called every frame intended only for menu items in the main menu of the `UI`.
+// */
+// void RenderMenuMain() {
+// }
 
 UI::InputBlocking OnKeyPress(bool down, VirtualKey key) {
     return UI::InputBlocking::DoNothing;

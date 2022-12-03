@@ -5,7 +5,7 @@ enum TTGSquareState {
 }
 
 UI::Font@ boardFont = UI::LoadFont("DroidSans.ttf", 40., -1, -1, true, true, true);
-
+int defaultNvgFont = nvg::LoadFont("DroidSans.ttf", true, true);
 
 enum TTGGameState {
     // proceeds to waiting for move
@@ -141,7 +141,28 @@ class TicTacGo : Game::Engine {
         return IAmPlayer == boardState[col][row];
     }
 
+    void Render() {
+        if (!CurrentlyInMap) return;
+        // print("render? " + challengeStartTime + ", gt: " + currGameTime);
+        if (challengeStartTime < 0) return;
+        if (currGameTime < 0) return;
+        // print("render going ahead");
+        auto duration = currGameTime - challengeStartTime;
+        string sign = duration < 0 ? "-" : "";
+        duration = Math::Abs(duration);
+        nvg::Reset();
+        nvg::TextAlign(nvg::Align::Center | nvg::Align::Top);
+        nvg::FontFace(defaultNvgFont);
+        nvg::FontSize(150);
+        auto textPos = S_TimerPosition;
+        nvg::FillColor(vec4(0, 0, 0, 1));
+        nvg::Text(textPos + vec2(13, 13), sign + Time::Format(duration));
+        nvg::FillColor(vec4(1, 1, 1, 1));
+        nvg::Text(textPos, sign + Time::Format(duration));
+    }
+
     void RenderInterface() {
+        // LogPlayerStartTime();
         // Tic Tac Toe interface
         auto available = UI::GetContentRegionAvail();
         auto lrColSize = available * vec2(.25, 1);
@@ -496,12 +517,12 @@ class TicTacGo : Game::Engine {
         sleep(3000);
     }
 
-    void LoadMapNow() {
-        auto app = cast<CGameManiaPlanet>(GetApp());
-        app.BackToMainMenu();
-        while (!app.ManiaTitleControlScriptAPI.IsReady) yield();
-        app.ManiaTitleControlScriptAPI.PlayMap(MapUrl(currMap), "", "");
-    }
+    // void LoadMapNow(const string &in url) {
+    //     auto app = cast<CGameManiaPlanet>(GetApp());
+    //     app.BackToMainMenu();
+    //     while (!app.ManiaTitleControlScriptAPI.IsReady) yield();
+    //     app.ManiaTitleControlScriptAPI.PlayMap(MapUrl(currMap), "", "");
+    // }
 
     vec4 challengeWindowBgCol = btnChallengeCol * vec4(.3, .3, .3, 1);
 
@@ -523,7 +544,7 @@ class TicTacGo : Game::Engine {
             }
             UI::Text(challengeStr);
             UI::Text("First to finish wins!");
-            UI::Text("Restart = DNF!");
+            UI::Text("Restarting does not zero timer!");
             UI::Separator();
             UI::Text("Map: " + ColoredString(currMap['Name']) + " (" + string(currMap['LengthName']) + ")");
             UI::AlignTextToFramePadding();
@@ -552,12 +573,74 @@ class TicTacGo : Game::Engine {
         UI::PopStyleVar(3);
     }
 
-    void RunChallengeAndReportResult() {
+    int challengeStartTime = -1;
+    int currGameTime = -1;
 
+    void RunChallengeAndReportResult() {
+        challengeStartTime = -1;
+        currGameTime = -1;
+        // join map
+        LoadMapNow(MapUrl(currMap));
+        while (!CurrentlyInMap) yield();
+        sleep(50);
+        // wait for UI sequence to be playing
+        while (GetApp().CurrentPlayground is null) yield();
+        auto cp = cast<CSmArenaClient>(GetApp().CurrentPlayground);
+        while (cp.Players.Length < 1) yield();
+        auto player = cast<CSmScriptPlayer>(cast<CSmPlayer>(cp.Players[0]).ScriptAPI);
+        while (cp.UIConfigs.Length < 0) yield();
+        auto uiConfig = cp.UIConfigs[0];
+        while (uiConfig.UISequence != CGamePlaygroundUIConfig::EUISequence::Intro) yield();
+        while (uiConfig.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
+        sleep(300); // we don't need to get the time immediately, so give some time for values to update
+        while (player.StartTime < 0) yield();
+        // record start
+        challengeStartTime = player.StartTime;
+        log_info("Set challenge start time: " + challengeStartTime);
+        // wait for finish timer
+        while (uiConfig.UISequence != CGamePlaygroundUIConfig::EUISequence::Finish) {
+            if (GetApp().PlaygroundScript is null) {
+                // player quit
+                client.SendPayload("G_CHALLENGE_RESULT", JsonObject1("time", 9999999));
+                warn("Player quit game");
+                ReturnToMenu();
+                return;
+            }
+            currGameTime = GetApp().PlaygroundScript.Now;
+            yield();
+        }
+        auto endTime = GetApp().PlaygroundScript.Now;
+        auto duration = int(endTime) - challengeStartTime;
+        // report result
+        client.SendPayload("G_CHALLENGE_RESULT", JsonObject1("time", duration));
+        sleep(2000);
+        ReturnToMenu();
+    }
+
+    void LogPlayerStartTime() {
+        auto cp = cast<CSmArenaClient>(GetApp().CurrentPlayground);
+        if (cp is null) return;
+        if (cp.Players.Length == 0) return;
+        auto p = cast<CSmPlayer>(cp.Players[0]);
+        if (p is null) return;
+        auto player = cast<CSmScriptPlayer>(p.ScriptAPI);
+        if (player is null) return;
+        if (GetApp().PlaygroundScript is null) return;
+        auto gt = GetApp().PlaygroundScript.Now;
+        print("Spawned: " + tostring(player.SpawnStatus) + ", GameTime: " + gt + ", StartTime: " + player.StartTime);
     }
 
     bool get_CurrentlyInMap() {
         return GetApp().CurrentPlayground !is null;
+    }
+}
+
+
+/** Render function called every frame intended only for menu items in the main menu of the `UI`.
+*/
+void RenderMenuMain() {
+    if (UI::MenuItem("load map")) {
+        LoadMapNow("https://cgf.s3.nl-1.wasabisys.com/72091.Map.Gbx");
     }
 }
 
