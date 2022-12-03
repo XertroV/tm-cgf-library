@@ -31,7 +31,7 @@ class TicTacGo : Game::Engine {
     TTGSquareState IAmPlayer;
     TTGSquareState TheyArePlayer;
     TTGSquareState ActivePlayer;
-    bool gameFinished = false;
+    TTGSquareState WinningPlayer;
 
     ChallengeResultState@ challengeResult;
 
@@ -53,7 +53,8 @@ class TicTacGo : Game::Engine {
             }
         }
         boardState.Resize(3);
-        gameFinished = false;
+        state = TTGGameState::PreStart;
+        WinningPlayer = TTGSquareState::Unclaimed;
     }
 
     void PrettyPrintBoardState() {
@@ -109,7 +110,8 @@ class TicTacGo : Game::Engine {
     }
 
     void OnGameEnd() {
-        gameFinished = true;
+        // gameFinished = true;
+        state = TTGGameState::GameFinished;
     }
 
     TTGSquareState GetSquareState(int col, int row) const {
@@ -191,6 +193,7 @@ class TicTacGo : Game::Engine {
         UI::Dummy(vec2(0, yPad));
         UI::Dummy(vec2(xPad, 0));
         UI::SameLine();
+        auto boardTL = UI::GetCursorPos();
         if (UI::BeginTable("ttg-table", 3, UI::TableFlags::SizingFixedSame)) {
             for (uint row = 0; row < 3; row++) {
                 UI::TableNextRow();
@@ -200,6 +203,13 @@ class TicTacGo : Game::Engine {
                 }
             }
             UI::EndTable();
+        }
+        if (IsGameFinished) {
+            UI::PushFont(boardFont);
+            UI::SetNextItemWidth(side / 2.);
+            UI::SetCursorPos(boardTL + (size * .25));
+            UI::TextWrapped("Winner: " + ActivePlayersName);
+            UI::PopFont();
         }
     }
 
@@ -215,7 +225,7 @@ class TicTacGo : Game::Engine {
         string id = "##sq-" + col + "," + row;
 
         UI::PushFont(boardFont);
-        UI::BeginDisabled(challengeResult.active || not IsMyTurn || waitingForOwnMove || SquareOwnedByMe(col, row));
+        UI::BeginDisabled(IsInChallenge || IsGameFinished || not IsMyTurn || waitingForOwnMove || SquareOwnedByMe(col, row));
         bool clicked = UI::Button(label + id, size);
         UI::EndDisabled();
         UI::PopFont();
@@ -265,8 +275,39 @@ class TicTacGo : Game::Engine {
 
     void AdvancePlayerTurns() {
         // todo: check for win
+        if (CheckGameWon()) return;
         // else, update active player
         ActivePlayer = ActivePlayer == IAmPlayer ? TheyArePlayer : IAmPlayer;
+    }
+
+    // check if 3 squares are claimed and equal
+    bool AreSquaresEqual(int2 a, int2 b, int2 c) {
+        auto _a = GetSquareState(a.x, a.y);
+        auto _b = GetSquareState(b.x, b.y);
+        bool win = _a != TTGSquareState::Unclaimed
+            && _a == _b
+            && _b == GetSquareState(c.x, c.y);
+        if (win) WinningPlayer = _a;
+        return win;
+    }
+
+    bool CheckGameWon() {
+        // check diags, rows, cols
+        auto tmp = array<TTGSquareState>(3);
+        bool gameWon = false
+            || AreSquaresEqual(int2(0, 0), int2(1, 1), int2(2, 2))
+            || AreSquaresEqual(int2(0, 2), int2(1, 1), int2(2, 0))
+            || AreSquaresEqual(int2(0, 0), int2(0, 1), int2(0, 2))
+            || AreSquaresEqual(int2(1, 0), int2(1, 1), int2(1, 2))
+            || AreSquaresEqual(int2(2, 0), int2(2, 1), int2(2, 2))
+            || AreSquaresEqual(int2(0, 0), int2(1, 0), int2(2, 0))
+            || AreSquaresEqual(int2(0, 1), int2(1, 1), int2(2, 1))
+            || AreSquaresEqual(int2(0, 2), int2(1, 2), int2(2, 2))
+            ;
+        if (gameWon) {
+            state = TTGGameState::GameFinished;
+        }
+        return gameWon;
     }
 
     bool get_IsPreStart() const {
