@@ -687,7 +687,7 @@ class TicTacGo : Game::Engine {
         auto duration = challengeEndTime - challengeStartTime;
         // report result
         ReportChallengeResult(duration);
-        sleep(2000);
+        sleep(4000);
         EndChallenge();
     }
 
@@ -730,10 +730,6 @@ class TicTacGo : Game::Engine {
         if (GetApp().PlaygroundScript is null) return;
         auto gt = GetApp().PlaygroundScript.Now;
         print("Spawned: " + tostring(player.SpawnStatus) + ", GameTime: " + gt + ", StartTime: " + player.StartTime);
-    }
-
-    bool get_CurrentlyInMap() {
-        return GetApp().CurrentPlayground !is null;
     }
 }
 

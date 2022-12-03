@@ -13,3 +13,7 @@ const string get_LocalPlayersWSID() {
     } catch {}
     return "";
 }
+
+bool get_CurrentlyInMap() {
+    return GetApp().CurrentPlayground !is null;
+}

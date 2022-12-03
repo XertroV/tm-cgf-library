@@ -30,6 +30,7 @@ void Render() {
 }
 
 void RenderInterface() {
+    if (CurrentlyInMap) return;
     for (uint i = 0; i < allWindows.Length; i++) {
         if (allWindows[i] is null) continue;
         allWindows[i].RenderInterface();
