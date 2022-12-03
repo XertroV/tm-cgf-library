@@ -42,6 +42,7 @@ namespace Game {
         LobbyInfo@ lobbyInfo;
         RoomInfo@ roomInfo;
         GameInfoFull@ gameInfoFull;
+        Json::Value@ mapsList;
 
         Scope currScope = Scope::MainLobby;
         Scope priorScope = Scope::MainLobby;
@@ -96,6 +97,7 @@ namespace Game {
             AddMessageHandler("GAME_REPLAY_END", CGF::MessageHandler(MsgHandler_GameReplayHandler));
             //
             AddMessageHandler("GAME_INFO_FULL", CGF::MessageHandler(MsgHandler_GameInfoFull));
+            AddMessageHandler("MAPS_INFO_FULL", CGF::MessageHandler(MsgHandler_MapsInfoFull));
 
             name = _name.Length == 0 ? LocalPlayersName : _name;
             fileName = StorageFileTemplate.Replace("|CLIENTNAME|", name);
@@ -483,6 +485,7 @@ namespace Game {
             readyStatus.DeleteAll();
             currAdmins.Resize(0);
             currMods.Resize(0);
+            @mapsList = Json::Array();
             // currTeams.Resize(0);
             uidToTeamNb.DeleteAll();
             gameStartTS = -1.;
@@ -496,7 +499,11 @@ namespace Game {
                 startnew(CoroutineFunc(gameEngine.OnGameStart));
             }
             if (priorScope == 3 && IsInRoom) {
+                _GameReplayNbMsgs = 0;
                 startnew(CoroutineFunc(gameEngine.OnGameEnd));
+            }
+            if (IsInRoom) {
+                cachedThumbnails.DeleteAll();
             }
         }
 
@@ -661,7 +668,7 @@ namespace Game {
         }
 
         int get_GameReplayNbMsgs() {
-            if (GameReplayInProgress) return 0;
+            // if (GameReplayInProgress) return 0;
             return _GameReplayNbMsgs;
         }
 
@@ -690,6 +697,12 @@ namespace Game {
 
         bool MsgHandler_GameInfoFull(Json::Value@ j) {
             @gameInfoFull = GameInfoFull(j["payload"]);
+            return true;
+        }
+
+        bool MsgHandler_MapsInfoFull(Json::Value@ j) {
+            @mapsList = j["payload"]['maps'];
+            startnew(CoroutineFunc(CacheMapThumbnails));
             return true;
         }
 
@@ -804,6 +817,104 @@ namespace Game {
                 throw("Had missing handlers array -- should never happen.");
             }
         }
+
+        /* MAP STUFF */
+
+        /*
+
+        class Map(Document):
+            TrackID: Indexed(int, unique=True)
+            UserID: Indexed(int)
+            Username: Indexed(str)
+            AuthorLogin: Indexed(str)
+            Name: Indexed(str)
+            GbxMapName: Indexed(str)
+            TrackUID: str
+            TitlePack: Indexed(str)
+            ExeVersion: Indexed(str)
+            ExeBuild: Indexed(str)
+            Mood: str
+            ModName: str | None
+            AuthorTime: int
+            ParserVersion: int
+            UploadedAt: str
+            UpdatedAt: str
+            UploadTimestamp: float
+            UpdateTimestamp: float
+            Tags: str | None
+            TypeName: str
+            StyleName: Indexed(str) | None
+            RouteName: str
+            LengthName: str
+            LengthSecs: Indexed(int)
+            LengthEnum: int
+            DifficultyName: str
+            Laps: int
+            Comments: str
+            Downloadable: bool
+            Unlisted: bool
+            Unreleased: bool
+            RatingVoteCount: int
+            RatingVoteAverage: float
+            VehicleName: str
+            EnvironmentName: str
+            HasScreenshot: bool
+            HasThumbnail: bool
+         */
+
+
+        void CacheMapThumbnails() {
+            for (uint i = 0; i < mapsList.Length; i++) {
+                startnew(CoroutineFuncUserdata(CacheThumbnail), mapsList[i]);
+            }
+        }
+
+        dictionary cachedThumbnails;
+
+        void CacheThumbnail(ref@ _map) {
+            Json::Value@ map = cast<Json::Value>(_map);
+            string url = MapThumbUrl(map);
+            logcall("CacheThumbnail", "URL: " + url);
+            string trackId = tostring(int(map['TrackID']));
+            if (url.Length == 0) {
+                @cachedThumbnails[trackId] = null;
+            }
+            if (cachedThumbnails.Exists(trackId)) return;
+            @cachedThumbnails[trackId] = DownloadThumbnail(url);
+        }
+
+        /**
+         * returns true only after we failed to download a thumbnail
+         * returns false when a thumbnail exists or when it's being downloaded
+         */
+        bool MapDoesNotHaveThumbnail(const string &in trackId) const {
+            if (cachedThumbnails.Exists(trackId)) {
+                return GetCachedMapThumb(trackId) is null;
+            }
+            return false;
+        }
+
+        const CGF_Texture@ GetCachedMapThumb(const string &in trackId) const {
+            if (!cachedThumbnails.Exists(trackId)) return null;
+            return cast<CGF_Texture>(cachedThumbnails[trackId]);
+        }
+
+        CGF_Texture@ DownloadThumbnail(const string &in url) {
+            logcall("DownloadThumbnail", "Starting Download: " + url);
+            auto r = Net::HttpGet(url);
+            r.Headers['User-Agent'] = "TM_Plugin:CommunityGameFramework/contact:@XertroV";
+            r.Start();
+            while (!r.Finished()) yield();
+            if (r.ResponseCode() >= 300) {
+                warn("DownloadThumbnail failed with error code " + r.ResponseCode());
+            } else {
+                logcall("DownloadThumbnail", "Downloaded: " + url);
+                auto buf = r.Buffer();
+                return CGF_Texture(buf);
+            }
+            return null;
+        }
+
 
         /* DEBUG STUFF */
 

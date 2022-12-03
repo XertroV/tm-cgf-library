@@ -90,9 +90,21 @@ class TicTacGo : Game::Engine {
         return client.GetPlayerName(uid);
     }
 
+    const string get_OpponentsName() {
+        string uid = (GameInfo.teams[0][0] == client.clientUid)
+            ? GameInfo.teams[1][0]
+            : GameInfo.teams[0][0];
+        return client.GetPlayerName(uid);
+    }
+
     void SetPlayers() {
-        ActivePlayer = TTGSquareState::Player1;
-        while (GameInfo is null) yield();
+        while (GameInfo is null) {
+            warn("SetPlayers found null game info, yielding");
+            yield();
+        }
+        ActivePlayer = GameInfo.team_order[0] == 1
+            ? TTGSquareState::Player2
+            : TTGSquareState::Player1;
         if (GameInfo.teams[0][0] == client.clientUid) {
             IAmPlayer = TTGSquareState::Player1;
             TheyArePlayer = TTGSquareState::Player2;
@@ -100,6 +112,7 @@ class TicTacGo : Game::Engine {
             IAmPlayer = TTGSquareState::Player2;
             TheyArePlayer = TTGSquareState::Player1;
         }
+        print("ActivePlayer (start): " + tostring(ActivePlayer));
     }
 
     void OnGameStart() {
@@ -141,6 +154,7 @@ class TicTacGo : Game::Engine {
         UI::SameLine();
         // player 2
         DrawRightCol(lrColSize);
+        DrawChallengeWindow();
     }
 
     // player 1 col
@@ -171,6 +185,15 @@ class TicTacGo : Game::Engine {
         auto playerNum = team + 1;
         UI::Text("Player: " + playerNum);
         UI::Text(client.GetPlayerName(GameInfo.teams[team][0]));
+        UI::Text("Team Order: " + GameInfo.team_order[0] + ", " + GameInfo.team_order[1]);
+        if (IsGameFinished) {
+            UI::Dummy(vec2(0, 100));
+            if (UI::Button("Leave##game")) {
+                // once for game, once for room
+                client.SendLeave();
+                client.SendLeave();
+            }
+        }
     }
 
     void DrawTicTacGoBoard(vec2 size) {
@@ -224,9 +247,11 @@ class TicTacGo : Game::Engine {
             : (sqState == TTGSquareState::Player1 ? Icons::CircleO : Icons::Times);
         string id = "##sq-" + col + "," + row;
 
+        bool isBeingChallenged = IsInChallenge && challengeResult.col == col && challengeResult.row == row;
+
         UI::PushFont(boardFont);
         UI::BeginDisabled(IsInChallenge || IsGameFinished || not IsMyTurn || waitingForOwnMove || SquareOwnedByMe(col, row));
-        bool clicked = UI::Button(label + id, size);
+        bool clicked = _SquareButton(label + id, size, isBeingChallenged);
         UI::EndDisabled();
         UI::PopFont();
 
@@ -237,6 +262,17 @@ class TicTacGo : Game::Engine {
                 ChallengeFor(col, row);
             }
         }
+    }
+
+    vec4 btnChallengeCol = vec4(.8, .4, 0, 1);
+
+    bool _SquareButton(const string &in id, vec2 size, bool isBeingChallenged) {
+        if (isBeingChallenged) {
+            UI::PushStyleColor(UI::Col::Button, btnChallengeCol);
+        }
+        bool clicked = UI::Button(id, size);
+        if (isBeingChallenged) UI::PopStyleColor(1);
+        return clicked;
     }
 
     void TakeSquare(uint col, uint row) {
@@ -295,11 +331,14 @@ class TicTacGo : Game::Engine {
         // check diags, rows, cols
         auto tmp = array<TTGSquareState>(3);
         bool gameWon = false
+            // diags
             || AreSquaresEqual(int2(0, 0), int2(1, 1), int2(2, 2))
             || AreSquaresEqual(int2(0, 2), int2(1, 1), int2(2, 0))
+            // columns
             || AreSquaresEqual(int2(0, 0), int2(0, 1), int2(0, 2))
             || AreSquaresEqual(int2(1, 0), int2(1, 1), int2(1, 2))
             || AreSquaresEqual(int2(2, 0), int2(2, 1), int2(2, 2))
+            // rows
             || AreSquaresEqual(int2(0, 0), int2(1, 0), int2(2, 0))
             || AreSquaresEqual(int2(0, 1), int2(1, 1), int2(2, 1))
             || AreSquaresEqual(int2(0, 2), int2(1, 2), int2(2, 2))
@@ -384,7 +423,7 @@ class TicTacGo : Game::Engine {
     void ProcessMove(Json::Value@ msg) {
         string msgType = msg['type'];
         auto pl = msg['payload'];
-        // int seq = msg['seq'];
+        int seq = pl['seq'];
         // deserialize move
         uint col, row;
         try {
@@ -414,7 +453,6 @@ class TicTacGo : Game::Engine {
                 SetSquareState(challengeResult.col, challengeResult.row, challengeResult.Winner);
                 state = TTGGameState::WaitingForMove;
                 AdvancePlayerTurns();
-                // todo: other state?
             }
         } else if (IsWaitingForMove) {
             if (col >= 3 || row >= 3) throw("impossible: col >= 3 || row >= 3");
@@ -429,38 +467,98 @@ class TicTacGo : Game::Engine {
                 // begin challenge
                 challengeResult.Activate(col, row);
                 state = TTGGameState::InChallenge;
+                // if (seq >= client.GameReplayNbMsgs)
+                startnew(CoroutineFunc(BeginChallengeSoon));
             } else if (moveIsClaiming) {
                 if (GetSquareState(col, row) != TTGSquareState::Unclaimed) throw("claiming claimed square");
                 SetSquareState(col, row, ActivePlayer);
                 AdvancePlayerTurns();
             }
         }
+
+        // todo: check if we
     }
 
-    // uint challengeStart;
-    // bool challengeActive = false;
+    Json::Value@ currMap;
+    int currTrackId;
+    string currTrackIdStr;
 
-    // /**
-    //  * A challenge for a square.
-    //  * We need to find the map to load, load the map, and compare player times.
-    //  * However, we don't want this to activate when we're replaying the game, so wait a bit and check we should still proceed.
-    //  */
-    // void RunChallengeFor(uint col, uint row, int seq) {
-    //     challengeActive = true;
-    //     challengeResult.Reset();
-    //     // 2s timer to start
-    //     challengeStart = Time::Now + 2000;
+    void BeginChallengeSoon() {
+        auto col = challengeResult.col;
+        auto row = challengeResult.row;
+        int mapIx = row * 3 + col;
+        if (mapIx >= client.mapsList.Length) throw('bad map index');
+        auto map = client.mapsList[mapIx];
+        @currMap = map;
+        currTrackId = map['TrackID'];
+        currTrackIdStr = tostring(currTrackId);
+        challengeResult.startTime = Time::Now + 3000;
+        sleep(3000);
+    }
 
-    //     // if we're replaying, exit early. We'll check later in OnReplayEnd if we need to reload the map.
-    //     if (client.GameReplayInProgress) return;
+    void LoadMapNow() {
+        auto app = cast<CGameManiaPlanet>(GetApp());
+        app.BackToMainMenu();
+        while (!app.ManiaTitleControlScriptAPI.IsReady) yield();
+        app.ManiaTitleControlScriptAPI.PlayMap(MapUrl(currMap), "", "");
+    }
 
-    //     while (challengeStart > Time::Now)
-    //         yield();
-    //     // maybe it was cancelled?
-    //     if (!challengeActive) return;
+    vec4 challengeWindowBgCol = btnChallengeCol * vec4(.3, .3, .3, 1);
 
+    void DrawChallengeWindow() {
+        if (!IsInChallenge || CurrentlyInMap) return;
+        auto flags = UI::WindowFlags::NoTitleBar
+            | UI::WindowFlags::AlwaysAutoResize;
+        UI::PushStyleVar(UI::StyleVar::FramePadding, vec2(20, 20));
+        UI::PushStyleVar(UI::StyleVar::WindowRounding, 20);
+        UI::PushStyleVar(UI::StyleVar::WindowPadding, vec2(20, 20));
+        UI::PushStyleColor(UI::Col::WindowBg, challengeWindowBgCol);
+        if (UI::Begin("ttg-challenge-window-" + client.clientUid, flags)) {
+            UI::PushFont(boardFont);
+            string challengeStr;
+            if (IsMyTurn) {
+                challengeStr = "You are challenging " + OpponentsName;
+            } else {
+                challengeStr = OpponentsName + " challenges you!";
+            }
+            UI::Text(challengeStr);
+            UI::Text("First to finish wins!");
+            UI::Text("Restart = DNF!");
+            UI::Separator();
+            UI::Text("Map: " + ColoredString(currMap['Name']) + " (" + string(currMap['LengthName']) + ")");
+            UI::AlignTextToFramePadding();
+            if (challengeResult.startTime > Time::Now) {
+                auto timeLeft = float(challengeResult.startTime - Time::Now) / 1000.;
+                UI::Text("Starting in: " + Text::Format("%.1f", timeLeft));
+            } else {
+                if (UI::Button("LAUNCH MAP")) {
+                    startnew(CoroutineFunc(RunChallengeAndReportResult));
+                }
+            }
+            UI::PopFont();
+            UI::Separator();
+            if (!client.MapDoesNotHaveThumbnail(currTrackIdStr)) {
+                auto @tex = client.GetCachedMapThumb(currTrackIdStr);
+                if (tex is null) {
+                    UI::Text("Loading thumbnail..");
+                } else {
+                    auto s = UI::GetWindowContentRegionWidth();
+                    UI::Image(tex.ui);
+                }
+            }
+        }
+        UI::End();
+        UI::PopStyleColor(1);
+        UI::PopStyleVar(3);
+    }
 
-    // }
+    void RunChallengeAndReportResult() {
+
+    }
+
+    bool get_CurrentlyInMap() {
+        return GetApp().CurrentPlayground !is null;
+    }
 }
 
 
@@ -477,8 +575,10 @@ class ChallengeResultState {
     bool active = false;
     int row = -1;
     int col = -1;
+    int startTime = -1;
 
     void Reset() {
+        startTime = -1;
         player1Time = -1;
         player2Time = -1;
         active = false;

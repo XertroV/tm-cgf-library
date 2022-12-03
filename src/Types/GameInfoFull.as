@@ -3,15 +3,17 @@ class GameInfoFull {
   private array<User@> _players;
   private uint _n_game_msgs;
   private string[][] _teams;
+  private int[] _team_order;
   private array<int> _map_list;
   private string _room;
   private string _lobby;
 
   /* Methods // Mixin: Default Constructor */
-  GameInfoFull(const User@[] &in players, uint n_game_msgs, const string[][] &in teams, const int[] &in map_list, const string &in room, const string &in lobby) {
+  GameInfoFull(const User@[] &in players, uint n_game_msgs, const string[][] &in teams, const int[] &in team_order, const int[] &in map_list, const string &in room, const string &in lobby) {
     this._players = players;
     this._n_game_msgs = n_game_msgs;
     this._teams = teams;
+    this._team_order = team_order;
     this._map_list = map_list;
     this._room = room;
     this._lobby = lobby;
@@ -30,6 +32,11 @@ class GameInfoFull {
       for (uint pn = 0; pn < team.Length; pn++) {
         this._teams[i].InsertLast(string(team[pn]));
       }
+    }
+    this._team_order = array<int>(j["team_order"].Length);
+    warn("Team order: " + Json::Write(j["team_order"]));
+    for (uint i = 0; i < j["team_order"].Length; i++) {
+        this._team_order[i] = j["team_order"][i];
     }
     this._map_list = array<int>(j["map_list"].Length);
     for (uint i = 0; i < j["map_list"].Length; i++) {
@@ -50,6 +57,10 @@ class GameInfoFull {
 
   const string[][]@ get_teams() const {
     return this._teams;
+  }
+
+  const int[]@ get_team_order() const {
+    return this._team_order;
   }
 
   const int[]@ get_map_list() const {
