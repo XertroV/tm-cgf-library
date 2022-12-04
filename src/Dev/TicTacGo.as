@@ -189,11 +189,11 @@ class TicTacGo : Game::Engine {
                 RenderBackgroundGoneNotice();
             return;
         }
-        RenderChatWindow();
         // print("render? " + challengeStartTime + ", gt: " + currGameTime);
         if (challengeStartTime < 0) return;
         if (currGameTime < 0) return;
         if (!challengeRunActive) return;
+        RenderChatWindow();
         // print("render going ahead");
         auto duration = challengeEndTime - challengeStartTime;
         string sign = duration < 0 ? "-" : "";
@@ -222,8 +222,8 @@ class TicTacGo : Game::Engine {
             if (duration > oppTime) {
                 textPos += vec2(0, fs);
                 NvgTextWShadow(textPos, offs.x, "You lost.", col);
-                textPos += vec2(0, fs);
-                NvgTextWShadow(textPos, offs.x, "Auto DNFing in " + TimeFormat(timeLeft, true, false), col);
+                // textPos += vec2(0, fs);
+                // NvgTextWShadow(textPos, offs.x, "Auto DNFing in " + TimeFormat(timeLeft, true, false), col);
             }
 
             // nvg::FillColor(vec4(0, 0, 0, 1));
@@ -909,10 +909,11 @@ class TicTacGo : Game::Engine {
             duration = Time::Now - challengeStartTime;
             auto oppTime = challengeResult.GetResultFor(TheyArePlayer, DNF_TIME);
             auto timeLeft = oppTime + AUTO_DNF_TIMEOUT - duration;
-            if (timeLeft < 0) {
-                cast<CGameManiaPlanet>(GetApp()).BackToMainMenu();
-            }
-            if (timeLeft < 0 || GetApp().PlaygroundScript is null || uiConfig is null) {
+            // if (timeLeft < 0) {
+            //     cast<CGameManiaPlanet>(GetApp()).BackToMainMenu();
+            // }
+            // timeLeft < 0 ||
+            if (GetApp().PlaygroundScript is null || uiConfig is null) {
                 // player quit (unless auto DNF)
                 ReportChallengeResult(DNF_TIME); // more than 24 hrs, just
                 warn("Player quit map");
