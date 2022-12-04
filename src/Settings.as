@@ -10,5 +10,5 @@ bool S_LocalDev = false;
 
 
 
-[Setting category="Tic Tac Go" name="Timer Pos (in map)"]
-vec2 S_TimerPosition = vec2(0, 200);
+// [Setting category="Tic Tac Go" name="Timer Pos (in map)"]
+// vec2 S_TimerPosition = vec2(0, 200);

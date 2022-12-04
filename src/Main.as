@@ -44,9 +44,9 @@ UI::InputBlocking OnKeyPress(bool down, VirtualKey key) {
 
 /** Called when a setting in the settings panel was changed. */
 void OnSettingsChanged() {
-    if (S_TimerPosition.x == 0) {
-        S_TimerPosition.x = Draw::GetWidth() / 2.;
-    }
+    // if (S_TimerPosition.x == 0) {
+    //     S_TimerPosition.x = Draw::GetWidth() / 2.;
+    // }
 }
 
 /*

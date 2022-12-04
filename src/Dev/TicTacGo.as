@@ -6,9 +6,9 @@ enum TTGSquareState {
 
 UI::Font@ boardFont = UI::LoadFont("DroidSans.ttf", 40., -1, -1, true, true, true);
 UI::Font@ hoverUiFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 20, -1, -1, true, true, true);
-UI::Font@ mapUiFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 30, -1, -1, true, true, true);
-int nvgFontTimer = nvg::LoadFont("fonts/MontserratMono-SemiBoldItalic.ttf");
+UI::Font@ mapUiFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 35, -1, -1, true, true, true);
 int nvgFontMessage = nvg::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf");
+int nvgFontTimer = nvg::LoadFont("fonts/MontserratMono-SemiBoldItalic.ttf");
 // int defaultNvgFont = nvg::LoadFont("DroidSans.ttf", true, true);
 
 enum TTGGameState {
@@ -150,7 +150,7 @@ class TicTacGo : Game::Engine {
     void OnGameEnd() {
         // gameFinished = true;
         state = TTGGameState::GameFinished;
-        MM::setMenuPage("/solo");
+        MM::setMenuPage("/home");
     }
 
     TTGSquareState GetSquareState(int col, int row) const {
@@ -194,21 +194,24 @@ class TicTacGo : Game::Engine {
         string sign = duration < 0 ? "-" : "";
         duration = Math::Abs(duration);
         nvg::Reset();
-        nvg::TextAlign(nvg::Align::Center | nvg::Align::Top);
+        nvg::TextAlign(nvg::Align::Center | nvg::Align::Bottom);
         nvg::FontFace(nvgFontTimer);
-        auto fs = Draw::GetHeight() * 0.07;
+        auto fs = Draw::GetHeight() * 0.06;
         nvg::FontSize(fs);
-        auto textPos = S_TimerPosition;
+        auto textPos = vec2(Draw::GetWidth() / 2., Draw::GetHeight() * 0.98);
+        auto offs = vec2(fs, fs) * 0.06;
         nvg::FillColor(vec4(0, 0, 0, 1));
-        nvg::Text(textPos + vec2(5, 5), sign + Time::Format(duration));
+        nvg::Text(textPos + offs, sign + Time::Format(duration));
         nvg::FillColor(vec4(1, 1, 1, 1));
         nvg::Text(textPos, sign + Time::Format(duration));
         if (challengeResult.HasResultFor(TheyArePlayer)) {
+            nvg::TextAlign(nvg::Align::Center | nvg::Align::Top);
             nvg::FontFace(nvgFontMessage);
-            textPos += vec2(0, fs * 1.05);
+            textPos *= vec2(1, 0.03);
             nvg::FontSize(fs * .7);
+            offs *= .7;
             nvg::FillColor(vec4(0, 0, 0, 1));
-            nvg::Text(textPos + vec2(2.5, 2.5), OpponentsName + "'s Time: " + Time::Format(challengeResult.GetResultFor(TheyArePlayer)));
+            nvg::Text(textPos + offs, OpponentsName + "'s Time: " + Time::Format(challengeResult.GetResultFor(TheyArePlayer)));
             nvg::FillColor(vec4(.8, .4, 0, 1));
             nvg::Text(textPos, OpponentsName + "'s Time: " + Time::Format(challengeResult.GetResultFor(TheyArePlayer)));
         }
@@ -325,6 +328,8 @@ class TicTacGo : Game::Engine {
         }
     }
 
+    vec4 lastWinMsgSize = vec4(0, 0, 100, 30);
+
     void DrawTicTacGoBoard(vec2 size) {
         size.y -= UI::GetFrameHeightWithSpacing() * 2.;
         auto side = Math::Min(size.x, size.y);
@@ -362,10 +367,18 @@ class TicTacGo : Game::Engine {
             UI::EndTable();
         }
         if (IsGameFinished) {
+            string winMsg = "Winner:\n" + ActivePlayersName;
             UI::PushFont(mapUiFont);
-            UI::SetCursorPos(boardTL + (boardSize * .25));
+            vec2 pos = boardTL + (boardSize * .5) - vec2(10, 0);
+            pos.x -= lastWinMsgSize.z / 2;
+            pos.y -= lastWinMsgSize.w / 2;
+            UI::SetCursorPos(pos + vec2(2,2));
             UI::SetNextItemWidth(side / 2.);
-            UI::TextWrapped("\\$6c2Winner: " + ActivePlayersName);
+            UI::TextWrapped("\\$000" + winMsg);
+            UI::SetCursorPos(pos);
+            UI::SetNextItemWidth(side / 2.);
+            UI::TextWrapped("\\$fff" + winMsg);
+            lastWinMsgSize = UI::GetItemRect();
             UI::PopFont();
         }
     }
@@ -846,6 +859,7 @@ class TicTacGo : Game::Engine {
         while (uiConfig.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
         sleep(300); // we don't need to get the time immediately, so give some time for values to update
         while (player.StartTime < 0) yield();
+        startnew(HideGameUI::OnMapLoad);
         // record start
         currGameTime = GetApp().PlaygroundScript.Now;
         challengeStartTime = Time::Now + (player.StartTime - currGameTime);
@@ -1089,4 +1103,38 @@ string HighlightWin(const string &in msg) {
 
 string HighlightLoss(const string &in msg) {
     return "\\$<\\$e71" + msg + "\\$>";
+}
+
+
+namespace HideGameUI {
+    string[] HidePages =
+        { "UIModule_Race_Chrono"
+        , "UIModule_Race_RespawnHelper"
+        // , "UIModule_Race_Checkpoint"
+        , "UIModule_Race_Record"
+        };
+    void OnMapLoad() {
+        auto app = cast<CGameManiaPlanet>(GetApp());
+        while (app.Network.ClientManiaAppPlayground is null) yield();
+        // while (app.Network.ClientManiaAppPlayground.UILayers.Length < 1) yield();
+        // auto uiConf = app.CurrentPlayground.UIConfigs[0];
+        // print("got uiConf");
+        // wait for UI layers and a few frames extra
+        auto uiConf = app.Network.ClientManiaAppPlayground;
+        while (uiConf.UILayers.Length < 10) yield();
+        // sleep(1000);
+        for (uint i = 0; i < uiConf.UILayers.Length; i++) {
+            auto layer = uiConf.UILayers[i];
+            string first100Chars = string(layer.ManialinkPage.SubStr(0, 100));
+            print(first100Chars);
+            auto parts = first100Chars.Trim().Split('manialink name="');
+            if (parts.Length < 2) continue;
+            auto pageName = parts[1].Split('"')[0];
+            print(pageName);
+            if (pageName.StartsWith("UIModule_Race") && HidePages.Find(pageName) >= 0) {
+                layer.IsVisible = false;
+                print("set " + pageName + " visible=false");
+            }
+        }
+    }
 }
