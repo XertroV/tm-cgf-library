@@ -17,15 +17,12 @@ int nvgFontMessage = nvg::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf");
 int nvgFontTimer = nvg::LoadFont("fonts/OswaldMono-Regular.ttf");
 // int defaultNvgFont = nvg::LoadFont("DroidSans.ttf", true, true);
 
+// update IsInAGame if these are added to
 enum TTGGameState {
     // proceeds to waiting for move
     PreStart
     // can proceed to claim (immediate) or challenge (proceed to InChallenge)
     , WaitingForMove
-    // , SetSquareState
-    // , AdvanceTurn
-    // , CheckForWin
-    // , SetNextPlayer
     , InClaim
     , InChallenge
     , GameFinished
@@ -188,7 +185,8 @@ class TicTacGo : Game::Engine {
     void Render() {
         if (!CurrentlyInMap) {
             // gui.Render();
-            RenderBackgroundGoneNotice();
+            if (IsInAGame)
+                RenderBackgroundGoneNotice();
             return;
         }
         RenderChatWindow();
@@ -640,6 +638,10 @@ class TicTacGo : Game::Engine {
 
     bool get_IsInClaimOrChallenge() const {
         return IsInChallenge || IsInClaim;
+    }
+
+    bool get_IsInAGame() const {
+        return !(IsGameFinished || IsPreStart);
     }
 
     bool get_IsGameFinished() const {
