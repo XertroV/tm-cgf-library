@@ -4,8 +4,8 @@ enum TTGSquareState {
     Player2 = 1
 }
 
-UI::Font@ boardFont = UI::LoadFont("DroidSans.ttf", 40., -1, -1, true, true, true);
-UI::Font@ hoverUiFont = UI::LoadFont("DroidSans.ttf", 20., -1, -1, true, true, true);
+UI::Font@ boardFont;
+UI::Font@ hoverUiFont;
 int defaultNvgFont = nvg::LoadFont("DroidSans.ttf", true, true);
 
 enum TTGGameState {
@@ -516,8 +516,12 @@ class TicTacGo : Game::Engine {
             if (!challengeResult.active) throw("challenge is not active");
             challengeResult.SetPlayersTime(lastFrom, int(pl['time']));
             if (challengeResult.IsResolved) {
-                if (seq >= client.GameReplayNbMsgs)
-                    sleep(3000); // sleep a little to show result; otherwise rush thru b/c it's a replay event
+                if (seq >= client.GameReplayNbMsgs) {
+                    while (Time::Now < challengeScreenTimeout) {
+                        yield();
+                    // sleep(3000); // sleep a little to show result; otherwise rush thru b/c it's a replay event
+                    }
+                }
                 challengeResult.Reset();
                 SetSquareState(challengeResult.col, challengeResult.row, challengeResult.Winner);
                 state = TTGGameState::WaitingForMove;
@@ -641,6 +645,7 @@ class TicTacGo : Game::Engine {
     // relative to Time::Now to avoid pause menu strats
     int challengeStartTime = -1;
     int challengeEndTime = -1;
+    int challengeScreenTimeout = -1;
     int currGameTime = -1;
     bool challengeRunActive = false;
     bool disableLaunchMapBtn = false;
@@ -687,8 +692,9 @@ class TicTacGo : Game::Engine {
         auto duration = challengeEndTime - challengeStartTime;
         // report result
         ReportChallengeResult(duration);
-        sleep(4000);
+        sleep(3000);
         EndChallenge();
+        challengeScreenTimeout = Time::Now + 4000;
     }
 
     void DrawThumbnail(const string &in trackId, float sideLen = 0.) {

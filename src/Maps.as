@@ -1,7 +1,7 @@
 
 const string MapThumbUrl(Json::Value@ map) {
     if (!bool(map['HasThumbnail'])) return "";
-    return "https://trackmania.exchange/maps/screenshot_normal/" + int(map['TrackID']);
+    return "https://trackmania.exchange/maps/thumbnail/" + int(map['TrackID']);
 }
 
 const string MapUrl(Json::Value@ map) {

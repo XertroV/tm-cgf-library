@@ -6,6 +6,8 @@ void Main() {
     // startnew(Loop);
     // startnew(Debug::Main);
     sleep(100);
+    @boardFont = UI::LoadFont("DroidSans.ttf", 40., -1, -1, true, true, true);
+    @hoverUiFont = UI::LoadFont("DroidSans.ttf", 20., -1, -1, true, true, true);
     if (S_TimerPosition.x == 0) {
         S_TimerPosition.x = Draw::GetWidth() / 2.;
     }
