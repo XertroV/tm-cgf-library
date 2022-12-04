@@ -25,6 +25,7 @@ enum TTGGameState {
 
 class TicTacGo : Game::Engine {
     Game::Client@ client;
+    TicTacGoUI@ gui;
     TTGSquareState[][] boardState;
 
     TTGGameState state = TTGGameState::PreStart;
@@ -33,6 +34,7 @@ class TicTacGo : Game::Engine {
     TTGSquareState TheyArePlayer;
     TTGSquareState ActivePlayer;
     TTGSquareState WinningPlayer;
+    int2[] WinningSquares;
 
     ChallengeResultState@ challengeResult;
 
@@ -41,6 +43,7 @@ class TicTacGo : Game::Engine {
     TicTacGo(Game::Client@ client) {
         @this.client = client;
         @challengeResult = ChallengeResultState();
+        // @gui = TicTacGoUI(this);
     }
 
     void ResetState() {
@@ -130,12 +133,14 @@ class TicTacGo : Game::Engine {
         trace("On game start!");
         ResetState();
         SetPlayers();
+        MM::setMenuPage("/empty");
         startnew(CoroutineFunc(GameLoop));
     }
 
     void OnGameEnd() {
         // gameFinished = true;
         state = TTGGameState::GameFinished;
+        MM::setMenuPage("/solo");
     }
 
     TTGSquareState GetSquareState(int col, int row) const {
@@ -158,7 +163,7 @@ class TicTacGo : Game::Engine {
 
     void Render() {
         if (!CurrentlyInMap) {
-            // RenderGameUI();
+            // gui.Render();
             return;
         }
         // print("render? " + challengeStartTime + ", gt: " + currGameTime);
@@ -209,7 +214,7 @@ class TicTacGo : Game::Engine {
     // player 1 col
     void DrawLeftCol(vec2 size) {
         if (UI::BeginChild("ttg-p1", size, true)) {
-            DrawPlayer(0);
+            DrawPlayer(TTGSquareState::Player1);
         }
         UI::EndChild();
     }
@@ -217,7 +222,7 @@ class TicTacGo : Game::Engine {
     // player 2 col
     void DrawRightCol(vec2 size) {
         if (UI::BeginChild("ttg-p2", size, true)) {
-            DrawPlayer(1);
+            DrawPlayer(TTGSquareState::Player2);
         }
         UI::EndChild();
     }
@@ -230,16 +235,22 @@ class TicTacGo : Game::Engine {
         UI::EndChild();
     }
 
-    void DrawPlayer(int team) {
+    void DrawPlayer(TTGSquareState player) {
+        auto team = int(player);
         auto playerNum = team + 1;
-        UI::Text("Player: " + playerNum);
-        UI::Text(client.GetPlayerName(GameInfo.teams[team][0]));
+        UI::PushFont(hoverUiFont);
+        UI::Text("Player " + playerNum);
+        auto nameCol = "\\$" + (ActivePlayer == player ? "4b1" : "999");
+        UI::Text(nameCol + client.GetPlayerName(GameInfo.teams[team][0]));
+        UI::PopFont();
+#if DEV
         UI::Text("Team Order: " + GameInfo.team_order[0] + ", " + GameInfo.team_order[1]);
         UI::Text("Active: " + tostring(ActivePlayer));
         UI::Text("Inactive: " + tostring(InactivePlayer));
         UI::Text("IAmPlayer: " + tostring(IAmPlayer));
         UI::Text("TheyArePlayer: " + tostring(TheyArePlayer));
         UI::TextWrapped(setPlayersRes);
+#endif
         if (IsGameFinished) {
             UI::Dummy(vec2(0, 100));
             if (UI::Button("Leave##game")) {
@@ -294,6 +305,14 @@ class TicTacGo : Game::Engine {
         return IAmPlayer == ActivePlayer;
     }
 
+    bool SquarePartOfWin(int2 xy) {
+        for (uint i = 0; i < WinningSquares.Length; i++) {
+            auto s = WinningSquares[i];
+            if (xy.x == s.x && xy.y == s.y) return true;
+        }
+        return false;
+    }
+
     void DrawTTGSquare(uint col, uint row, vec2 size) {
         auto sqState = GetSquareState(col, row);
         bool squareOpen = sqState == TTGSquareState::Unclaimed;
@@ -301,17 +320,18 @@ class TicTacGo : Game::Engine {
             : (sqState == TTGSquareState::Player1 ? Icons::CircleO : Icons::Times);
         string id = "##sq-" + col + "," + row;
 
+        bool isWinning = IsGameFinished && SquarePartOfWin(int2(col, row));
         bool isBeingChallenged = IsInChallenge && challengeResult.col == col && challengeResult.row == row;
         bool ownedByMe = SquareOwnedByMe(col, row);
         bool ownedByThem = SquareOwnedByThem(col, row);
 
         UI::PushFont(boardFont);
-        UI::BeginDisabled(IsInChallenge || IsGameFinished || not IsMyTurn || waitingForOwnMove || ownedByMe);
-        bool clicked = _SquareButton(label + id, size, col, row, isBeingChallenged, ownedByMe, ownedByThem);
+        UI::BeginDisabled(IsInChallenge || IsGameFinished || not IsMyTurn || waitingForOwnMove);
+        bool clicked = _SquareButton(label + id, size, col, row, isBeingChallenged, ownedByMe, ownedByThem, isWinning);
         UI::EndDisabled();
         UI::PopFont();
 
-        if (clicked) {
+        if (clicked && !ownedByMe) {
             if (squareOpen) {
                 TakeSquare(col, row);
             } else {
@@ -321,23 +341,31 @@ class TicTacGo : Game::Engine {
     }
 
     vec4 btnChallengeCol = vec4(.8, .4, 0, 1);
+    vec4 btnWinningCol = vec4(.8, .4, 0, 1);
 
-    bool _SquareButton(const string &in id, vec2 size, int col, int row, bool isBeingChallenged, bool  ownedByMe, bool ownedByThem) {
+    bool _SquareButton(const string &in id, vec2 size, int col, int row, bool isBeingChallenged, bool  ownedByMe, bool ownedByThem, bool isWinning) {
         if (isBeingChallenged) {
             UI::PushStyleColor(UI::Col::Button, btnChallengeCol);
+        }
+        if (isWinning) {
+            UI::PushStyleColor(UI::Col::Button, btnWinningCol);
         }
         bool clicked = UI::Button(id, size);
         bool isHovered = UI::IsItemHovered();
         if (isBeingChallenged) UI::PopStyleColor(1);
+        if (isWinning) UI::PopStyleColor(1);
         if (isHovered) {
             UI::BeginTooltip();
             UI::PushFont(hoverUiFont);
 
             if (ownedByMe) {
                 // button disabled so never hovers
-                // UI::Text("(You already claimed this square)");
+                UI::Text("Claimed by You");
             } else if (ownedByThem) {
                 UI::Text("Challenge " + OpponentsName);
+            }
+
+            if (ownedByMe || ownedByThem) {
                 UI::Separator();
                 auto map = GetMap(col, row);
                 int tid = map['TrackID'];
@@ -346,7 +374,7 @@ class TicTacGo : Game::Engine {
                 UI::Text(map['DifficultyName']);
                 DrawThumbnail(tostring(tid), 256);
             } else {
-                UI::Text("Go Here.\nMystery Map.");
+                UI::Text("Mystery Map.\nWin a race to claim!\n(Stays unclaimed otherwise.)");
             }
 
             UI::PopFont();
@@ -405,6 +433,10 @@ class TicTacGo : Game::Engine {
             && _a == _b
             && _b == GetSquareState(c.x, c.y);
         if (win) WinningPlayer = _a;
+        WinningSquares.Resize(0);
+        WinningSquares.InsertLast(a);
+        WinningSquares.InsertLast(b);
+        WinningSquares.InsertLast(c);
         return win;
     }
 

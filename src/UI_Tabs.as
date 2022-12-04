@@ -28,4 +28,11 @@ class Tab {
         UI::Text("Tab Inner: " + tabName);
         UI::Text("Overload `DrawInner()`");
     }
+
+    UI::InputBlocking OnMouseButton(bool down, int button, int x, int y) {
+        return UI::InputBlocking::DoNothing;
+    }
+
+    void OnMouseMove(int x, int y) {
+    }
 }

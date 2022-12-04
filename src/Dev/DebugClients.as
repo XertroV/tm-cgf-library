@@ -50,6 +50,24 @@ void RenderMenu() {
     }
 }
 
+/** Called whenever the mouse moves. `x` and `y` are the viewport coordinates.
+*/
+void OnMouseMove(int x, int y) {
+    for (uint i = 0; i < allWindows.Length; i++) {
+        allWindows[i].OnMouseMove(x, y);
+    }
+}
+
+/** Called whenever a mouse button is pressed. `x` and `y` are the viewport coordinates.
+*/
+UI::InputBlocking OnMouseButton(bool down, int button, int x, int y) {
+    bool blockClick = false;
+    for (uint i = 0; i < allWindows.Length; i++) {
+        if (allWindows[i].OnMouseButton(down, button, x, y) == UI::InputBlocking::Block)
+            blockClick = true;
+    }
+    return blockClick ? UI::InputBlocking::Block : UI::InputBlocking::DoNothing;
+}
 
 // void DrawClientSelection() {
 //     if (selectedClient is null) {
@@ -125,6 +143,21 @@ class DebugClientWindow {
             UI::EndTabBar();
         }
         UI::End();
+    }
+
+    void OnMouseMove(int x, int y) {
+        for (uint i = 0; i < tabs.Length; i++) {
+            tabs[i].OnMouseMove(x, y);
+        }
+    }
+
+    UI::InputBlocking OnMouseButton(bool down, int button, int x, int y) {
+        bool blockClick = false;
+        for (uint i = 0; i < tabs.Length; i++) {
+            if (tabs[i].OnMouseButton(down, button, x, y) == UI::InputBlocking::Block)
+                blockClick = true;
+        }
+        return blockClick ? UI::InputBlocking::Block : UI::InputBlocking::DoNothing;
     }
 }
 
@@ -505,6 +538,15 @@ class InGameTab : Tab {
 
     void Render() override {
         ttg.Render();
+    }
+
+    UI::InputBlocking OnMouseButton(bool down, int button, int x, int y) override {
+        // return ttg.gui.OnMouseButton(down, button, x, y);
+        return UI::InputBlocking::DoNothing;
+    }
+
+    void OnMouseMove(int x, int y) override {
+        // ttg.gui.OnMouseMove(x, y);
     }
 
     void DrawTab() override
