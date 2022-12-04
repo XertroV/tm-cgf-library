@@ -191,6 +191,7 @@ class TicTacGo : Game::Engine {
             RenderBackgroundGoneNotice();
             return;
         }
+        RenderChatWindow();
         // print("render? " + challengeStartTime + ", gt: " + currGameTime);
         if (challengeStartTime < 0) return;
         if (currGameTime < 0) return;
@@ -234,6 +235,17 @@ class TicTacGo : Game::Engine {
 
 
         }
+    }
+
+    int chatWindowFlags = UI::WindowFlags::NoTitleBar
+        | UI::WindowFlags::None;
+
+    void RenderChatWindow() {
+        UI::SetNextWindowSize(350, 200, UI::Cond::FirstUseEver);
+        if (UI::Begin("chat window" + client.clientUid, chatWindowFlags)) {
+            DrawChat();
+        }
+        UI::End();
     }
 
     void RenderBackgroundGoneNotice() {
