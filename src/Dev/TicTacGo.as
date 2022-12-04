@@ -4,11 +4,17 @@ enum TTGSquareState {
     Player2 = 1
 }
 
-UI::Font@ boardFont = UI::LoadFont("DroidSans.ttf", 40., -1, -1, true, true, true);
+const int AUTO_DNF_TIMEOUT = 10000;
+// DNFs are signaled with this time. It's 24hrs + 999ms;
+const int DNF_TIME = 86400999;
+const int DNF_TEST = 86400000;
+
+UI::Font@ boardFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 50., -1, -1, true, true, true);
 UI::Font@ hoverUiFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 20, -1, -1, true, true, true);
 UI::Font@ mapUiFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 35, -1, -1, true, true, true);
 int nvgFontMessage = nvg::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf");
-int nvgFontTimer = nvg::LoadFont("fonts/MontserratMono-SemiBoldItalic.ttf");
+// int nvgFontTimer = nvg::LoadFont("fonts/MontserratMono-SemiBoldItalic.ttf");
+int nvgFontTimer = nvg::LoadFont("fonts/OswaldMono-Regular.ttf");
 // int defaultNvgFont = nvg::LoadFont("DroidSans.ttf", true, true);
 
 enum TTGGameState {
@@ -199,21 +205,34 @@ class TicTacGo : Game::Engine {
         auto fs = Draw::GetHeight() * 0.06;
         nvg::FontSize(fs);
         auto textPos = vec2(Draw::GetWidth() / 2., Draw::GetHeight() * 0.98);
-        auto offs = vec2(fs, fs) * 0.06;
-        nvg::FillColor(vec4(0, 0, 0, 1));
-        nvg::Text(textPos + offs, sign + Time::Format(duration));
-        nvg::FillColor(vec4(1, 1, 1, 1));
-        nvg::Text(textPos, sign + Time::Format(duration));
+        vec2 offs = vec2(fs, fs) * 0.05;
+        NvgTextWShadow(textPos, offs.x, TimeFormat(duration), vec4(1, 1, 1, 1));
         if (challengeResult.HasResultFor(TheyArePlayer)) {
             nvg::TextAlign(nvg::Align::Center | nvg::Align::Top);
             nvg::FontFace(nvgFontMessage);
             textPos *= vec2(1, 0.03);
-            nvg::FontSize(fs * .7);
+            fs *= .7;
+            nvg::FontSize(fs);
             offs *= .7;
-            nvg::FillColor(vec4(0, 0, 0, 1));
-            nvg::Text(textPos + offs, OpponentsName + "'s Time: " + Time::Format(challengeResult.GetResultFor(TheyArePlayer)));
-            nvg::FillColor(vec4(.8, .4, 0, 1));
-            nvg::Text(textPos, OpponentsName + "'s Time: " + Time::Format(challengeResult.GetResultFor(TheyArePlayer)));
+            auto oppTime = challengeResult.GetResultFor(TheyArePlayer, DNF_TIME);
+            auto timeLeft = oppTime + AUTO_DNF_TIMEOUT - duration;
+            auto col = vec4(1, .5, 0, 1);
+            string msg = oppTime > DNF_TEST ? OpponentsName + " DNF'd"
+                : OpponentsName + "'s Time: " + Time::Format(challengeResult.GetResultFor(TheyArePlayer));
+            NvgTextWShadow(textPos, offs.x, msg, col);
+            if (duration > oppTime) {
+                textPos += vec2(0, fs);
+                NvgTextWShadow(textPos, offs.x, "You lost.", col);
+                textPos += vec2(0, fs);
+                NvgTextWShadow(textPos, offs.x, "Auto DNFing in " + TimeFormat(timeLeft, true, false), col);
+            }
+
+            // nvg::FillColor(vec4(0, 0, 0, 1));
+            // nvg::Text(textPos + offs, );
+            // nvg::FillColor(vec4(.8, .4, 0, 1));
+            // nvg::Text(textPos, OpponentsName + "'s Time: " + Time::Format(challengeResult.GetResultFor(TheyArePlayer)));
+
+
         }
     }
 
@@ -230,6 +249,7 @@ class TicTacGo : Game::Engine {
 
     void RenderInterface() {
         UI::SetNextWindowSize(Draw::GetWidth() * 0.5, Draw::GetHeight() * 0.6, UI::Cond::FirstUseEver);
+        UI::PushFont(hoverUiFont);
         if (UI::Begin("Tic Tac GO!##" + client.clientUid)) {
             // LogPlayerStartTime();
             // Tic Tac Toe interface
@@ -247,6 +267,7 @@ class TicTacGo : Game::Engine {
             DrawRightCol(lrColSize);
         }
         UI::End();
+        UI::PopFont();
         DrawChallengeWindow();
     }
 
@@ -403,12 +424,12 @@ class TicTacGo : Game::Engine {
         string id = "##sq-" + col + "," + row;
 
         bool isWinning = IsGameFinished && SquarePartOfWin(int2(col, row));
-        bool isBeingChallenged = IsInChallenge && challengeResult.col == col && challengeResult.row == row;
+        bool isBeingChallenged = IsInClaimOrChallenge && challengeResult.col == col && challengeResult.row == row;
         bool ownedByMe = SquareOwnedByMe(col, row);
         bool ownedByThem = SquareOwnedByThem(col, row);
 
         UI::PushFont(boardFont);
-        bool isDisabled = IsInChallenge || IsInClaim || IsGameFinished || not IsMyTurn || waitingForOwnMove;
+        bool isDisabled = IsInClaimOrChallenge || IsGameFinished || not IsMyTurn || waitingForOwnMove;
         bool clicked = _SquareButton(label + id, size, col, row, isBeingChallenged, ownedByMe, ownedByThem, isWinning, isDisabled);
         UI::PopFont();
 
@@ -426,12 +447,11 @@ class TicTacGo : Game::Engine {
 
     bool _SquareButton(const string &in id, vec2 size, int col, int row, bool isBeingChallenged, bool  ownedByMe, bool ownedByThem, bool isWinning, bool isDisabled) {
         bool mapKnown = SquareKnown(col, row);
-        if (isBeingChallenged) {
-            UI::PushStyleColor(UI::Col::Button, btnChallengeCol);
-        }
-        if (isWinning) {
-            UI::PushStyleColor(UI::Col::Button, btnWinningCol);
-        }
+
+        if (isBeingChallenged) UI::PushStyleColor(UI::Col::Button, btnChallengeCol);
+        else if (isWinning) UI::PushStyleColor(UI::Col::Button, btnWinningCol);
+        else if (isDisabled) UI::PushStyleColor(UI::Col::Button, vec4(.2, .4, .7, .4));
+
         auto btnPos = UI::GetCursorPos();
         UI::BeginDisabled(isDisabled);
         bool clicked = UI::Button(id, size);
@@ -441,8 +461,9 @@ class TicTacGo : Game::Engine {
         bool isHovered = UI::IsItemHovered(UI::HoveredFlags::AllowWhenDisabled | UI::HoveredFlags::RectOnly);
         // bool isHovered = IsWithin(UI::GetMousePos(), btnPos, size);
         // print(tostring(UI::GetMousePos()) + tostring(btnPos) + tostring(size));
-        if (isBeingChallenged) UI::PopStyleColor(1);
-        if (isWinning) UI::PopStyleColor(1);
+
+        if (isBeingChallenged || isWinning || isDisabled) UI::PopStyleColor(1);
+
         if (isHovered) {
             UI::BeginTooltip();
             UI::PushFont(hoverUiFont);
@@ -603,6 +624,10 @@ class TicTacGo : Game::Engine {
 
     bool get_IsInChallenge() const {
         return state == TTGGameState::InChallenge;
+    }
+
+    bool get_IsInClaimOrChallenge() const {
+        return IsInChallenge || IsInClaim;
     }
 
     bool get_IsGameFinished() const {
@@ -826,7 +851,7 @@ class TicTacGo : Game::Engine {
     }
 
     const string FormatChallengeTime(int time) {
-        if (time >= 86400000) return "DNF";
+        if (time >= DNF_TEST) return "DNF";
         return Time::Format(time);
     }
 
@@ -865,10 +890,17 @@ class TicTacGo : Game::Engine {
         challengeStartTime = Time::Now + (player.StartTime - currGameTime);
         log_info("Set challenge start time: " + challengeStartTime);
         // wait for finish timer
+        int duration;
         while (uiConfig is null || uiConfig.UISequence != CGamePlaygroundUIConfig::EUISequence::Finish) {
-            if (GetApp().PlaygroundScript is null || uiConfig is null) {
-                // player quit
-                ReportChallengeResult(86400999); // more than 24 hrs, just
+            duration = Time::Now - challengeStartTime;
+            auto oppTime = challengeResult.GetResultFor(TheyArePlayer, DNF_TIME);
+            auto timeLeft = oppTime + AUTO_DNF_TIMEOUT - duration;
+            if (timeLeft < 0) {
+                cast<CGameManiaPlanet>(GetApp()).BackToMainMenu();
+            }
+            if (timeLeft < 0 || GetApp().PlaygroundScript is null || uiConfig is null) {
+                // player quit (unless auto DNF)
+                ReportChallengeResult(DNF_TIME); // more than 24 hrs, just
                 warn("Player quit map");
                 EndChallenge();
                 return;
@@ -877,8 +909,8 @@ class TicTacGo : Game::Engine {
             challengeEndTime = Time::Now;
             yield();
         }
-        auto challengeEndTime = Time::Now;
-        auto duration = challengeEndTime - challengeStartTime;
+        challengeEndTime = Time::Now;
+        duration = challengeEndTime - challengeStartTime;
         // report result
         ReportChallengeResult(duration);
         sleep(3000);
@@ -1007,9 +1039,11 @@ class ChallengeResultState {
         return (player == TTGSquareState::Player1 && HavePlayer1Res) || (player == TTGSquareState::Player2 && HavePlayer2Res);
     }
 
-    int GetResultFor(TTGSquareState player) const {
+    int GetResultFor(TTGSquareState player, int _default = -1) const {
         if (player == TTGSquareState::Unclaimed) throw("should never pass unclaimed, here");
-        return player == TTGSquareState::Player1 ? player1Time : player2Time;
+        auto ret = player == TTGSquareState::Player1 ? player1Time : player2Time;
+        if (ret < 0) return _default;
+        return ret;
     }
 
     int get_ChallengerTime() const {
@@ -1057,18 +1091,19 @@ class TTGGameEvent {
         bool isChallenge = 4 & type > 0;
         // bool isClaim = !isChallenge;
         bool isWin = 1 & type == 1;
-        if (!isChallenge && !isWin) {
-            msg += HighlightLoss(" failed") + " to claim " + SquareCoordStr;
+        if (!isChallenge) {
+            msg += isWin ? HighlightWin(" claimed ") : (HighlightLoss(" failed to claim "));
+            msg += SquareCoordStr;
         } else {
-            msg += isChallenge ? (" challenged " + dName + " to ") : " claimed ";
+            msg += Highlight(" challenged ") + dName + " to ";
             msg += SquareCoordStr;
             msg += isWin ? " and " + HighlightWin("won") : (" but " + HighlightLoss("lost"));
         }
         msg += ".\n";
         bool cWon = challengerTime < defenderTime;
-        string cTime = challengerTime < 86400000 ? HighlightWL(cWon, Time::Format(challengerTime)) : HighlightLoss("DNF");
-        string dTime = defenderTime < 86400000 ? HighlightWL(!cWon, Time::Format(defenderTime)) : HighlightLoss("DNF");
-        bool showDelta = challengerTime + defenderTime < 86400000;
+        string cTime = challengerTime < DNF_TEST ? HighlightWL(cWon, Time::Format(challengerTime)) : HighlightLoss("DNF");
+        string dTime = defenderTime < DNF_TEST ? HighlightWL(!cWon, Time::Format(defenderTime)) : HighlightLoss("DNF");
+        bool showDelta = challengerTime + defenderTime < DNF_TEST;
         msg += "  " + cName + ": " + cTime + "\n";
         msg += "  " + dName + ": " + dTime;
         if (showDelta)

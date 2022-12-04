@@ -751,8 +751,10 @@ ClientsTab@ clientsTab = ClientsTab();
 
 
 #else
+void Main() {}
+void Render() {}
 void RenderInterface() {}
 void RenderMenu() {}
-void Main() {}
+void RenderMenuMain() {}
 #endif
 }
