@@ -3,34 +3,13 @@
 
 
 void Main() {
+    @boardFont = UI::LoadFont("DroidSans.ttf", 40., -1, -1, true, true, true);
+    @hoverUiFont = UI::LoadFont("DroidSans.ttf", 20., -1, -1, true, true, true);
     // startnew(Loop);
     // startnew(Debug::Main);
     sleep(100);
-    @boardFont = UI::LoadFont("DroidSans.ttf", 40., -1, -1, true, true, true);
-    @hoverUiFont = UI::LoadFont("DroidSans.ttf", 20., -1, -1, true, true, true);
-    if (S_TimerPosition.x == 0) {
-        S_TimerPosition.x = Draw::GetWidth() / 2.;
-    }
+    OnSettingsChanged();
 }
-
-void Loop() {
-    // auto x = Game::Client();
-    // sleep(1000);
-    // x.SendChat("test chat: " + Time::Now);
-    // sleep(5000);
-}
-
-// namespace CGF {
-//     Game::Client@ mainClient = null;
-
-//     Game::Client@ GetMainClient() {
-//         while (mainClient is null) {
-//             yield();
-//             @mainClient = Game::Client();
-//         }
-//     }
-// }
-
 
 
 void OnDestroyed() { _Unload(); }
@@ -53,10 +32,14 @@ void RenderMenu() {
     Debug::RenderMenu();
 }
 
-// /** Render function called every frame intended only for menu items in the main menu of the `UI`.
-// */
-// void RenderMenuMain() {
-// }
+/** Render function called every frame intended only for menu items in the main menu of the `UI`.
+*/
+void RenderMenuMain() {
+    if (UI::BeginMenu(Icons::Users + " CGF")) {
+        MM::RenderMenuMain_PageControl();
+        UI::EndMenu();
+    }
+}
 
 UI::InputBlocking OnKeyPress(bool down, VirtualKey key) {
     return UI::InputBlocking::DoNothing;
@@ -64,6 +47,9 @@ UI::InputBlocking OnKeyPress(bool down, VirtualKey key) {
 
 /** Called when a setting in the settings panel was changed. */
 void OnSettingsChanged() {
+    if (S_TimerPosition.x == 0) {
+        S_TimerPosition.x = Draw::GetWidth() / 2.;
+    }
 }
 
 /*

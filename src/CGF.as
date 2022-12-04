@@ -497,6 +497,7 @@ namespace Game {
             @mainChat[(chatNextIx + 1) % mainChat.Length] = null;
             //
             if (IsInGame) {
+                @gameInfoFull = null;
                 startnew(CoroutineFunc(gameEngine.OnGameStart));
             }
             if (priorScope == 3 && IsInRoom) {

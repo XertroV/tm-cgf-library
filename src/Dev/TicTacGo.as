@@ -78,6 +78,10 @@ class TicTacGo : Game::Engine {
         return client.gameInfoFull;
     }
 
+    TTGSquareState get_InactivePlayer() const {
+        return ActivePlayer == IAmPlayer ? TheyArePlayer : IAmPlayer;
+    }
+
     const string get_ActivePlayersName() {
         string uid;
         if (ActivePlayer == TTGSquareState::Unclaimed) {
@@ -103,14 +107,14 @@ class TicTacGo : Game::Engine {
         return client.GetPlayerName(GameInfo.teams[int(p)][0]);
     }
 
+    string setPlayersRes = "";
+
     void SetPlayers() {
         while (GameInfo is null) {
             warn("SetPlayers found null game info, yielding");
             yield();
         }
-        ActivePlayer = GameInfo.team_order[0] == 1
-            ? TTGSquareState::Player2
-            : TTGSquareState::Player1;
+        ActivePlayer = TTGSquareState(GameInfo.team_order[0]);
         if (GameInfo.teams[0][0] == client.clientUid) {
             IAmPlayer = TTGSquareState::Player1;
             TheyArePlayer = TTGSquareState::Player2;
@@ -119,6 +123,7 @@ class TicTacGo : Game::Engine {
             TheyArePlayer = TTGSquareState::Player1;
         }
         print("ActivePlayer (start): " + tostring(ActivePlayer));
+        setPlayersRes = "Active=" + tostring(ActivePlayer) + "; " + "IAmPlayer=" + tostring(IAmPlayer);
     }
 
     void OnGameStart() {
@@ -152,7 +157,10 @@ class TicTacGo : Game::Engine {
     }
 
     void Render() {
-        if (!CurrentlyInMap) return;
+        if (!CurrentlyInMap) {
+            // RenderGameUI();
+            return;
+        }
         // print("render? " + challengeStartTime + ", gt: " + currGameTime);
         if (challengeStartTime < 0) return;
         if (currGameTime < 0) return;
@@ -227,6 +235,11 @@ class TicTacGo : Game::Engine {
         UI::Text("Player: " + playerNum);
         UI::Text(client.GetPlayerName(GameInfo.teams[team][0]));
         UI::Text("Team Order: " + GameInfo.team_order[0] + ", " + GameInfo.team_order[1]);
+        UI::Text("Active: " + tostring(ActivePlayer));
+        UI::Text("Inactive: " + tostring(InactivePlayer));
+        UI::Text("IAmPlayer: " + tostring(IAmPlayer));
+        UI::Text("TheyArePlayer: " + tostring(TheyArePlayer));
+        UI::TextWrapped(setPlayersRes);
         if (IsGameFinished) {
             UI::Dummy(vec2(0, 100));
             if (UI::Button("Leave##game")) {
@@ -380,7 +393,8 @@ class TicTacGo : Game::Engine {
         // todo: check for win
         if (CheckGameWon()) return;
         // else, update active player
-        ActivePlayer = ActivePlayer == IAmPlayer ? TheyArePlayer : IAmPlayer;
+        // ActivePlayer = ActivePlayer == IAmPlayer ? TheyArePlayer : IAmPlayer;
+        ActivePlayer = InactivePlayer;
     }
 
     // check if 3 squares are claimed and equal
@@ -516,12 +530,13 @@ class TicTacGo : Game::Engine {
             if (!challengeResult.active) throw("challenge is not active");
             challengeResult.SetPlayersTime(lastFrom, int(pl['time']));
             if (challengeResult.IsResolved) {
-                if (seq >= client.GameReplayNbMsgs) {
-                    while (Time::Now < challengeScreenTimeout) {
-                        yield();
-                    // sleep(3000); // sleep a little to show result; otherwise rush thru b/c it's a replay event
-                    }
-                }
+                // challengeScreenTimeout = Time::Now + 4000;
+                // if (seq >= client.GameReplayNbMsgs) {
+                //     while (Time::Now < challengeScreenTimeout) {
+                //         yield();
+                //     }
+                //     // sleep(3000); // sleep a little to show result; otherwise rush thru b/c it's a replay event
+                // }
                 challengeResult.Reset();
                 SetSquareState(challengeResult.col, challengeResult.row, challengeResult.Winner);
                 state = TTGGameState::WaitingForMove;
@@ -694,7 +709,6 @@ class TicTacGo : Game::Engine {
         ReportChallengeResult(duration);
         sleep(3000);
         EndChallenge();
-        challengeScreenTimeout = Time::Now + 4000;
     }
 
     void DrawThumbnail(const string &in trackId, float sideLen = 0.) {
@@ -736,15 +750,6 @@ class TicTacGo : Game::Engine {
         if (GetApp().PlaygroundScript is null) return;
         auto gt = GetApp().PlaygroundScript.Now;
         print("Spawned: " + tostring(player.SpawnStatus) + ", GameTime: " + gt + ", StartTime: " + player.StartTime);
-    }
-}
-
-
-/** Render function called every frame intended only for menu items in the main menu of the `UI`.
-*/
-void RenderMenuMain() {
-    if (UI::MenuItem("load map")) {
-        LoadMapNow("https://cgf.s3.nl-1.wasabisys.com/72091.Map.Gbx");
     }
 }
 
