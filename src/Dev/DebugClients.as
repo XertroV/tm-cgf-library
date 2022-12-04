@@ -36,7 +36,7 @@ void RenderInterface() {
         allWindows[i].RenderInterface();
     }
     if (!S_ShowClientsDebugWindow) return;
-    UI::SetNextWindowSize(800, 450);
+    UI::SetNextWindowSize(800, 450, UI::Cond::FirstUseEver);
     if (UI::Begin(Meta::ExecutingPlugin().Name + ": Debug", S_ShowClientsDebugWindow)) {
         // DrawClientSelection();
         clientsTab.DrawInner();
@@ -122,7 +122,7 @@ class DebugClientWindow {
 
     void RenderInterface() {
         if (!windowVisible) return;
-        UI::SetNextWindowSize(850, 600);
+        UI::SetNextWindowSize(850, 600, UI::Cond::FirstUseEver);
         if (UI::Begin(Meta::ExecutingPlugin().Name + " Client Debug: " + client.name, windowVisible)) {
             vec2 pos = UI::GetCursorPos();
             UI::Text("State: " + tostring(client.state));
@@ -555,10 +555,11 @@ class InGameTab : Tab {
         lastScope = parent.client.currScope;
         if (parent.client.currScope < 3) return;
         if (parent.client.gameInfoFull is null) return;
-        if (UI::BeginTabItem(tabName, TabFlags)) {
-            DrawInner();
-            UI::EndTabItem();
-        }
+        // always draw window if this 'tab' is visible
+        DrawInner();
+        // if (UI::BeginTabItem(tabName, TabFlags)) {
+        //     UI::EndTabItem();
+        // }
     }
 
     void DrawInner() override {

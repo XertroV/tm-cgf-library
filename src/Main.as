@@ -3,8 +3,6 @@
 
 
 void Main() {
-    @boardFont = UI::LoadFont("DroidSans.ttf", 40., -1, -1, true, true, true);
-    @hoverUiFont = UI::LoadFont("DroidSans.ttf", 20., -1, -1, true, true, true);
     // startnew(Loop);
     // startnew(Debug::Main);
     sleep(100);
@@ -20,12 +18,11 @@ void _Unload() {
 
 void Render() {
     Debug::Render();
+    Debug::RenderInterface();
 }
 
 void RenderInterface() {
-
     // does nothing without sig_developer
-    Debug::RenderInterface();
 }
 
 void RenderMenu() {
@@ -87,4 +84,13 @@ void AddSimpleTooltip(const string &in msg) {
 
 const string MsToSeconds(int t) {
     return Text::Format("%.3f", float(t) / 1000.0);
+}
+
+vec2 g_LastMousePos;
+
+/** Called whenever the mouse moves. `x` and `y` are the viewport coordinates.
+*/
+void OnMouseMove(int x, int y) {
+    g_LastMousePos.x = x;
+    g_LastMousePos.y = y;
 }
