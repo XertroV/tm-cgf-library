@@ -17,6 +17,7 @@ enum TTGGameState {
     // , AdvanceTurn
     // , CheckForWin
     // , SetNextPlayer
+    , InClaim
     , InChallenge
     , GameFinished
 }
@@ -27,6 +28,7 @@ class TicTacGo : Game::Engine {
     Game::Client@ client;
     TicTacGoUI@ gui;
     TTGSquareState[][] boardState;
+    bool[][] boardMapKnown;
 
     TTGGameState state = TTGGameState::PreStart;
 
@@ -50,13 +52,15 @@ class TicTacGo : Game::Engine {
         trace("TTG State Reset!");
         // reset board
         boardState.Resize(3);
+        boardMapKnown.Resize(3);
         for (uint x = 0; x < boardState.Length; x++) {
             boardState[x].Resize(3);
+            boardMapKnown[x].Resize(3);
             for (uint y = 0; y < boardState[x].Length; y++) {
                 boardState[x][y] = TTGSquareState::Unclaimed;
+                boardMapKnown[x][y] = false;
             }
         }
-        boardState.Resize(3);
         state = TTGGameState::PreStart;
         WinningPlayer = TTGSquareState::Unclaimed;
     }
@@ -153,6 +157,14 @@ class TicTacGo : Game::Engine {
         PrettyPrintBoardState();
     }
 
+    void MarkSquareKnown(int col, int row) {
+        boardMapKnown[col][row] = true;
+    }
+
+    bool SquareKnown(int col, int row) {
+        return boardMapKnown[col][row];
+    }
+
     bool SquareOwnedByMe(int col, int row) const {
         return IAmPlayer == boardState[col][row];
     }
@@ -244,6 +256,7 @@ class TicTacGo : Game::Engine {
         UI::Text(nameCol + client.GetPlayerName(GameInfo.teams[team][0]));
         UI::PopFont();
 #if DEV
+        UI::Text("Game State: " + tostring(state));
         UI::Text("Team Order: " + GameInfo.team_order[0] + ", " + GameInfo.team_order[1]);
         UI::Text("Active: " + tostring(ActivePlayer));
         UI::Text("Inactive: " + tostring(InactivePlayer));
@@ -326,7 +339,7 @@ class TicTacGo : Game::Engine {
         bool ownedByThem = SquareOwnedByThem(col, row);
 
         UI::PushFont(boardFont);
-        UI::BeginDisabled(IsInChallenge || IsGameFinished || not IsMyTurn || waitingForOwnMove);
+        UI::BeginDisabled(IsInChallenge || IsInClaim || IsGameFinished || not IsMyTurn || waitingForOwnMove);
         bool clicked = _SquareButton(label + id, size, col, row, isBeingChallenged, ownedByMe, ownedByThem, isWinning);
         UI::EndDisabled();
         UI::PopFont();
@@ -344,6 +357,7 @@ class TicTacGo : Game::Engine {
     vec4 btnWinningCol = vec4(.8, .4, 0, 1);
 
     bool _SquareButton(const string &in id, vec2 size, int col, int row, bool isBeingChallenged, bool  ownedByMe, bool ownedByThem, bool isWinning) {
+        bool mapKnown = SquareKnown(col, row);
         if (isBeingChallenged) {
             UI::PushStyleColor(UI::Col::Button, btnChallengeCol);
         }
@@ -363,9 +377,11 @@ class TicTacGo : Game::Engine {
                 UI::Text("Claimed by You");
             } else if (ownedByThem) {
                 UI::Text("Challenge " + OpponentsName);
+            } else if (mapKnown) {
+                UI::Text("Win to claim!");
             }
 
-            if (ownedByMe || ownedByThem) {
+            if (ownedByMe || ownedByThem || mapKnown) {
                 UI::Separator();
                 auto map = GetMap(col, row);
                 int tid = map['TrackID'];
@@ -470,6 +486,10 @@ class TicTacGo : Game::Engine {
         return state == TTGGameState::WaitingForMove;
     }
 
+    bool get_IsInClaim() const {
+        return state == TTGGameState::InClaim;
+    }
+
     bool get_IsInChallenge() const {
         return state == TTGGameState::InChallenge;
     }
@@ -509,7 +529,7 @@ class TicTacGo : Game::Engine {
     bool IsValidMove(const string &in msgType, uint col, uint row, TTGSquareState fromPlayer) const {
         if (fromPlayer == TTGSquareState::Unclaimed) return false;
         if (IsGameFinished) return false;
-        if (IsInChallenge) {
+        if (IsInChallenge || IsInClaim) {
             bool moveIsChallengeRes = msgType == "G_CHALLENGE_RESULT";
             if (!moveIsChallengeRes) return false;
             if (challengeResult.HasResultFor(fromPlayer)) return false;
@@ -525,6 +545,7 @@ class TicTacGo : Game::Engine {
                 if (sqState == TTGSquareState::Unclaimed) return false;
                 return sqState != fromPlayer;
             } else if (moveIsClaiming) {
+                print('test move claiming');
                 return GetSquareState(col, row) == TTGSquareState::Unclaimed;
             }
             return false;
@@ -556,21 +577,17 @@ class TicTacGo : Game::Engine {
 
         // proceed with state mutation
 
-        if (IsInChallenge) {
+        if (IsInChallenge || IsInClaim) {
             bool moveIsChallengeRes = msgType == "G_CHALLENGE_RESULT";
             if (!moveIsChallengeRes) throw("!moveIsChallengeRes: should be impossible");
             if (!challengeResult.active) throw("challenge is not active");
             challengeResult.SetPlayersTime(lastFrom, int(pl['time']));
             if (challengeResult.IsResolved) {
-                // challengeScreenTimeout = Time::Now + 4000;
-                // if (seq >= client.GameReplayNbMsgs) {
-                //     while (Time::Now < challengeScreenTimeout) {
-                //         yield();
-                //     }
-                //     // sleep(3000); // sleep a little to show result; otherwise rush thru b/c it's a replay event
-                // }
+                challengeEndedAt = Time::Now;
+                bool claimFailed = IsInClaim && challengeResult.Winner != challengeResult.challenger;
                 challengeResult.Reset();
-                SetSquareState(challengeResult.col, challengeResult.row, challengeResult.Winner);
+                auto sqState = claimFailed ? TTGSquareState::Unclaimed : challengeResult.Winner;
+                SetSquareState(challengeResult.col, challengeResult.row, sqState);
                 state = TTGGameState::WaitingForMove;
                 AdvancePlayerTurns();
             }
@@ -580,20 +597,23 @@ class TicTacGo : Game::Engine {
             bool moveIsClaiming = msgType == "G_TAKE_SQUARE";
             bool moveIsChallenging = msgType == "G_CHALLENGE_SQUARE";
             if (!moveIsChallenging && !moveIsClaiming) throw("impossible: not a valid move");
+            auto sqState = GetSquareState(col, row);
             if (moveIsChallenging) {
-                auto sqState = GetSquareState(col, row);
                 if (sqState == TTGSquareState::Unclaimed) throw('invalid, square claimed');
                 if (sqState == ActivePlayer) throw('invalid, cant challenge self');
                 // begin challenge
-                challengeResult.Activate(col, row, ActivePlayer);
                 state = TTGGameState::InChallenge;
-                // if (seq >= client.GameReplayNbMsgs)
+                challengeResult.Activate(col, row, ActivePlayer, state);
                 startnew(CoroutineFunc(BeginChallengeSoon));
             } else if (moveIsClaiming) {
-                if (GetSquareState(col, row) != TTGSquareState::Unclaimed) throw("claiming claimed square");
-                SetSquareState(col, row, ActivePlayer);
-                AdvancePlayerTurns();
+                if (sqState != TTGSquareState::Unclaimed) throw("claiming claimed square");
+                state = TTGGameState::InClaim;
+                challengeResult.Activate(col, row, ActivePlayer, state);
+                startnew(CoroutineFunc(BeginChallengeSoon));
+                // SetSquareState(col, row, ActivePlayer);
+                // AdvancePlayerTurns();
             }
+            MarkSquareKnown(col, row);
         }
 
         // todo: check if we
@@ -611,7 +631,7 @@ class TicTacGo : Game::Engine {
         currTrackId = map['TrackID'];
         currTrackIdStr = tostring(currTrackId);
         challengeResult.startTime = Time::Now + 3000;
-        sleep(3000);
+        // sleep(3000);
     }
 
     Json::Value@ GetMap(int col, int row) {
@@ -628,9 +648,11 @@ class TicTacGo : Game::Engine {
     // }
 
     vec4 challengeWindowBgCol = btnChallengeCol * vec4(.3, .3, .3, 1);
+    uint challengeEndedAt;
 
     void DrawChallengeWindow() {
-        if (!IsInChallenge || CurrentlyInMap) return;
+        if (!(IsInChallenge || IsInClaim) && challengeEndedAt + 6000 < Time::Now) return;
+        if (CurrentlyInMap) return;
         if (currMap is null) return;
         auto flags = UI::WindowFlags::NoTitleBar
             | UI::WindowFlags::AlwaysAutoResize;
@@ -641,12 +663,15 @@ class TicTacGo : Game::Engine {
         if (UI::Begin("ttg-challenge-window-" + client.clientUid, flags)) {
             UI::PushFont(boardFont);
             string challengeStr;
-            if (IsMyTurn) {
-                challengeStr = "You are challenging " + OpponentsName;
+            bool iAmChallenging = challengeResult.challenger == IAmPlayer;
+            if (challengeResult.IsClaim) {
+                if (iAmChallenging) challengeStr = "Beat " + OpponentsName + " to claim this map!";
+                else challengeStr = "Beat " + OpponentsName + " to deny their claim!";
             } else {
-                challengeStr = OpponentsName + " challenges you!";
+                if (iAmChallenging) challengeStr = "You are challenging " + OpponentsName;
+                else challengeStr = OpponentsName + " challenges you!";
             }
-            UI::Text(challengeStr);
+            UI::TextWrapped(challengeStr);
             UI::Text("First to finish wins!");
             UI::Text("Restarting does not zero timer!");
             UI::Separator();
@@ -802,13 +827,14 @@ class ChallengeResultState {
     int startTime = -1;
     TTGSquareState challenger = TTGSquareState::Unclaimed;
     TTGSquareState defender = TTGSquareState::Unclaimed;
+    TTGGameState challengeType;
 
     void Reset() {
         startTime = -1;
         active = false;
     }
 
-    void Activate(uint col, uint row, TTGSquareState challenger) {
+    void Activate(uint col, uint row, TTGSquareState challenger, TTGGameState type) {
         if (active) throw("already active");
         this.col = int(col);
         this.row = int(row);
@@ -817,6 +843,15 @@ class ChallengeResultState {
         player2Time = -1;
         this.challenger = challenger;
         this.defender = challenger == TTGSquareState::Player1 ? TTGSquareState::Player2 : TTGSquareState::Player1;
+        challengeType = type;
+    }
+
+    bool get_IsClaim() const {
+        return challengeType == TTGGameState::InClaim;
+    }
+
+    bool get_IsChallenge() const {
+        return challengeType == TTGGameState::InChallenge;
     }
 
     bool get_IsResolved() const {
