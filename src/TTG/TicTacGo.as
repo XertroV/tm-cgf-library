@@ -109,29 +109,34 @@ class TicTacGo : Game::Engine {
         return ActivePlayer == IAmPlayer ? TheyArePlayer : IAmPlayer;
     }
 
+    string OpponentsName = "??";
+    // string ActivePlayersName = "??";
+
     const string get_ActivePlayersName() {
         string uid;
         if (ActivePlayer == TTGSquareState::Unclaimed) {
             return "";
         }
         if (ActivePlayer == IAmPlayer) {
-            uid = client.clientUid;
+            return client.GetPlayerName(client.clientUid);
         } else {
-            uid = GameInfo.teams[int(ActivePlayer)][0];
+            return OpponentsName;
         }
         return client.GetPlayerName(uid);
     }
 
-    const string get_OpponentsName() {
-        return client.GetPlayerName(GameInfo.teams[int(TheyArePlayer)][0]);
-    }
+    // const string get_OpponentsName() {
+    //     return client.GetPlayerName(GameInfo.teams[int(TheyArePlayer)][0]);
+    // }
 
     const string get_MyName() {
-        return client.GetPlayerName(GameInfo.teams[int(IAmPlayer)][0]);
+        // return client.GetPlayerName(GameInfo.teams[int(IAmPlayer)][0]);
+        return client.GetPlayerName(client.clientUid);
     }
 
     const string GetPlayersName(TTGSquareState p) {
-        return client.GetPlayerName(GameInfo.teams[int(p)][0]);
+        return (p == IAmPlayer) ? MyName : OpponentsName;
+        // return client.GetPlayerName(GameInfo.teams[int(p)][0]);
     }
 
     string setPlayersRes = "";
@@ -142,16 +147,30 @@ class TicTacGo : Game::Engine {
             yield();
         }
         ActivePlayer = TTGSquareState(GameInfo.team_order[0]);
+        string oppUid;
         if (GameInfo.teams[0][0] == client.clientUid) {
             IAmPlayer = TTGSquareState::Player1;
             TheyArePlayer = TTGSquareState::Player2;
+            oppUid = GameInfo.teams[1][0];
         } else {
             IAmPlayer = TTGSquareState::Player2;
             TheyArePlayer = TTGSquareState::Player1;
+            oppUid = GameInfo.teams[0][0];
         }
-        gameLog.InsertLast(TTGGameEvent_StartingPlayer(ActivePlayer, ActivePlayersName));
         print("ActivePlayer (start): " + tostring(ActivePlayer));
         setPlayersRes = "Active=" + tostring(ActivePlayer) + "; " + "IAmPlayer=" + tostring(IAmPlayer);
+
+        for (uint i = 0; i < GameInfo.players.Length; i++) {
+            auto item = GameInfo.players[i];
+            if (item.uid == oppUid) {
+                OpponentsName = item.username;
+                break;
+            }
+        }
+        if (OpponentsName == "??") {
+            warn("Could not find opponents name.");
+        }
+        gameLog.InsertLast(TTGGameEvent_StartingPlayer(ActivePlayer, ActivePlayersName));
     }
 
     void OnGameStart() {
@@ -280,7 +299,7 @@ class TicTacGo : Game::Engine {
             auto available = UI::GetContentRegionAvail();
             auto midColSize = available * vec2(.5, 1) - UI::GetStyleVarVec2(UI::StyleVar::FramePadding);
             midColSize.x = Math::Min(midColSize.x, midColSize.y);
-            auto lrColSize = (available - vec2(midColSize.x, 0)) * vec2(.5, 1) - UI::GetStyleVarVec2(UI::StyleVar::FramePadding);
+            auto lrColSize = (available - vec2(midColSize.x, 0)) * vec2(.5, 1) - UI::GetStyleVarVec2(UI::StyleVar::FramePadding) * 2.;
             // player 1
             DrawLeftCol(lrColSize);
             UI::SameLine();
@@ -356,7 +375,12 @@ class TicTacGo : Game::Engine {
         UI::PushFont(hoverUiFont);
         UI::Text(IconForPlayer(player) + " -- Player " + playerNum);
         auto nameCol = "\\$" + (ActivePlayer == player ? "4b1" : "999");
-        UI::Text(nameCol + client.GetPlayerName(GameInfo.teams[team][0]));
+        string name = IAmPlayer == player ? MyName : OpponentsName;
+        UI::Text(nameCol + name);
+        if (!client.currentPlayers.Exists(GameInfo.teams[player][0])) {
+            UI::SameLine();
+            UI::Text("\\$ea4 (Disconnected)");
+        }
         UI::PopFont();
         if (player == TTGSquareState::Player2) {
 #if DEV
