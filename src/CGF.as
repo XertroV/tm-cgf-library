@@ -722,10 +722,10 @@ namespace Game {
 
         bool MsgHandler_GameInfoFull(Json::Value@ j) {
             @gameInfoFull = GameInfoFull(j["payload"]);
-            for (uint i = 0; i < gameInfoFull.players.Length; i++) {
-                auto user = gameInfoFull.players[i];
-                AddPlayer(user.uid, user.username);
-            }
+            // for (uint i = 0; i < gameInfoFull.players.Length; i++) {
+            //     auto user = gameInfoFull.players[i];
+            //     AddPlayer(user.uid, user.username);
+            // }
             return true;
         }
 

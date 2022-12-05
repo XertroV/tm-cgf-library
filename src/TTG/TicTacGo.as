@@ -51,8 +51,10 @@ class TicTacGo : Game::Engine {
 
     TicTacGo(Game::Client@ client) {
         @this.client = client;
+        client.AddMessageHandler("PLAYER_LEFT", CGF::MessageHandler(MsgHandler_PlayerEvent));
+        client.AddMessageHandler("PLAYER_JOINED", CGF::MessageHandler(MsgHandler_PlayerEvent));
         @challengeResult = ChallengeResultState();
-        gameLog.Resize(0);
+        ResetState();
         // @gui = TicTacGoUI(this);
     }
 
@@ -85,6 +87,14 @@ class TicTacGo : Game::Engine {
             }
         }
         print(b);
+    }
+
+    bool MsgHandler_PlayerEvent(Json::Value@ j) {
+        if (!client.IsInGame) return true;
+        string type = j['type'];
+        bool addToLog = type == "PLAYER_LEFT" || type == "PLAYER_JOINED";
+        if (addToLog) gameLog.InsertLast(TTGGameEvent_PlayerEvent(type, j['payload']));
+        return true;
     }
 
     vec2 get_framePadding() {
@@ -139,6 +149,7 @@ class TicTacGo : Game::Engine {
             IAmPlayer = TTGSquareState::Player2;
             TheyArePlayer = TTGSquareState::Player1;
         }
+        gameLog.InsertLast(TTGGameEvent_StartingPlayer(ActivePlayer, ActivePlayersName));
         print("ActivePlayer (start): " + tostring(ActivePlayer));
         setPlayersRes = "Active=" + tostring(ActivePlayer) + "; " + "IAmPlayer=" + tostring(IAmPlayer);
     }
@@ -159,6 +170,7 @@ class TicTacGo : Game::Engine {
     }
 
     TTGSquareState GetSquareState(int col, int row) const {
+        // trace_dev("xy: " + col + ", " + row);
         return boardState[col][row];
     }
 
@@ -198,8 +210,8 @@ class TicTacGo : Game::Engine {
         RenderChatWindow();
         // print("render going ahead");
         auto duration = challengeEndTime - challengeStartTime;
-        string sign = duration < 0 ? "-" : "";
-        duration = Math::Abs(duration);
+        // string sign = duration < 0 ? "-" : "";
+        // duration = Math::Abs(duration);
         nvg::Reset();
         nvg::TextAlign(nvg::Align::Center | nvg::Align::Bottom);
         nvg::FontFace(nvgFontTimer);
@@ -241,7 +253,7 @@ class TicTacGo : Game::Engine {
         | UI::WindowFlags::None;
 
     void RenderChatWindow() {
-        UI::SetNextWindowSize(350, 200, UI::Cond::FirstUseEver);
+        UI::SetNextWindowSize(400, 250, UI::Cond::FirstUseEver);
         if (UI::Begin("chat window" + client.clientUid, chatWindowFlags)) {
             DrawChat();
         }
@@ -313,7 +325,16 @@ class TicTacGo : Game::Engine {
 
     void DrawGameLog() {
         UI::PushFont(hoverUiFont);
-        UI::Text("Game Log");
+        if (UI::BeginTable("game log", 2, UI::TableFlags::SizingFixedFit)) {
+            UI::TableSetupColumn("gl", UI::TableColumnFlags::WidthStretch);
+            UI::TableNextRow();
+            UI::TableNextColumn();
+            UI::AlignTextToFramePadding();
+            UI::Text("Game Log");
+            UI::TableNextColumn();
+            if (UI::Button("Leave Game")) client.SendLeave();
+            UI::EndTable();
+        }
         UI::Separator();
         if (UI::BeginChild("##game-log-child")) {
             if (gameLog.IsEmpty()) {
@@ -446,7 +467,7 @@ class TicTacGo : Game::Engine {
         bool ownedByThem = SquareOwnedByThem(col, row);
 
         UI::PushFont(boardFont);
-        bool isDisabled = IsInClaimOrChallenge || IsGameFinished || not IsMyTurn || waitingForOwnMove;
+        bool isDisabled = !IsWaitingForMove || not IsMyTurn || waitingForOwnMove;
         bool clicked = _SquareButton(label + id, size, col, row, isBeingChallenged, ownedByMe, ownedByThem, isWinning, isDisabled);
         UI::PopFont();
 
@@ -744,7 +765,7 @@ class TicTacGo : Game::Engine {
             if (challengeResult.IsResolved) {
                 bool challengerWon = challengeResult.Winner != challengeResult.challenger;
                 auto eType = TTGGameEventType((IsInChallenge ? 4 : 2) | (challengerWon ? 0 : 1));
-                gameLog.InsertLast(TTGGameEvent(this, eType, challengeResult, gameLog.Length + 1));
+                gameLog.InsertLast(TTGGameEvent_MapResult(this, eType, challengeResult, gameLog.Length));
 
                 challengeEndedAt = Time::Now;
                 challengeResult.Reset();
@@ -1087,7 +1108,34 @@ enum TTGGameEventType {
     ChallengeFail = 5,
 }
 
-class TTGGameEvent {
+interface TTGGameEvent {
+    void Draw();
+}
+
+
+class TTGGameEvent_StartingPlayer : TTGGameEvent {
+    string msg;
+    TTGGameEvent_StartingPlayer(TTGSquareState player, const string &in name) {
+        msg = "0. Player " + (int(player) + 1) + " (" + name + ") starts.";
+    }
+
+    void Draw() {
+        UI::TextWrapped(msg);
+    }
+}
+
+class TTGGameEvent_PlayerEvent : TTGGameEvent {
+    string msg;
+    TTGGameEvent_PlayerEvent(const string &in type, Json::Value@ pl) {
+        msg = string(pl['username']) + (type == "PLAYER_JOINED" ? " Joined." : " Left.");
+    }
+
+    void Draw() {
+        UI::TextWrapped(msg);
+    }
+}
+
+class TTGGameEvent_MapResult : TTGGameEvent {
     TicTacGo@ ttg;
     TTGGameEventType Type;
     TTGSquareState Challenger;
@@ -1101,7 +1149,7 @@ class TTGGameEvent {
     int moveNumber;
     protected string msg;
 
-    TTGGameEvent(TicTacGo@ ttg, TTGGameEventType type, ChallengeResultState@ cr, int moveNumber) {
+    TTGGameEvent_MapResult(TicTacGo@ ttg, TTGGameEventType type, ChallengeResultState@ cr, int moveNumber) {
         @this.ttg = ttg;
         Type = type;
         Challenger = cr.challenger;
@@ -1181,24 +1229,17 @@ namespace HideGameUI {
     void OnMapLoad() {
         auto app = cast<CGameManiaPlanet>(GetApp());
         while (app.Network.ClientManiaAppPlayground is null) yield();
-        // while (app.Network.ClientManiaAppPlayground.UILayers.Length < 1) yield();
-        // auto uiConf = app.CurrentPlayground.UIConfigs[0];
-        // print("got uiConf");
         // wait for UI layers and a few frames extra
         auto uiConf = app.Network.ClientManiaAppPlayground;
         while (uiConf.UILayers.Length < 10) yield();
-        // sleep(1000);
         for (uint i = 0; i < uiConf.UILayers.Length; i++) {
             auto layer = uiConf.UILayers[i];
             string first100Chars = string(layer.ManialinkPage.SubStr(0, 100));
-            print(first100Chars);
             auto parts = first100Chars.Trim().Split('manialink name="');
             if (parts.Length < 2) continue;
             auto pageName = parts[1].Split('"')[0];
-            print(pageName);
             if (pageName.StartsWith("UIModule_Race") && HidePages.Find(pageName) >= 0) {
                 layer.IsVisible = false;
-                print("set " + pageName + " visible=false");
             }
         }
     }

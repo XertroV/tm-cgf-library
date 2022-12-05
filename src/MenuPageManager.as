@@ -1,31 +1,23 @@
 
-void TestFunc() {
-    auto mm = cast<CTrackMania>(GetApp()).MenuManager;
-    auto scriptHandler = mm.ManialinkScriptHandlerMenus;
-    auto layer = mm.MenuCustom_CurrentManiaApp.UILayerCreate();
-    yield();
-    layer.AttachId = "ChangeMenuScreen";
-    layer.ManialinkPage = """
-<manialink name="CGF_AvoidHomePage" version="3">
-<script><!--
+// void TestFunc() {
+//     auto mm = cast<CTrackMania>(GetApp()).MenuManager;
+//     // auto scriptHandler = mm.ManialinkScriptHandlerMenus;
+//     auto layer = mm.MenuCustom_CurrentManiaApp.UILayerCreate();
+//     yield();
+//     layer.AttachId = "ChangeMenuScreen";
+//     layer.ManialinkPage = """
+// <manialink name="CGF_AvoidHomePage" version="3">
+// <script><!--
 
-main() {
-  yield;
-  SendCustomEvent("Router_Push", ["/local", "{}", "{}"]);
-}
+// main() {
+//   yield;
+//   SendCustomEvent("Router_Push", ["/local", "{}", "{}"]);
+// }
 
---></script>
-</manialink>
-    """;
-    // mm.MenuManiaPlanet_MenuStations.ScriptHandlerStations.
-    // if (scriptHandler is null) return;
-    // MwFastBuffer<wstring> data;
-    // data.Add("/local");
-    // data.Add("{}");
-    // data.Add("{}");
-    // scriptHandler.SendCustomEvent("Router_Push", data);
-    // scriptHandler.
-}
+// --></script>
+// </manialink>
+//     """;
+// }
 
 namespace MM {
     CGameUILayer@ _layer = null;
