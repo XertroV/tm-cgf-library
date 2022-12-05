@@ -119,4 +119,8 @@ class LobbyInfo {
       @this._rooms[i] = RoomInfo(j["rooms"][i]);
     }
   }
+
+  void AddRoom(const Json::Value@ j) {
+    this._rooms.InsertLast(RoomInfo(j));
+  }
 }

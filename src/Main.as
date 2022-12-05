@@ -17,16 +17,18 @@ void _Unload() {
 }
 
 void Render() {
+    TTG::Render();
+    // does nothing without sig_developer
     Debug::Render();
     Debug::RenderInterface();
 }
 
 void RenderInterface() {
-    // does nothing without sig_developer
 }
 
 void RenderMenu() {
     Debug::RenderMenu();
+    TTG::RenderMenu();
 }
 
 /** Render function called every frame intended only for menu items in the main menu of the `UI`.

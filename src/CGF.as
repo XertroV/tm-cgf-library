@@ -23,6 +23,7 @@ namespace Game {
         bool accountExists;
         string clientUid;
         ClientState state = ClientState::Uninitialized;
+        bool loggedIn = false;
         int connectedAt;
 
         dictionary currentPlayers;
@@ -83,6 +84,7 @@ namespace Game {
             AddMessageHandler("ENTERED_LOBBY", CGF::MessageHandler(MsgHandler_LobbyInfo));
             AddMessageHandler("LOBBY_INFO", CGF::MessageHandler(MsgHandler_LobbyInfo));
             AddMessageHandler("ROOM_INFO", CGF::MessageHandler(MsgHandler_RoomInfo));
+            AddMessageHandler("NEW_ROOM", CGF::MessageHandler(MsgHandler_NewRoom));
             AddMessageHandler("PLAYER_LEFT", CGF::MessageHandler(MsgHandler_PlayerEvent));
             AddMessageHandler("PLAYER_JOINED", CGF::MessageHandler(MsgHandler_PlayerEvent));
             AddMessageHandler("PLAYER_LIST", CGF::MessageHandler(MsgHandler_PlayerEvent));
@@ -210,6 +212,7 @@ namespace Game {
                     accountExists = false;
                 } else {
                     NotifyInfo("Logged in!");
+                    loggedIn = true;
                 }
             }
             if (!accountExists) {
@@ -224,13 +227,18 @@ namespace Game {
                     Json::ToFile(fileName, resp['payload']);
                     clientUid = resp['payload']['uid'];
                     NotifyInfo("Account Registered!");
+                    loggedIn = true;
                 } else {
-                    warn("Error, got a bad response for registration request: " + Json::Write(resp));
+                    throw("Error, got a bad response for registration request: " + Json::Write(resp));
                 }
             }
             // RejoinIfPriorScope();
             startnew(CoroutineFunc(SendPingLoop));  // send PING every 5s
             startnew(CoroutineFunc(ReadAllMessagesForever));
+        }
+
+        bool get_IsLoggedIn() const {
+            return loggedIn;
         }
 
         // rejoin handled on server side now
@@ -374,10 +382,10 @@ namespace Game {
             return null;
         }
 
-        void Disconnect() {
+        void Disconnect(bool forever = false) {
             if (IsDisconnected || IsTimedOut || IsShutdown) return;
             // set disconnected first b/c SendRaw will try to disconnect upon failure
-            state = ClientState::Disconnected;
+            state = !forever ? ClientState::Disconnected : ClientState::DoNotReconnect;
             SendRaw("END");
             print("Client for " + name + " sent END and disconnected.");
             this.socket.Close();
@@ -522,6 +530,15 @@ namespace Game {
                 for (uint i = 0; i < currTeams.Length; i++) {
                     currTeams[i].Resize(0);
                 }
+            }
+            return true;
+        }
+
+        bool MsgHandler_NewRoom(Json::Value@ j) {
+            if (lobbyInfo is null) {
+                warn("New Room but lobby info is null! Skipping");
+            } else {
+                lobbyInfo.AddRoom(j['payload']);
             }
             return true;
         }
@@ -816,6 +833,18 @@ namespace Game {
             // if (currScope != Scope::InGameLobby) return;
             // SendPayload("LEAVE", Json::Object(), CGF::Visibility::global);
             SendLeave();
+        }
+
+        void JoinRoom(const string &in name) {
+            auto pl = Json::Object();
+            pl['name'] = name;
+            SendPayload("JOIN_ROOM", pl, CGF::Visibility::global);
+        }
+
+        void JoinRoomViaCode(const string &in joinCode) {
+            auto pl = Json::Object();
+            pl['code'] = joinCode;
+            SendPayload("JOIN_CODE", pl, CGF::Visibility::global);
         }
 
         void AddMessageHandler(const string &in type, CGF::MessageHandler@ handler) {
