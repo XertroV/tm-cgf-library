@@ -77,7 +77,7 @@ namespace Game {
 
         // alternative user name is the optional param -- for testing
         Client(const string &in _name = "") {
-            host = S_Host;
+            host = S_LocalDev ? "localhost" : S_Host;
             port = S_Port;
             AddMessageHandler("SEND_CHAT", CGF::MessageHandler(MsgHandler_Chat));
             AddMessageHandler("ENTERED_LOBBY", CGF::MessageHandler(MsgHandler_LobbyInfo));
@@ -705,6 +705,10 @@ namespace Game {
 
         bool MsgHandler_GameInfoFull(Json::Value@ j) {
             @gameInfoFull = GameInfoFull(j["payload"]);
+            for (uint i = 0; i < gameInfoFull.players.Length; i++) {
+                auto user = gameInfoFull.players[i];
+                AddPlayer(user.uid, user.username);
+            }
             return true;
         }
 

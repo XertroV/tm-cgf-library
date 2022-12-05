@@ -71,6 +71,7 @@ class TicTacGo : Game::Engine {
             }
         }
         state = TTGGameState::PreStart;
+        ActivePlayer = TTGSquareState::Unclaimed;
         WinningPlayer = TTGSquareState::Unclaimed;
     }
 
@@ -144,9 +145,10 @@ class TicTacGo : Game::Engine {
 
     void OnGameStart() {
         trace("On game start!");
+        MM::setMenuPage("/empty");
         ResetState();
         SetPlayers();
-        MM::setMenuPage("/empty");
+        state = TTGGameState::WaitingForMove;
         startnew(CoroutineFunc(GameLoop));
     }
 
@@ -331,7 +333,7 @@ class TicTacGo : Game::Engine {
         auto team = int(player);
         auto playerNum = team + 1;
         UI::PushFont(hoverUiFont);
-        UI::Text("Player " + playerNum);
+        UI::Text(IconForPlayer(player) + " -- Player " + playerNum);
         auto nameCol = "\\$" + (ActivePlayer == player ? "4b1" : "999");
         UI::Text(nameCol + client.GetPlayerName(GameInfo.teams[team][0]));
         UI::PopFont();
@@ -426,11 +428,16 @@ class TicTacGo : Game::Engine {
         return false;
     }
 
+    const string IconForPlayer(TTGSquareState player) {
+        if (player == TTGSquareState::Unclaimed) return Icons::QuestionCircleO;
+        return player == TTGSquareState::Player1 ? Icons::CircleO : Icons::Kenney::Times;
+        // return player == TTGSquareState::Player1 ? Icons::CircleO : Icons::Times;
+    }
+
     void DrawTTGSquare(uint col, uint row, vec2 size) {
         auto sqState = GetSquareState(col, row);
         bool squareOpen = sqState == TTGSquareState::Unclaimed;
-        string label = squareOpen ? ""
-            : (sqState == TTGSquareState::Player1 ? Icons::CircleO : Icons::Times);
+        string label = squareOpen ? "" : IconForPlayer(sqState);
         string id = "##sq-" + col + "," + row;
 
         bool isWinning = IsGameFinished && SquarePartOfWin(int2(col, row));
@@ -651,8 +658,10 @@ class TicTacGo : Game::Engine {
     bool waitingForOwnMove = false;
 
     void GameLoop() {
-        state = TTGGameState::WaitingForMove;
-        while (not IsGameFinished) {
+        while (IsPreStart) yield();
+        // while (ActivePlayer == TTGSquareState::Unclaimed) yield();
+        // state = TTGGameState::WaitingForMove;
+        while (not IsGameFinished && client.IsConnected) {
             yield();
             ProcessAvailableMsgs();
         }
@@ -924,7 +933,8 @@ class TicTacGo : Game::Engine {
             challengeEndTime = Time::Now;
             yield();
         }
-        challengeEndTime = Time::Now;
+        // we over measure if we set the end time here, and under measure if we set it earlier. so average them.
+        // challengeEndTime = (challengeEndTime + Time::Now) / 2;
         duration = challengeEndTime - challengeStartTime;
         // report result
         ReportChallengeResult(duration);
@@ -1086,6 +1096,8 @@ class TTGGameEvent {
     int challengerTime;
     int defenderTime;
     string mapName;
+    Json::Value@ map;
+    int trackId;
     int moveNumber;
     protected string msg;
 
@@ -1097,7 +1109,10 @@ class TTGGameEvent {
         xy = int2(cr.col, cr.row);
         this.challengerTime = cr.ChallengerTime;
         this.defenderTime = cr.DefenderTime;
-        this.mapName = ColoredString(ttg.GetMap(xy.x, xy.y)['Name']);
+        @map = ttg.GetMap(xy.x, xy.y);
+        this.mapName = ColoredString(map['Name']);
+        this.trackId = map['TrackID'];
+        // this.mapName = ttg.GetMap(xy.x, xy.y)['Name'];
         this.moveNumber = moveNumber;
         string cName = ttg.GetPlayersName(Challenger);
         string dName = ttg.GetPlayersName(Defender);

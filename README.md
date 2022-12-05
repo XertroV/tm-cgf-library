@@ -15,6 +15,16 @@ todo:
 
 - DNRC command (do not reconnect)
 - games
-  - join game on start timer expiry
   - game engine
   - elo / ranked?
+
+
+todo:
+
+add NEW_ROOM msg / handler
+
+on room join - check if game has started and make sure player is one of the players
+
+options:
+room timeout
+auto dnf
