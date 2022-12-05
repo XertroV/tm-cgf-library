@@ -79,6 +79,10 @@ class RoomInfo {
     return this._n_players;
   }
 
+  void set_n_players(uint value) {
+    this._n_players = value;
+  }
+
   uint get_player_limit() const {
     return this._player_limit;
   }

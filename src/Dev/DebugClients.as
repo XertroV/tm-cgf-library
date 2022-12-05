@@ -629,6 +629,7 @@ class InRoomTab : Tab {
         if (parent.client.roomInfo.HasStarted) {
             UI::SetCursorPos(pos + vec2(UI::GetWindowContentRegionWidth() / 2. - 50., 0));
             if (UI::Button("Game started. Rejoin!")) {
+                parent.inGameTab.ttg.ResetState();
                 parent.client.SendPayload("JOIN_GAME_NOW");
             }
         } else {

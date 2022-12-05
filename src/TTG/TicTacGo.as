@@ -48,6 +48,7 @@ class TicTacGo : Game::Engine {
 
     Json::Value@[] incomingEvents;
     TTGGameEvent@[] gameLog;
+    uint turnCounter = 0;
 
     TicTacGo(Game::Client@ client) {
         @this.client = client;
@@ -61,9 +62,11 @@ class TicTacGo : Game::Engine {
     void ResetState() {
         trace("TTG State Reset!");
         // reset board
+        turnCounter = 0;
         gameLog.Resize(0);
         boardState.Resize(3);
         boardMapKnown.Resize(3);
+        challengeResult.Reset();
         for (uint x = 0; x < boardState.Length; x++) {
             boardState[x].Resize(3);
             boardMapKnown[x].Resize(3);
@@ -633,6 +636,7 @@ class TicTacGo : Game::Engine {
         // else, update active player
         // ActivePlayer = ActivePlayer == IAmPlayer ? TheyArePlayer : IAmPlayer;
         ActivePlayer = InactivePlayer;
+        turnCounter++;
     }
 
     // check if 3 squares are claimed and equal
@@ -789,7 +793,7 @@ class TicTacGo : Game::Engine {
             if (challengeResult.IsResolved) {
                 bool challengerWon = challengeResult.Winner != challengeResult.challenger;
                 auto eType = TTGGameEventType((IsInChallenge ? 4 : 2) | (challengerWon ? 0 : 1));
-                gameLog.InsertLast(TTGGameEvent_MapResult(this, eType, challengeResult, gameLog.Length));
+                gameLog.InsertLast(TTGGameEvent_MapResult(this, eType, challengeResult, turnCounter + 1));
 
                 challengeEndedAt = Time::Now;
                 challengeResult.Reset();

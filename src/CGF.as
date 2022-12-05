@@ -85,6 +85,7 @@ namespace Game {
             AddMessageHandler("LOBBY_INFO", CGF::MessageHandler(MsgHandler_LobbyInfo));
             AddMessageHandler("ROOM_INFO", CGF::MessageHandler(MsgHandler_RoomInfo));
             AddMessageHandler("NEW_ROOM", CGF::MessageHandler(MsgHandler_NewRoom));
+            AddMessageHandler("ROOM_UPDATE", CGF::MessageHandler(MsgHandler_RoomUpdate));
             AddMessageHandler("PLAYER_LEFT", CGF::MessageHandler(MsgHandler_PlayerEvent));
             AddMessageHandler("PLAYER_JOINED", CGF::MessageHandler(MsgHandler_PlayerEvent));
             AddMessageHandler("PLAYER_LIST", CGF::MessageHandler(MsgHandler_PlayerEvent));
@@ -543,6 +544,19 @@ namespace Game {
             return true;
         }
 
+        bool MsgHandler_RoomUpdate(Json::Value@ j) {
+            auto pl = j['payload'];
+            string name = pl['name'];
+            int n_players = pl['n_players'];
+            for (uint i = 0; i < lobbyInfo.rooms.Length; i++) {
+                auto room = lobbyInfo.rooms[i];
+                if (room.name != name) continue;
+                room.n_players = n_players;
+                break;
+            }
+            return true;
+        }
+
         // todo: finish this
         bool MsgHandler_PlayerEvent(Json::Value@ j) {
             string type = j['type'];
@@ -624,6 +638,7 @@ namespace Game {
                     return i;
                 }
             }
+            // return -1;
             // for some reason this does not seem to work correctly.
             if (!uidToTeamNb.Exists(uid)) return -1;
             int team;

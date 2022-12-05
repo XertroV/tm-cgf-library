@@ -90,12 +90,14 @@ class TtgGame {
 
     vec2 lastCenteredTextBounds = vec2(100, 20);
     void DrawCenteredText(const string &in msg) {
+        UI::PushFont(mapUiFont);
         auto pos = (UI::GetWindowContentRegionMax() - lastCenteredTextBounds) / 2.;
         UI::SetCursorPos(pos);
         UI::Text(msg);
         auto r = UI::GetItemRect();
         lastCenteredTextBounds.x = r.z;
         lastCenteredTextBounds.y = r.w;
+        UI::PopFont();
     }
 
     void RenderConnecting() {
@@ -176,6 +178,7 @@ class TtgGame {
         }
 
         UI::Separator();
+        UI::Dummy(vec2(0, 4));
 
         UI::AlignTextToFramePadding();
         bool changed = false;
@@ -193,6 +196,7 @@ class TtgGame {
         UI::SameLine();
         showJoinCode = UI::Checkbox("Code Visible?", showJoinCode);
 
+        UI::Dummy(vec2(0, 4));
         UI::Separator();
     }
 
@@ -201,6 +205,11 @@ class TtgGame {
     }
 
     void DrawRoomList() {
+        UI::PushFont(mapUiFont);
+        UI::AlignTextToFramePadding();
+        UI::Text("Rooms:");
+        UI::PopFont();
+
         UI::AlignTextToFramePadding();
         if (client.lobbyInfo is null) {
             UI::Text("Waiting for lobby info...");
@@ -212,10 +221,10 @@ class TtgGame {
             return;
         }
         if (UI::BeginChild("ttg-room-list")) {
-            if (UI::BeginTable("ttg-room-list-table", 4, UI::TableFlags::SizingStretchProp)) {
+            if (UI::BeginTable("ttg-room-list-table", 3, UI::TableFlags::SizingStretchProp)) {
                 UI::TableSetupColumn("Name");
                 UI::TableSetupColumn("Player Limit");
-                UI::TableSetupColumn("Nb Teams");
+                // UI::TableSetupColumn("Nb Teams");
                 UI::TableSetupColumn("");
                 UI::TableHeadersRow();
                 UI::ListClipper clipper(li.rooms.Length);
@@ -237,8 +246,8 @@ class TtgGame {
         DrawRoomName(room);
         UI::TableNextColumn();
         UI::Text(tostring(room.n_players) + " / " + tostring(room.player_limit));
-        UI::TableNextColumn();
-        UI::Text(tostring(room.n_teams));
+        // UI::TableNextColumn();
+        // UI::Text(tostring(room.n_teams));
         UI::TableNextColumn();
         if (UI::Button("Join##" + room.name)) {
             client.JoinRoom(room.name);
@@ -391,8 +400,8 @@ class TtgGame {
         string joinCode = client.roomInfo.join_code.GetOr("???");
         UI::AlignTextToFramePadding();
         UI::Text("Players: " + currNPlayers + " / " + pLimit);
-        UI::AlignTextToFramePadding();
-        UI::Text("N Teams: " + nTeams);
+        // UI::AlignTextToFramePadding();
+        // UI::Text("N Teams: " + nTeams);
 
         DrawJoinCode(joinCode);
 
