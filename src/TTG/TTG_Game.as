@@ -245,20 +245,114 @@ class TtgGame {
         }
     }
 
-    void DrawRoomName(RoomInfo@ room) {
+    const string RoomNameText(RoomInfo@ room) {
         string _name;
         if (room is null) _name = "?? unknown";
         else {
             auto nameParts = room.name.Split("##", 2);
             _name = nameParts.Length > 1 ? nameParts [0] + " \\$888" + nameParts[1] : nameParts[0];
         }
-        UI::Text(_name);
+        return _name;
     }
 
-    void DrawRoomCreation() {
-        if (UI::Button("Back##from-create")) {
-            isCreatingRoom = false;
+    void DrawRoomName(RoomInfo@ room) {
+        UI::Text(RoomNameText(room));
+    }
+
+    bool DrawHeading1Button(const string &in heading, const string &in btnLabel) {
+        UI::PushFont(mapUiFont);
+        // UI::Text("Lobby");
+        bool ret = false;
+        if (UI::BeginTable("ttg-heading"+heading, 2, UI::TableFlags::SizingFixedFit)) {
+            UI::TableSetupColumn("l", UI::TableColumnFlags::WidthStretch);
+            UI::TableNextRow();
+            UI::TableNextColumn();
+            UI::AlignTextToFramePadding();
+            UI::Text(heading);
+            UI::TableNextColumn();
+            ret = UI::Button(btnLabel);
+            UI::EndTable();
         }
+        UI::PopFont();
+        UI::Separator();
+        return ret;
+    }
+
+    // consts for TTG
+    int m_playerLimit = 2;
+    int m_nbTeams = 2;
+    int m_nbMapsReq = 9;
+    // room vars
+    string m_roomName = LocalPlayersName + "'s Room";
+    bool m_isPublic = true;
+    int m_mapMinSecs = 15;
+    int m_mapMaxSecs = 45;
+    // timeotu
+    uint createRoomTimeout = 0;
+
+    void DrawRoomCreation() {
+        UI::PushFont(mapUiFont);
+        // UI::Text("Lobby");
+        if (UI::BeginTable("ttg-create-header", 3, UI::TableFlags::SizingFixedFit)) {
+            UI::TableSetupColumn("l", UI::TableColumnFlags::WidthStretch);
+            UI::TableNextRow();
+            UI::TableNextColumn();
+            UI::AlignTextToFramePadding();
+            UI::Text("Create a room.");
+            UI::TableNextColumn();
+            if (UI::Button("Back##from-create")) {
+                isCreatingRoom = false;
+            }
+            UI::EndTable();
+        }
+        UI::PopFont();
+
+        UI::Separator();
+        bool changed = false;
+        UI::AlignTextToFramePadding();
+        UI::Text("Room Name:");
+        UI::SameLine();
+        m_roomName = UI::InputText("##Room Name", m_roomName, changed);
+        m_isPublic = UI::Checkbox("Is Public?", m_isPublic);
+        DrawMapsNumMinMax();
+        UI::BeginDisabled(Time::Now < createRoomTimeout);
+        if (UI::Button("Create Room")) {
+            createRoomTimeout = Time::Now + ROOM_TIMEOUT_MS;
+            CreateRoom();
+        }
+        UI::EndDisabled();
+    }
+
+    void DrawMapsNumMinMax() {
+        UI::AlignTextToFramePadding();
+        UI::Text("Map Length:");
+        UI::AlignTextToFramePadding();
+        TextSameLine("  Min Len (s): ");
+        m_mapMinSecs = UI::InputInt("##min-len-s", m_mapMinSecs, 15);
+        m_mapMinSecs = Math::Max(15, Math::Floor(m_mapMinSecs / 15.0) * 15.0);
+        if (m_mapMaxSecs < m_mapMinSecs) {
+            m_mapMaxSecs = m_mapMinSecs;
+        }
+        UI::AlignTextToFramePadding();
+        TextSameLine("  Max Len (s): ");
+        m_mapMaxSecs = UI::InputInt("##max-len-s", m_mapMaxSecs, 15);
+        m_mapMaxSecs = Math::Ceil(m_mapMaxSecs / 15.0) * 15.0;
+        if (m_mapMaxSecs < m_mapMinSecs) {
+            m_mapMinSecs = m_mapMaxSecs;
+        }
+    }
+
+    void CreateRoom() {
+        auto pl = Json::Object();
+        pl['name'] = m_roomName;
+        pl['player_limit'] = m_playerLimit;
+        pl['n_teams'] = m_nbTeams;
+        pl['maps_required'] = m_nbMapsReq;
+        pl['min_secs'] = m_mapMinSecs;
+        pl['max_secs'] = m_mapMaxSecs;
+        auto vis = m_isPublic ? CGF::Visibility::global : CGF::Visibility::none;
+        client.SendPayload("CREATE_ROOM", pl, vis);
+        m_roomName = LocalPlayersName + "'s Room";
     }
 
     void RenderRoom() {
@@ -274,22 +368,32 @@ class TtgGame {
     }
 
     void DrawRoomMain() {
-        vec2 initPos = UI::GetCursorPos();
-        UI::SetCursorPos(initPos + vec2(UI::GetWindowContentRegionWidth() - 60, 10));
-        if (UI::Button("Leave##leave-room")) {
+        // vec2 initPos = UI::GetCursorPos();
+        // UI::SetCursorPos(initPos + vec2(UI::GetWindowContentRegionWidth() - 75, 10));
+        // if (UI::Button("Leave##leave-room")) {
+        //     client.SendLeave();
+        // }
+
+        // UI::SetCursorPos(initPos);
+        // UI::PushFont(mapUiFont);
+        // UI::AlignTextToFramePadding();
+        // // TextSameLine("Name:");
+        // DrawRoomName(client.roomInfo);
+        // UI::PopFont();
+
+        if (DrawHeading1Button(RoomNameText(client.roomInfo), "Leave##leave-room")) {
             client.SendLeave();
         }
-        UI::SetCursorPos(initPos);
-        UI::AlignTextToFramePadding();
-        UI::Text("Name: ");
-        UI::SameLine();
-        DrawRoomName(client.roomInfo);
+
         uint currNPlayers = client.roomInfo.n_players;
         uint pLimit = client.roomInfo.player_limit;
         uint nTeams = client.roomInfo.n_teams;
         string joinCode = client.roomInfo.join_code.GetOr("???");
+        UI::AlignTextToFramePadding();
         UI::Text("Players: " + currNPlayers + " / " + pLimit);
+        UI::AlignTextToFramePadding();
         UI::Text("N Teams: " + nTeams);
+
         DrawJoinCode(joinCode);
 
         DrawReadySection();
@@ -315,13 +419,21 @@ class TtgGame {
             }
         } else {
             UI::SetCursorPos(pos + vec2(UI::GetWindowContentRegionWidth() / 3. - 35., 0));
-            markReady = client.GetReadyStatus(client.clientUid);
-            bool newReady = UI::Checkbox("Ready?##room-to-game", markReady);
-            if (newReady != markReady)
-                client.MarkReady(newReady);
-            markReady = newReady;
+            bool isInTeam = 0 <= client.PlayerIsOnTeam(client.clientUid);
+            bool isReady = client.GetReadyStatus(client.clientUid);
+            if (isInTeam || isReady) {
+                markReady = client.GetReadyStatus(client.clientUid);
+                bool newReady = UI::Checkbox("Ready?##room-to-game", markReady);
+                if (newReady != markReady)
+                    client.MarkReady(newReady);
+                markReady = newReady;
+            } else {
+                UI::AlignTextToFramePadding();
+                UI::Text("\\$fc3Join a Team");
+            }
 
             UI::SetCursorPos(pos + vec2(UI::GetWindowContentRegionWidth() * 2. / 3. - 50., 0));
+            UI::AlignTextToFramePadding();
             if (client.IsGameNotStarted) {
                 UI::Text("Players Ready: " + client.readyCount + " / " + client.roomInfo.n_players);
             } else if (client.IsGameStartingSoon) {
@@ -344,7 +456,7 @@ class TtgGame {
         UI::SameLine();
         auto jcPos = UI::GetCursorPos();
         UI::Text(txt);
-        UI::SetCursorPos(jcPos + vec2(70, 0));
+        UI::SetCursorPos(jcPos + vec2(100, 0));
         if (UI::Button("Copy")) IO::SetClipboard(jc);
         UI::SameLine();
         UI::Dummy(vec2(20, 0));
@@ -354,6 +466,8 @@ class TtgGame {
 
     void DrawTeamSelection() {
         uint nTeams = client.roomInfo.n_teams;
+        UI::Dummy(vec2(20, 0));
+        UI::SameLine();
         if (UI::BeginTable("team selection", nTeams, UI::TableFlags::SizingStretchSame)) {
             UI::TableNextRow();
             // UI::TableNextColumn(); // the first of the extra 2 columns; the second is implicit

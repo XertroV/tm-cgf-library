@@ -618,6 +618,22 @@ namespace Game {
             currTeams[team].InsertLast(uid);
         }
 
+        int PlayerIsOnTeam(const string &in uid) {
+            for (uint i = 0; i < currTeams.Length; i++) {
+                if (currTeams[i].Find(uid) >= 0) {
+                    return i;
+                }
+            }
+            // for some reason this does not seem to work correctly.
+            if (!uidToTeamNb.Exists(uid)) return -1;
+            int team;
+            if (uidToTeamNb.Get(uid, team)) {
+                return team;
+            }
+            return -1;
+            // return int(uidToTeamNb[uid]);
+        }
+
         bool MsgHandler_TeamsEvent(Json::Value@ j) {
             string type = j['type'];
             if (type == "PLAYER_JOINED_TEAM") {
