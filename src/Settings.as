@@ -12,3 +12,9 @@ bool S_LocalDev = false;
 
 // [Setting category="Tic Tac Go" name="Timer Pos (in map)"]
 // vec2 S_TimerPosition = vec2(0, 200);
+
+[Setting category="Tic Tac Go" name="Hide Chat Always?"]
+bool S_TTG_HideChat = false;
+
+[Setting category="Tic Tac Go" name="Hide Lobby Chat?"]
+bool S_TTG_HideLobbyChat = false;

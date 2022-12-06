@@ -54,6 +54,7 @@ class TicTacGo : Game::Engine {
         @this.client = client;
         client.AddMessageHandler("PLAYER_LEFT", CGF::MessageHandler(MsgHandler_PlayerEvent));
         client.AddMessageHandler("PLAYER_JOINED", CGF::MessageHandler(MsgHandler_PlayerEvent));
+        client.AddMessageHandler("LOBBY_LIST", CGF::MessageHandler(MsgHandler_Ignore));
         @challengeResult = ChallengeResultState();
         ResetState();
         // @gui = TicTacGoUI(this);
@@ -97,6 +98,10 @@ class TicTacGo : Game::Engine {
         string type = j['type'];
         bool addToLog = type == "PLAYER_LEFT" || type == "PLAYER_JOINED";
         if (addToLog) gameLog.InsertLast(TTGGameEvent_PlayerEvent(type, j['payload']));
+        return true;
+    }
+
+    bool MsgHandler_Ignore(Json::Value@ j) {
         return true;
     }
 
@@ -275,11 +280,14 @@ class TicTacGo : Game::Engine {
         | UI::WindowFlags::None;
 
     void RenderChatWindow() {
+        if (S_TTG_HideChat) return;
+        bool isOpen = !S_TTG_HideChat;
         UI::SetNextWindowSize(400, 250, UI::Cond::FirstUseEver);
-        if (UI::Begin("chat window" + client.clientUid, chatWindowFlags)) {
+        if (UI::Begin("chat window" + client.clientUid, isOpen, chatWindowFlags)) {
             DrawChat();
         }
         UI::End();
+        S_TTG_HideChat = !isOpen;
     }
 
     void RenderBackgroundGoneNotice() {
@@ -583,11 +591,26 @@ class TicTacGo : Game::Engine {
         // get the corresponding map and load it
     }
 
+    void DrawChatHidden() {
+        if (DrawSubHeading1Button("Chat Hidden", "Show")) {
+            S_TTG_HideChat = false;
+        }
+    }
+
     string m_chatMsg;
-    void DrawChat() {
+    void DrawChat(bool drawHeading = true) {
+        if (S_TTG_HideChat) {
+            DrawChatHidden();
+            return;
+        }
+        if (drawHeading) {
+            if (DrawSubHeading1Button("Chat", "Hide")) {
+                S_TTG_HideChat = true;
+            }
+        }
         UI::PushFont(hoverUiFont);
-        UI::Text("Chat");
-        UI::Separator();
+        // UI::Text("Chat");
+        // UI::Separator();
         bool changed;
         m_chatMsg = UI::InputText("##ttg-chat-msg", m_chatMsg, changed, UI::InputTextFlags::EnterReturnsTrue);
         if (changed) UI::SetKeyboardFocusHere(-1);

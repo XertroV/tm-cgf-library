@@ -36,12 +36,13 @@ class TtgGame {
         while (!IsShutdown && client.IsInGameLobby) yield();
         auto lastScope = client.currScope;
         while (!IsShutdown) {
-            yield();
             if (lastScope != client.currScope) {
                 lastScope = client.currScope;
-                // if (lastScope == Game::Scope::InRoom)
-                    // ttg.ResetState();
+                if (lastScope == Game::Scope::InRoom) {
+                    m_roomName = LocalPlayersName + "'s Room";
+                }
             }
+            yield();
         }
     }
 
@@ -82,9 +83,11 @@ class TtgGame {
 
     protected bool MainWindowOpen = true; // set to false after deving so ppl have to open it
 
+    int DefaultLobbyWindowHeight = 650;
+
     protected bool BeginMainWindow() {
         // if (!MainWindowOpen) startnew(TTG::NullifyGame);
-        UI::SetWindowSize(vec2(900, 650), UI::Cond::Appearing);
+        UI::SetWindowSize(vec2(900, DefaultLobbyWindowHeight), UI::Cond::Appearing);
         return UI::Begin("Lobby - Tic Tac GO!", MainWindowOpen);
     }
 
@@ -132,8 +135,13 @@ class TtgGame {
     string m_joinCode;
     bool showJoinCode = false;
 
+    vec2 lobbyWindowSize = vec2(900, DefaultLobbyWindowHeight);
+    vec2 lobbyWindowPos = vec2(200, 200);
+
     void RenderGameLobby() {
         if (BeginMainWindow()) {
+            lobbyWindowSize = UI::GetWindowSize();
+            lobbyWindowPos = UI::GetWindowPos();
             if (isCreatingRoom) {
                 DrawRoomCreation();
             } else {
@@ -142,6 +150,22 @@ class TtgGame {
             }
         }
         UI::End();
+        RenderLobbyChatWindow();
+    }
+
+    int lobbyChatWindowFlags = UI::WindowFlags::NoResize;
+        // | UI::WindowFlags::None;
+
+    void RenderLobbyChatWindow() {
+        if (S_TTG_HideLobbyChat) return;
+        bool isOpen = !S_TTG_HideLobbyChat;
+        UI::SetNextWindowSize(300, lobbyWindowSize.y, UI::Cond::Always);
+        UI::SetNextWindowPos(lobbyWindowPos.x + lobbyWindowSize.x + 20, lobbyWindowPos.y, UI::Cond::Always);
+        if (UI::Begin("Lobby Chat##" + client.clientUid, isOpen, lobbyChatWindowFlags)) {
+            ttg.DrawChat(false);
+        }
+        UI::End();
+        S_TTG_HideLobbyChat = !isOpen;
     }
 
     void DrawLobbyHeader() {
@@ -268,25 +292,6 @@ class TtgGame {
         UI::Text(RoomNameText(room));
     }
 
-    bool DrawHeading1Button(const string &in heading, const string &in btnLabel) {
-        UI::PushFont(mapUiFont);
-        // UI::Text("Lobby");
-        bool ret = false;
-        if (UI::BeginTable("ttg-heading"+heading, 2, UI::TableFlags::SizingFixedFit)) {
-            UI::TableSetupColumn("l", UI::TableColumnFlags::WidthStretch);
-            UI::TableNextRow();
-            UI::TableNextColumn();
-            UI::AlignTextToFramePadding();
-            UI::Text(heading);
-            UI::TableNextColumn();
-            ret = UI::Button(btnLabel);
-            UI::EndTable();
-        }
-        UI::PopFont();
-        UI::Separator();
-        return ret;
-    }
-
     // consts for TTG
     int m_playerLimit = 2;
     int m_nbTeams = 2;
@@ -361,7 +366,8 @@ class TtgGame {
         pl['max_secs'] = m_mapMaxSecs;
         auto vis = m_isPublic ? CGF::Visibility::global : CGF::Visibility::none;
         client.SendPayload("CREATE_ROOM", pl, vis);
-        m_roomName = LocalPlayersName + "'s Room";
+        // reset m_roomName in join room block
+        // m_roomName = LocalPlayersName + "'s Room";
     }
 
     void RenderRoom() {

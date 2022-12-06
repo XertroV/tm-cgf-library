@@ -23,3 +23,45 @@ void TextSameLine(const string &in msg) {
     UI::Text(msg);
     UI::SameLine();
 }
+
+
+
+
+bool DrawHeading1Button(const string &in heading, const string &in btnLabel) {
+    UI::PushFont(mapUiFont);
+    // UI::Text("Lobby");
+    bool ret = false;
+    if (UI::BeginTable("ttg-heading"+heading, 2, UI::TableFlags::SizingFixedFit)) {
+        UI::TableSetupColumn("l", UI::TableColumnFlags::WidthStretch);
+        UI::TableNextRow();
+        UI::TableNextColumn();
+        UI::AlignTextToFramePadding();
+        UI::Text(heading);
+        UI::TableNextColumn();
+        ret = UI::Button(btnLabel);
+        UI::EndTable();
+    }
+    UI::PopFont();
+    UI::Separator();
+    return ret;
+}
+
+
+bool DrawSubHeading1Button(const string &in heading, const string &in btnLabel) {
+    UI::PushFont(hoverUiFont);
+    // UI::Text("Lobby");
+    bool ret = false;
+    if (UI::BeginTable("ttg-heading"+heading, 2, UI::TableFlags::SizingFixedFit)) {
+        UI::TableSetupColumn("l", UI::TableColumnFlags::WidthStretch);
+        UI::TableNextRow();
+        UI::TableNextColumn();
+        UI::AlignTextToFramePadding();
+        UI::Text(heading);
+        UI::TableNextColumn();
+        ret = UI::Button(btnLabel);
+        UI::EndTable();
+    }
+    UI::PopFont();
+    UI::Separator();
+    return ret;
+}
