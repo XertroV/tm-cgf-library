@@ -35,6 +35,7 @@ class TicTacGo : Game::Engine {
     TicTacGoUI@ gui;
     TTGSquareState[][] boardState;
     bool[][] boardMapKnown;
+    string idNonce;
 
     TTGGameState state = TTGGameState::PreStart;
 
@@ -50,7 +51,9 @@ class TicTacGo : Game::Engine {
     TTGGameEvent@[] gameLog;
     uint turnCounter = 0;
 
-    TicTacGo(Game::Client@ client) {
+    TicTacGo(Game::Client@ client, bool setRandomNonce = false) {
+        if (setRandomNonce)
+            idNonce = tostring(Math::Rand(0, 99999999));
         @this.client = client;
         client.AddMessageHandler("PLAYER_LEFT", CGF::MessageHandler(MsgHandler_PlayerEvent));
         client.AddMessageHandler("PLAYER_JOINED", CGF::MessageHandler(MsgHandler_PlayerEvent));
@@ -283,7 +286,7 @@ class TicTacGo : Game::Engine {
         if (S_TTG_HideChat) return;
         bool isOpen = !S_TTG_HideChat;
         UI::SetNextWindowSize(400, 250, UI::Cond::FirstUseEver);
-        if (UI::Begin("chat window" + client.clientUid, isOpen, chatWindowFlags)) {
+        if (UI::Begin("chat window" + idNonce, isOpen, chatWindowFlags)) {
             DrawChat();
         }
         UI::End();
@@ -306,7 +309,7 @@ class TicTacGo : Game::Engine {
     void RenderInterface() {
         UI::SetNextWindowSize(Draw::GetWidth() * 0.5, Draw::GetHeight() * 0.6, UI::Cond::FirstUseEver);
         UI::PushFont(hoverUiFont);
-        if (UI::Begin("Tic Tac GO!##" + client.clientUid)) {
+        if (UI::Begin("Tic Tac GO!##" + idNonce)) {
             // LogPlayerStartTime();
             // Tic Tac Toe interface
             auto available = UI::GetContentRegionAvail();
@@ -594,7 +597,7 @@ class TicTacGo : Game::Engine {
     }
 
     void DrawChatHidden() {
-        if (DrawSubHeading1Button("Chat Hidden", "Show")) {
+        if (DrawSubHeading1Button("Chat Hidden", "Show##" + idNonce)) {
             S_TTG_HideChat = false;
         }
     }
@@ -606,7 +609,7 @@ class TicTacGo : Game::Engine {
             return;
         }
         if (drawHeading) {
-            if (DrawSubHeading1Button("Chat", "Hide")) {
+            if (DrawSubHeading1Button("Chat", "Hide##" + idNonce)) {
                 S_TTG_HideChat = true;
             }
         }
@@ -614,7 +617,7 @@ class TicTacGo : Game::Engine {
         // UI::Text("Chat");
         // UI::Separator();
         bool changed;
-        m_chatMsg = UI::InputText("##ttg-chat-msg", m_chatMsg, changed, UI::InputTextFlags::EnterReturnsTrue);
+        m_chatMsg = UI::InputText("##ttg-chat-msg"+idNonce, m_chatMsg, changed, UI::InputTextFlags::EnterReturnsTrue);
         if (changed) UI::SetKeyboardFocusHere(-1);
         UI::SameLine();
         if (UI::Button("Send") || changed) {
@@ -900,7 +903,7 @@ class TicTacGo : Game::Engine {
         UI::PushStyleVar(UI::StyleVar::WindowRounding, 20);
         UI::PushStyleVar(UI::StyleVar::WindowPadding, vec2(20, 20));
         UI::PushStyleColor(UI::Col::WindowBg, challengeWindowBgCol);
-        if (UI::Begin("ttg-challenge-window-" + client.clientUid, flags)) {
+        if (UI::Begin("ttg-challenge-window-" + idNonce, flags)) {
             UI::PushFont(mapUiFont);
             string challengeStr;
             bool iAmChallenging = challengeResult.challenger == IAmPlayer;

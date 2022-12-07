@@ -2,9 +2,16 @@
 class TtgGame {
     Game::Client@ client;
     TicTacGo@ ttg;
+    bool hasPerms = false;
 
     TtgGame() {
-        startnew(CoroutineFunc(Initialize));
+        // required permissions
+        hasPerms = Permissions::PlayLocalMap();
+        if (hasPerms)
+            startnew(CoroutineFunc(Initialize));
+        else {
+            NotifyError("You don't have the required permissions to play TTG. (PlayLocalMap)\n\nYou need standard or club access.");
+        }
     }
 
     void Initialize() {
@@ -60,14 +67,15 @@ class TtgGame {
     // }
 
     void Render() {
-        if (ttg !is null)
+        if (hasPerms && ttg !is null)
             ttg.Render();
     }
 
     void RenderInterface() {
         if (CurrentlyInMap) return;
         UI::PushFont(hoverUiFont);
-        if (client is null || client.IsAuthenticating) RenderAuthenticating();
+        if (!hasPerms) RenderNoPerms();
+        else if (client is null || client.IsAuthenticating) RenderAuthenticating();
         else if (!client.IsConnected) RenderConnecting();
         else if (!client.IsLoggedIn) RenderLoggingIn();
         else if (client.IsMainLobby) RenderJoiningGameLobby();
@@ -105,6 +113,13 @@ class TtgGame {
         lastCenteredTextBounds.x = r.z;
         lastCenteredTextBounds.y = r.w;
         UI::PopFont();
+    }
+
+    void RenderNoPerms() {
+        if (BeginMainWindow()) {
+            DrawCenteredText(Icons::ExclamationTriangle + "  Standard or Club access required.");
+        }
+        UI::End();
     }
 
     void RenderAuthenticating() {

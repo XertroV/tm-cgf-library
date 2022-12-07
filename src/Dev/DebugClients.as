@@ -525,7 +525,7 @@ class InGameTab : Tab {
 
     InGameTab(DebugClientWindow@ parent) {
         @this.parent = parent;
-        @this.ttg = TicTacGo(parent.client);
+        @this.ttg = TicTacGo(parent.client, true);
         @parent.client.gameEngine = this.ttg;
         super("Current Game");
     }

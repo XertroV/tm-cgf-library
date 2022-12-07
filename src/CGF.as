@@ -413,8 +413,10 @@ namespace Game {
                 error("Login error: " + string(resp['error']));
                 return false;
             }
+            accountExists = true;
             g_accountID = resp["account_id"];
             g_displayName = resp["display_name"];
+            clientUid = resp["uid"];
             // g_secret = resp["secret"];
             NotifyInfo("Logged in!");
             return true;
