@@ -39,6 +39,7 @@ class TtgGame {
             // sleep(2000);
         }
         while (!IsShutdown && client.IsInGameLobby) yield();
+        if (IsShutdown) return;
         auto lastScope = client.currScope;
         while (!IsShutdown) {
             if (lastScope != client.currScope) {
@@ -121,28 +122,28 @@ class TtgGame {
 
     void RenderConnecting() {
         if (BeginMainWindow()) {
-            DrawCenteredText("Connecting...");
+            DrawCenteredText(Icons::Users + "  Connecting...");
         }
         UI::End();
     }
 
     void RenderLoggingIn() {
         if (BeginMainWindow()) {
-            DrawCenteredText("Logging In...");
+            DrawCenteredText(Icons::Users + "  Logging In...");
         }
         UI::End();
     }
 
     void RenderJoiningGameLobby() {
         if (BeginMainWindow()) {
-            DrawCenteredText("Joining Lobby...");
+            DrawCenteredText(Icons::Hashtag + "  Joining Lobby...");
         }
         UI::End();
     }
 
     void RenderWaitingForGameInfo() {
         if (BeginMainWindow()) {
-            DrawCenteredText("Waiting for game info...");
+            DrawCenteredText(Icons::Hashtag + "  Waiting for game info...");
         }
         UI::End();
     }
@@ -341,7 +342,6 @@ class TtgGame {
             isCreatingRoom = false;
         }
 
-        UI::Separator();
         bool changed = false;
         UI::AlignTextToFramePadding();
         UI::Text("Room Name:");

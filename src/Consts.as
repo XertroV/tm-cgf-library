@@ -7,3 +7,5 @@ const uint ROOM_TIMEOUT_MS = 1000;
 
 const uint MAX_TEAMS = 16;
 const uint MIN_TEAMS = 2;
+
+const string LATEST_SERVER_MINOR = "0.1.";
