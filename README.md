@@ -18,9 +18,6 @@ todo:
   - game engine
   - elo / ranked?
 
-room chat
-
-initial window dimensions
 
 (something i'm forgetting)
 
@@ -28,10 +25,19 @@ bans, hide lobby names?, auth
 
 server version test!
 
-color test in chat
 
 game option: stealing maps
 
+
+
+
+
+
+done: color test in chat
+
+room chat
+
+initial window dimensions
 
 
 todo:

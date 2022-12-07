@@ -238,10 +238,10 @@ class TtgGame {
     }
 
     void DrawRoomList() {
-        UI::PushFont(mapUiFont);
-        UI::AlignTextToFramePadding();
-        UI::Text("Rooms:");
-        UI::PopFont();
+        string rmVisBtn = S_TTG_HideRoomNames ? "Show " : "Hide ";
+        if (DrawSubHeading1Button("Rooms:", rmVisBtn + "Names")) {
+            S_TTG_HideRoomNames = !S_TTG_HideRoomNames;
+        }
 
         UI::AlignTextToFramePadding();
         if (client.lobbyInfo is null) {
@@ -292,13 +292,23 @@ class TtgGame {
         if (room is null) _name = "?? unknown";
         else {
             auto nameParts = room.name.Split("##", 2);
-            _name = nameParts.Length > 1 ? nameParts [0] + " \\$888" + nameParts[1] : nameParts[0];
+            _name = nameParts.Length > 1 ? nameParts[0] + " \\$888" + nameParts[1] : nameParts[0];
+        }
+        return _name;
+    }
+
+    const string RoomNameNonce(RoomInfo@ room) {
+        string _name;
+        if (room is null) _name = "?? unknown";
+        else {
+            auto nameParts = room.name.Split("##", 2);
+            _name = nameParts.Length > 1 ? "--" + " \\$888" + nameParts[1] : "--";
         }
         return _name;
     }
 
     void DrawRoomName(RoomInfo@ room) {
-        UI::Text(RoomNameText(room));
+        UI::Text(S_TTG_HideRoomNames ? RoomNameNonce(room) : RoomNameText(room));
     }
 
     // consts for TTG
@@ -310,6 +320,8 @@ class TtgGame {
     bool m_isPublic = true;
     int m_mapMinSecs = 15;
     int m_mapMaxSecs = 45;
+    // game stuff
+    Json::Value@ gameOptions = Json::Object();
     // timeotu
     uint createRoomTimeout = 0;
 
@@ -338,6 +350,7 @@ class TtgGame {
         m_roomName = UI::InputText("##Room Name", m_roomName, changed);
         m_isPublic = UI::Checkbox("Is Public?", m_isPublic);
         DrawMapsNumMinMax();
+        DrawGameOptions();
         UI::BeginDisabled(Time::Now < createRoomTimeout);
         if (UI::Button("Create Room")) {
             createRoomTimeout = Time::Now + ROOM_TIMEOUT_MS;
@@ -363,6 +376,15 @@ class TtgGame {
         if (m_mapMaxSecs < m_mapMinSecs) {
             m_mapMinSecs = m_mapMaxSecs;
         }
+    }
+
+    void DrawGameOptions() {
+        UI::Text("Game Options:");
+        bool can_steal = gameOptions.Get("can_steal", true);
+
+        can_steal = UI::Checkbox("Allow stealing back maps?", can_steal);
+
+        gameOptions['can_steal'] = can_steal;
     }
 
     void CreateRoom() {

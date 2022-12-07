@@ -114,7 +114,7 @@ namespace Game {
                 Connect();
             }
             if (IsConnected) {
-                SendChat("Hi I'm " + name);
+                // SendChat("Hi I'm " + name);
             }
             startnew(CoroutineFunc(ReconnectIfPossible));
         }
