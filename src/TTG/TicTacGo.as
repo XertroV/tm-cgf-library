@@ -301,6 +301,8 @@ class TicTacGo : Game::Engine {
         nvg::TextBox(vec2(Draw::GetWidth(), Draw::GetHeight()) - vec2(25, 0) - offs, w, msg);
     }
 
+    // we call this from render, so it will always show even if OP Interface hidden.
+    // that's b/c there's no real reason to hide the game window when you're actively in a game, and it autohides in a map
     void RenderInterface() {
         UI::SetNextWindowSize(Draw::GetWidth() * 0.5, Draw::GetHeight() * 0.6, UI::Cond::FirstUseEver);
         UI::PushFont(hoverUiFont);
@@ -622,13 +624,15 @@ class TicTacGo : Game::Engine {
         if (UI::BeginChild("##ttg-chat", vec2(), true, UI::WindowFlags::AlwaysAutoResize)) {
             // UI::Text("Chat Ix: " + client.chatNextIx);
             auto @chat = client.mainChat;
+            string chatMsg;
             for (int i = 0; i < client.mainChat.Length; i++) {
                 auto thisIx = (int(client.chatNextIx) - i - 1 + chat.Length) % chat.Length;
                 auto msg = chat[thisIx];
                 if (msg is null) break;
                 // UI::Text("" + thisIx + ".");
                 // UI::SameLine();
-                UI::TextWrapped(Time::FormatString("%H:%M", int64(msg['ts'])) + " [ " + HighlightGray(string(msg['from']['username'])) + " ]:\n  " + string(msg['payload']['content']));
+                chatMsg = ColoredString(string(msg['payload']['content']));
+                UI::TextWrapped(Time::FormatString("%H:%M", int64(msg['ts'])) + " [ " + HighlightGray(string(msg['from']['username'])) + " ]:\n  " + chatMsg);
                 UI::Dummy(vec2(0, 2));
             }
         }

@@ -87,8 +87,10 @@ class TtgGame {
 
     protected bool BeginMainWindow() {
         // if (!MainWindowOpen) startnew(TTG::NullifyGame);
-        UI::SetWindowSize(vec2(900, DefaultLobbyWindowHeight), UI::Cond::Appearing);
-        return UI::Begin("Lobby - Tic Tac GO!", MainWindowOpen);
+        UI::SetNextWindowSize(900, DefaultLobbyWindowHeight, UI::Cond::FirstUseEver);
+        bool ret = UI::Begin("Lobby - Tic Tac GO!", MainWindowOpen);
+        if (ret) UpdateLobbyWindowSizePos();
+        return ret;
     }
 
     vec2 lastCenteredTextBounds = vec2(100, 20);
@@ -138,10 +140,14 @@ class TtgGame {
     vec2 lobbyWindowSize = vec2(900, DefaultLobbyWindowHeight);
     vec2 lobbyWindowPos = vec2(200, 200);
 
+    void UpdateLobbyWindowSizePos() {
+        lobbyWindowSize = UI::GetWindowSize();
+        lobbyWindowPos = UI::GetWindowPos();
+    }
+
     void RenderGameLobby() {
         if (BeginMainWindow()) {
-            lobbyWindowSize = UI::GetWindowSize();
-            lobbyWindowPos = UI::GetWindowPos();
+            // UpdateLobbyWindowSizePos();
             if (isCreatingRoom) {
                 DrawRoomCreation();
             } else {
@@ -156,12 +162,15 @@ class TtgGame {
     int lobbyChatWindowFlags = UI::WindowFlags::NoResize;
         // | UI::WindowFlags::None;
 
-    void RenderLobbyChatWindow() {
+    /**
+     * scope name is intended to be 'Lobby' or 'Room'
+     */
+    void RenderLobbyChatWindow(const string &in scopeName = "Lobby") {
         if (S_TTG_HideLobbyChat) return;
         bool isOpen = !S_TTG_HideLobbyChat;
         UI::SetNextWindowSize(300, lobbyWindowSize.y, UI::Cond::Always);
         UI::SetNextWindowPos(lobbyWindowPos.x + lobbyWindowSize.x + 20, lobbyWindowPos.y, UI::Cond::Always);
-        if (UI::Begin("Lobby Chat##" + client.clientUid, isOpen, lobbyChatWindowFlags)) {
+        if (UI::Begin(scopeName + " Chat##" + client.clientUid, isOpen, lobbyChatWindowFlags)) {
             ttg.DrawChat(false);
         }
         UI::End();
@@ -380,6 +389,7 @@ class TtgGame {
             }
         }
         UI::End();
+        RenderLobbyChatWindow("Room");
     }
 
     void DrawRoomMain() {

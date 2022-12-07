@@ -439,7 +439,7 @@ class RoomsTab : Tab {
 
         UI::Separator();
         bool changed;
-        if (UI::CollapsingHeader("Create Room")) {
+        if (UI::CollapsingHeader("Create Room")) { // "Create Room"
             m_roomName = UI::InputText("Room Name" + idSuffix, m_roomName, changed);
             m_isPublic = UI::Checkbox("Is Public?" + idSuffix, m_isPublic);
             m_playerLimit = UI::SliderInt("Max Players", m_playerLimit, MIN_PLAYERS, MAX_PLAYERS);
