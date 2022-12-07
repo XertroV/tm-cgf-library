@@ -5,10 +5,14 @@ string S_Host = "cgf.xk.io";
 [Setting category="General" name="Server Port"]
 uint16 S_Port = 15277;
 
+#if SIG_DEVELOPER
 [Setting category="General" name="Local Dev?"]
+#endif
 bool S_LocalDev = false;
 
-[Setting category="General" name="Legacy Auth?"]
+#if SIG_DEVELOPER
+[Setting category="General" name="Legacy Auth?" description="Only works with a dev server."]
+#endif
 bool S_LegacyAuth = false;
 
 

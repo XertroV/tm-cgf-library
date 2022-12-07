@@ -124,7 +124,7 @@ class TtgGame {
 
     void RenderAuthenticating() {
         if (BeginMainWindow()) {
-            DrawCenteredText(Icons::Heartbeat + "  Authenticating...");
+            DrawCenteredText(Icons::Heartbeat + "  Authenticating... (~3s)");
         }
         UI::End();
     }

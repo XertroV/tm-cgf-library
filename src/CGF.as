@@ -110,8 +110,10 @@ namespace Game {
             AddMessageHandler("MAPS_INFO_FULL", CGF::MessageHandler(MsgHandler_MapsInfoFull));
 
             name = _name.Length == 0 ? LocalPlayersName : _name;
+            // for legacy auth
             fileName = StorageFileTemplate.Replace("|CLIENTNAME|", name);
             accountExists = IO::FileExists(fileName);
+
             OnChangedScope();
             startnew(CoroutineFunc(Initialize));
         }
