@@ -30,8 +30,9 @@ enum LogLevel {
     Trace = 4
 }
 
-[Setting category="General" name="Log Level" description="How verbose should the logs be? (Note: currently Error and Warning msgs will always be shown, regardless of this setting)"]
-LogLevel Setting_LogLevel = LogLevel::Trace;
+// disable this setting for the moment b/c it doesn't do much
+// [Setting category="General" name="Log Level" description="How verbose should the logs be? (Note: currently Error and Warning msgs will always be shown, regardless of this setting)"]
+LogLevel Setting_LogLevel = LogLevel::Info;
 
 void debug(const string &in text) {
     log_debug(c_debug + text);
