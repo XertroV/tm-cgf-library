@@ -192,21 +192,23 @@ class TtgGame {
     }
 
     void DrawLobbyHeader() {
-        UI::PushFont(mapUiFont);
         // UI::Text("Lobby");
-        if (UI::BeginTable("ttg-header", 3, UI::TableFlags::SizingFixedFit)) {
-            UI::TableSetupColumn("l", UI::TableColumnFlags::WidthStretch);
-            UI::TableNextRow();
-            UI::TableNextColumn();
-            UI::AlignTextToFramePadding();
-            UI::Text("Create or join a room.");
-            UI::TableNextColumn();
-            if (UI::Button("Create Room")) OnClickCreateRoom();
-            UI::EndTable();
+        if (DrawHeading1Button("Create or join a room.", "Create Room")) {
+            OnClickCreateRoom();
         }
-        UI::PopFont();
-
-        UI::Separator();
+        // UI::PushFont(mapUiFont);
+        // if (UI::BeginTable("ttg-header", 3, UI::TableFlags::SizingFixedFit)) {
+        //     UI::TableSetupColumn("l", UI::TableColumnFlags::WidthStretch);
+        //     UI::TableNextRow();
+        //     UI::TableNextColumn();
+        //     UI::AlignTextToFramePadding();
+        //     UI::Text("Create or join a room.");
+        //     UI::TableNextColumn();
+        //     if (UI::Button("Create Room")) OnClickCreateRoom();
+        //     UI::EndTable();
+        // }
+        // UI::PopFont();
+        // UI::Separator();
 
         UI::AlignTextToFramePadding();
         if (client.lobbyInfo is null) {
@@ -334,21 +336,10 @@ class TtgGame {
     uint createRoomTimeout = 0;
 
     void DrawRoomCreation() {
-        UI::PushFont(mapUiFont);
-        // UI::Text("Lobby");
-        if (UI::BeginTable("ttg-create-header", 3, UI::TableFlags::SizingFixedFit)) {
-            UI::TableSetupColumn("l", UI::TableColumnFlags::WidthStretch);
-            UI::TableNextRow();
-            UI::TableNextColumn();
-            UI::AlignTextToFramePadding();
-            UI::Text("Create a room.");
-            UI::TableNextColumn();
-            if (UI::Button("Back##from-create")) {
-                isCreatingRoom = false;
-            }
-            UI::EndTable();
+
+        if (DrawHeading1Button("Create a room.", "Back##from-create")) {
+            isCreatingRoom = false;
         }
-        UI::PopFont();
 
         UI::Separator();
         bool changed = false;
