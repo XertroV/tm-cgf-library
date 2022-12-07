@@ -31,12 +31,6 @@ class TtgGame {
         warn("IsShutdown" + tostring(IsShutdown));
         if (!IsShutdown && client.IsMainLobby) {
             client.JoinLobby("TicTacGo");
-            // joinAttemptCount += 1;
-            // if (joinAttemptCount > 5) {
-            //     NotifyError("TTG: Unable to join lobby.");
-            //     return;
-            // }
-            // sleep(2000);
         }
         while (!IsShutdown && client.IsInGameLobby) yield();
         if (IsShutdown) return;
@@ -193,23 +187,9 @@ class TtgGame {
     }
 
     void DrawLobbyHeader() {
-        // UI::Text("Lobby");
         if (DrawHeading1Button("Create or join a room.", "Create Room")) {
             OnClickCreateRoom();
         }
-        // UI::PushFont(mapUiFont);
-        // if (UI::BeginTable("ttg-header", 3, UI::TableFlags::SizingFixedFit)) {
-        //     UI::TableSetupColumn("l", UI::TableColumnFlags::WidthStretch);
-        //     UI::TableNextRow();
-        //     UI::TableNextColumn();
-        //     UI::AlignTextToFramePadding();
-        //     UI::Text("Create or join a room.");
-        //     UI::TableNextColumn();
-        //     if (UI::Button("Create Room")) OnClickCreateRoom();
-        //     UI::EndTable();
-        // }
-        // UI::PopFont();
-        // UI::Separator();
 
         UI::AlignTextToFramePadding();
         if (client.lobbyInfo is null) {
@@ -351,7 +331,8 @@ class TtgGame {
 
         DrawMapsNumMinMax();
 
-        DrawGameOptions();
+        // todo: implement game options
+        // DrawGameOptions();
 
         UI::BeginDisabled(Time::Now < createRoomTimeout);
         if (UI::Button("Create Room")) {
@@ -428,19 +409,6 @@ class TtgGame {
     }
 
     void DrawRoomMain() {
-        // vec2 initPos = UI::GetCursorPos();
-        // UI::SetCursorPos(initPos + vec2(UI::GetWindowContentRegionWidth() - 75, 10));
-        // if (UI::Button("Leave##leave-room")) {
-        //     client.SendLeave();
-        // }
-
-        // UI::SetCursorPos(initPos);
-        // UI::PushFont(mapUiFont);
-        // UI::AlignTextToFramePadding();
-        // // TextSameLine("Name:");
-        // DrawRoomName(client.roomInfo);
-        // UI::PopFont();
-
         if (DrawHeading1Button(RoomNameText(client.roomInfo), "Leave##leave-room")) {
             client.SendLeave();
         }

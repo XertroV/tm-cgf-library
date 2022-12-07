@@ -219,7 +219,7 @@ namespace Game {
             @latestServerInfo = msg["server"];
             string ver = string(latestServerInfo["version"]);
             if (!ver.StartsWith(LATEST_SERVER_MINOR)) {
-                NotifyWarning("Server version is different from expected. Is there a CGF update?");
+                NotifyWarning("Server version is different from expected. Is there a CGF update?\n\nVersion: " + ver);
             }
             int nbClients = int(latestServerInfo['n_clients']);
             print("Connected. Server version: " + ver);
