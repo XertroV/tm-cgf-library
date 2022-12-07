@@ -18,6 +18,12 @@ namespace Game {
         string host;
         uint16 port;
 
+        Auth::PluginAuthTask@ tokenTask;
+        string g_token = "";
+        string g_accountID = "";
+        string g_displayName = "";
+        string g_secret = "";
+
         string name;
         string fileName;
         bool accountExists;
@@ -107,6 +113,20 @@ namespace Game {
             fileName = StorageFileTemplate.Replace("|CLIENTNAME|", name);
             accountExists = IO::FileExists(fileName);
             OnChangedScope();
+            startnew(CoroutineFunc(Initialize));
+        }
+
+        ~Client() {
+            Disconnect();
+        }
+
+        void Shutdown() {
+            Disconnect();
+            state = ClientState::Shutdown;
+        }
+
+        void Initialize() {
+            GetAuthToken();
             Connect();
             while (!IsConnected) {
                 warn("Attempting reconnect during init in 1s");
@@ -119,14 +139,12 @@ namespace Game {
             startnew(CoroutineFunc(ReconnectIfPossible));
         }
 
-        ~Client() {
-            Disconnect();
-        }
-
-        void Shutdown() {
-            Disconnect();
-            state = ClientState::Shutdown;
-        }
+        void GetAuthToken() {
+            @tokenTask = Auth::GetToken();
+            while (!tokenTask.Finished()) yield();
+            g_token = tokenTask.Token();
+            trace_dev("Token: " + g_token);
+	    }
 
         void ReconnectIfPossible() {
             while (!IsDoNotReconnect && !IsShutdown) {
@@ -174,6 +192,7 @@ namespace Game {
         }
 
         int get_ConnectionDuration() { return IsConnected ? (Time::Now - connectedAt) : 0; }
+        bool get_IsAuthenticating() { return state == ClientState::Uninitialized && g_token == ""; }
         bool get_IsConnected() { return state == ClientState::Connected; }
         bool get_IsConnecting() { return state == ClientState::Connecting; }
         bool get_IsDisconnected() { return state == ClientState::Disconnected; }
@@ -202,38 +221,15 @@ namespace Game {
             int nbClients = int(latestServerInfo['n_clients']);
             print("Connected. Server version: " + ver);
             NotifyInfo("Connected.\nServer Version: " + ver + "\nCurrent Players: " + (nbClients + 1));
-            // login if possible
-            if (accountExists) {
-                auto deets = Json::FromFile(fileName);
-                clientUid = deets['uid'];
-                if (!Login(deets)) {
-                    NotifyError("Failed to log in :(");
-                    IO::Move(fileName, fileName + "_bak_" + Time::Stamp);
-                    warn('LoginFailed');
-                    accountExists = false;
-                } else {
-                    NotifyInfo("Logged in!");
-                    loggedIn = true;
-                }
+            // login via openplanet auth
+            if (S_LocalDev || S_LegacyAuth) {
+                LegacyLogin();
+            } else if (!LoginOpenplanetAuth()) {
+                warn("Unable to login :(");
+            } else {
+                loggedIn = true;
             }
-            if (!accountExists) {
-                // otherwise register a new account
-                auto resp = RegisterAccount();
-                if (resp is null || resp.GetType() == Json::Type::Null) {
-                    this.Disconnect();
-                    return;
-                }
-                else if ("REGISTERED" == resp['type']) {
-                    accountExists = true;
-                    Json::ToFile(fileName, resp['payload']);
-                    clientUid = resp['payload']['uid'];
-                    NotifyInfo("Account Registered!");
-                    loggedIn = true;
-                } else {
-                    throw("Error, got a bad response for registration request: " + Json::Write(resp));
-                }
-            }
-            // RejoinIfPriorScope();
+
             startnew(CoroutineFunc(SendPingLoop));  // send PING every 5s
             startnew(CoroutineFunc(ReadAllMessagesForever));
         }
@@ -398,8 +394,62 @@ namespace Game {
          * 88  .o Yb   dP Yb  "88 88 88 Y88  dP    dP__Yb  Y8   8P   88   888888
          * 88ood8  YbodP   YboodP 88 88  Y8 dP    dP""""Yb `YbodP'   88   88  88
          *
+         */
+
+        /**
          * LOGIN/AUTH
          */
+
+        // new login method via openplanet auth
+        bool LoginOpenplanetAuth() {
+            SendPayload("LOGIN_TOKEN", JsonObject1("t", g_token), CGF::Visibility::none);
+            auto resp = ReadMessage();
+            if (!IsJsonObject(resp)) return false;
+            if ("LOGGED_IN" != resp['type']) return false;
+            if (resp.HasKey('error')) {
+                error("Login error: " + string(resp['error']));
+                return false;
+            }
+            g_accountID = resp["account_id"];
+            g_displayName = resp["display_name"];
+            // g_secret = resp["secret"];
+            NotifyInfo("Logged in!");
+            return true;
+        }
+
+        void LegacyLogin() {
+            // login if possible
+            if (accountExists) {
+                auto deets = Json::FromFile(fileName);
+                clientUid = deets['uid'];
+                if (!Login(deets)) {
+                    NotifyError("Failed to log in :(");
+                    IO::Move(fileName, fileName + "_bak_" + Time::Stamp);
+                    warn('LoginFailed');
+                    accountExists = false;
+                } else {
+                    NotifyInfo("Logged in!");
+                    loggedIn = true;
+                }
+            }
+            if (!accountExists) {
+                // otherwise register a new account
+                auto resp = RegisterAccount();
+                if (resp is null || resp.GetType() == Json::Type::Null) {
+                    this.Disconnect();
+                    return;
+                }
+                else if ("REGISTERED" == resp['type']) {
+                    accountExists = true;
+                    Json::ToFile(fileName, resp['payload']);
+                    clientUid = resp['payload']['uid'];
+                    NotifyInfo("Account Registered!");
+                    loggedIn = true;
+                } else {
+                    throw("Error, got a bad response for registration request: " + Json::Write(resp));
+                }
+            }
+        }
 
         bool Login(Json::Value@ account) {
             SendPayload("LOGIN", account, CGF::Visibility::none);

@@ -8,6 +8,9 @@ uint16 S_Port = 15277;
 [Setting category="General" name="Local Dev?"]
 bool S_LocalDev = false;
 
+[Setting category="General" name="Legacy Auth?"]
+bool S_LegacyAuth = false;
+
 
 
 // [Setting category="Tic Tac Go" name="Timer Pos (in map)"]

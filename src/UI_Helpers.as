@@ -24,6 +24,11 @@ void TextSameLine(const string &in msg) {
     UI::SameLine();
 }
 
+void Indent(float n = 1) {
+    UI::Dummy(vec2(4 * n, 0));
+    UI::SameLine();
+}
+
 
 
 

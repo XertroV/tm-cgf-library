@@ -85,7 +85,7 @@ const string MsToSeconds(int t) {
     return Text::Format("%.3f", float(t) / 1000.0);
 }
 
-vec2 g_LastMousePos;
+vec2 g_LastMousePos = vec2();
 
 /** Called whenever the mouse moves. `x` and `y` are the viewport coordinates.
 */

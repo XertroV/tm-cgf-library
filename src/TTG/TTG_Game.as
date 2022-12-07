@@ -4,6 +4,11 @@ class TtgGame {
     TicTacGo@ ttg;
 
     TtgGame() {
+        startnew(CoroutineFunc(Initialize));
+    }
+
+    void Initialize() {
+        // this takes a while
         @client = Game::Client();
         @ttg = TicTacGo(client);
         @client.gameEngine = ttg;
@@ -60,13 +65,15 @@ class TtgGame {
     // }
 
     void Render() {
-        ttg.Render();
+        if (ttg !is null)
+            ttg.Render();
     }
 
     void RenderInterface() {
         if (CurrentlyInMap) return;
         UI::PushFont(hoverUiFont);
-        if (!client.IsConnected) RenderConnecting();
+        if (client is null || client.IsAuthenticating) RenderAuthenticating();
+        else if (!client.IsConnected) RenderConnecting();
         else if (!client.IsLoggedIn) RenderLoggingIn();
         else if (client.IsMainLobby) RenderJoiningGameLobby();
         else if (client.IsInGameLobby) RenderGameLobby();
@@ -103,6 +110,13 @@ class TtgGame {
         lastCenteredTextBounds.x = r.z;
         lastCenteredTextBounds.y = r.w;
         UI::PopFont();
+    }
+
+    void RenderAuthenticating() {
+        if (BeginMainWindow()) {
+            DrawCenteredText(Icons::Heartbeat + "  Authenticating...");
+        }
+        UI::End();
     }
 
     void RenderConnecting() {
@@ -288,23 +302,17 @@ class TtgGame {
     }
 
     const string RoomNameText(RoomInfo@ room) {
-        string _name;
-        if (room is null) _name = "?? unknown";
-        else {
-            auto nameParts = room.name.Split("##", 2);
-            _name = nameParts.Length > 1 ? nameParts[0] + " \\$888" + nameParts[1] : nameParts[0];
-        }
-        return _name;
+        if (room is null)
+            return "?? unknown";
+        auto nameParts = room.name.Split("##", 2);
+        return nameParts.Length > 1 ? nameParts[0] + " \\$888" + nameParts[1] : nameParts[0];
     }
 
     const string RoomNameNonce(RoomInfo@ room) {
-        string _name;
-        if (room is null) _name = "?? unknown";
-        else {
-            auto nameParts = room.name.Split("##", 2);
-            _name = nameParts.Length > 1 ? "--" + " \\$888" + nameParts[1] : "--";
-        }
-        return _name;
+        if (room is null)
+            return "?? unknown";
+        auto nameParts = room.name.Split("##", 2);
+        return nameParts.Length > 1 ? "--" + " \\$888" + nameParts[1] : "--";
     }
 
     void DrawRoomName(RoomInfo@ room) {
@@ -349,8 +357,11 @@ class TtgGame {
         UI::SameLine();
         m_roomName = UI::InputText("##Room Name", m_roomName, changed);
         m_isPublic = UI::Checkbox("Is Public?", m_isPublic);
+
         DrawMapsNumMinMax();
+
         DrawGameOptions();
+
         UI::BeginDisabled(Time::Now < createRoomTimeout);
         if (UI::Button("Create Room")) {
             createRoomTimeout = Time::Now + ROOM_TIMEOUT_MS;
@@ -363,14 +374,16 @@ class TtgGame {
         UI::AlignTextToFramePadding();
         UI::Text("Map Length:");
         UI::AlignTextToFramePadding();
-        TextSameLine("  Min Len (s): ");
+        Indent();
+        TextSameLine("Min Len (s): ");
         m_mapMinSecs = UI::InputInt("##min-len-s", m_mapMinSecs, 15);
         m_mapMinSecs = Math::Max(15, Math::Floor(m_mapMinSecs / 15.0) * 15.0);
         if (m_mapMaxSecs < m_mapMinSecs) {
             m_mapMaxSecs = m_mapMinSecs;
         }
         UI::AlignTextToFramePadding();
-        TextSameLine("  Max Len (s): ");
+        Indent();
+        TextSameLine("Max Len (s): ");
         m_mapMaxSecs = UI::InputInt("##max-len-s", m_mapMaxSecs, 15);
         m_mapMaxSecs = Math::Ceil(m_mapMaxSecs / 15.0) * 15.0;
         if (m_mapMaxSecs < m_mapMinSecs) {
@@ -380,11 +393,20 @@ class TtgGame {
 
     void DrawGameOptions() {
         UI::Text("Game Options:");
-        bool can_steal = gameOptions.Get("can_steal", true);
 
-        can_steal = UI::Checkbox("Allow stealing back maps?", can_steal);
+        Indent();
+        JsonCheckbox("Allow stealing maps?", gameOptions, "can_steal", true);
+        AddSimpleTooltip("Even after a map is claimed, it's not safe.\nYour opponent can challenge you for any of your claimed maps, and vice versa.");
 
-        gameOptions['can_steal'] = can_steal;
+        Indent();
+        JsonCheckbox("Auto DNF after 10s?", gameOptions, "auto_dnf", false);
+        AddSimpleTooltip("When a player can't possibly win a map, a 10s countdown will begin.\nWhen it reaches 0, they'll automatically DNF.");
+    }
+
+    void JsonCheckbox(const string &in label, Json::Value@ jsonObj, const string &in key, bool _default) {
+        bool tmp = jsonObj.Get(key, _default);
+        tmp = UI::Checkbox(label, tmp);
+        jsonObj[key] = tmp;
     }
 
     void CreateRoom() {
