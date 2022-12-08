@@ -841,7 +841,7 @@ class TicTacGo : Game::Engine {
             if (!IsSinglePlayerGame) {
                 challengeResult.SetPlayersTime(lastFrom, int(pl['time']));
             } else {
-                // if we're in a single player game, set a slightly worse time for the inactive (we're always player 1)
+                // if we're in a single player game, set a slightly worse time for the inactive player
                 challengeResult.SetPlayersTime(ActivePlayer, int(pl['time']));
                 challengeResult.SetPlayersTime(InactivePlayer, int(pl['time']) + 100);
             }
@@ -907,13 +907,6 @@ class TicTacGo : Game::Engine {
         if (mapIx >= client.mapsList.Length) throw('bad map index');
         return client.mapsList[mapIx];
     }
-
-    // void LoadMapNow(const string &in url) {
-    //     auto app = cast<CGameManiaPlanet>(GetApp());
-    //     app.BackToMainMenu();
-    //     while (!app.ManiaTitleControlScriptAPI.IsReady) yield();
-    //     app.ManiaTitleControlScriptAPI.PlayMap(MapUrl(currMap), "", "");
-    // }
 
     vec4 challengeWindowBgCol = btnChallengeCol * vec4(.3, .3, .3, 1);
     uint challengeEndedAt;

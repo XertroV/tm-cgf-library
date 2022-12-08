@@ -374,15 +374,25 @@ class TtgGame {
     }
 
     void DrawGameOptions() {
-        UI::Text("Game Options:");
+        // UI::Text("Game Options:");
+        if (UI::CollapsingHeader("Game Options")) {
+            Indent();
+            JsonCheckbox("Enable records?", gameOptions, "enable_records", false);
+            AddSimpleTooltip("Enable the records UI element when playing maps. (Default: disabled)");
 
-        Indent();
-        JsonCheckbox("Allow stealing maps?", gameOptions, "can_steal", true);
-        AddSimpleTooltip("Even after a map is claimed, it's not safe.\nYour opponent can challenge you for any of your claimed maps, and vice versa.");
+            Indent();
+            JsonCheckbox("Allow stealing maps?", gameOptions, "can_steal", true);
+            AddSimpleTooltip("Even after a map is claimed, it's not safe.\nYour opponent can challenge you for any of your claimed maps, and vice versa.");
 
-        Indent();
-        JsonCheckbox("Auto DNF after 10s?", gameOptions, "auto_dnf", false);
-        AddSimpleTooltip("When a player can't possibly win a map, a 10s countdown will begin.\nWhen it reaches 0, they'll automatically DNF.");
+            Indent();
+            JsonCheckbox("Auto DNF after 10s?", gameOptions, "auto_dnf", false);
+            AddSimpleTooltip("When a player can't possibly win a map, a 10s countdown will begin.\nWhen it reaches 0, they'll automatically DNF.");
+
+            // hmm, think we need to add game-mode stuff for this.
+            // Indent();
+            // JsonCheckbox("Give-up = DNF?", gameOptions, "give_up_is_dnf", false);
+            // AddSimpleTooltip("");
+        }
     }
 
     void JsonCheckbox(const string &in label, Json::Value@ jsonObj, const string &in key, bool _default) {
