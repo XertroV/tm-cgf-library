@@ -42,8 +42,10 @@ class TicTacGo : Game::Engine {
     TTGSquareState IAmPlayer;
     TTGSquareState TheyArePlayer;
     TTGSquareState ActivePlayer;
+    bool IsSinglePlayerGame;
     TTGSquareState WinningPlayer;
     int2[] WinningSquares;
+    string[] playerUids;
 
     ChallengeResultState@ challengeResult;
 
@@ -154,23 +156,23 @@ class TicTacGo : Game::Engine {
 
     void SetPlayers() {
         while (GameInfo is null) {
-            warn("SetPlayers found null game info, yielding");
+            log_trace("SetPlayers found null game info, yielding");
             yield();
         }
         ActivePlayer = TTGSquareState(GameInfo.team_order[0]);
-        string oppUid;
-        if (GameInfo.teams[0][0] == client.clientUid) {
+        IsSinglePlayerGame = GameInfo.team_order.Length == 1;
+        string myUid = client.clientUid;
+        bool isPlayer1 = GameInfo.teams[0][0] == myUid;
+        string oppUid = IsSinglePlayerGame ? myUid : GameInfo.teams[isPlayer1 ? 1 : 0][0];
+        if (isPlayer1) {
             IAmPlayer = TTGSquareState::Player1;
             TheyArePlayer = TTGSquareState::Player2;
-            oppUid = GameInfo.teams[1][0];
         } else {
             IAmPlayer = TTGSquareState::Player2;
             TheyArePlayer = TTGSquareState::Player1;
-            oppUid = GameInfo.teams[0][0];
         }
         print("ActivePlayer (start): " + tostring(ActivePlayer));
         setPlayersRes = "Active=" + tostring(ActivePlayer) + "; " + "IAmPlayer=" + tostring(IAmPlayer);
-
         for (uint i = 0; i < GameInfo.players.Length; i++) {
             auto item = GameInfo.players[i];
             if (item.uid == oppUid) {
@@ -207,7 +209,7 @@ class TicTacGo : Game::Engine {
     void SetSquareState(int col, int row, TTGSquareState newState) {
         trace("set (" + col + ", " + row + ") to " + tostring(newState));
         boardState[col][row] = newState;
-        PrettyPrintBoardState();
+        // PrettyPrintBoardState();
     }
 
     void MarkSquareKnown(int col, int row) {
@@ -287,10 +289,16 @@ class TicTacGo : Game::Engine {
         bool isOpen = !S_TTG_HideChat;
         UI::SetNextWindowSize(400, 250, UI::Cond::FirstUseEver);
         if (UI::Begin("chat window" + idNonce, isOpen, chatWindowFlags)) {
-            DrawChat();
+            // draw a child so buttons work
+            if (UI::BeginChild("chat window child" + idNonce)) {
+                DrawChat();
+            }
+            UI::EndChild();
         }
         UI::End();
-        S_TTG_HideChat = !isOpen;
+        // only change this when we close the window, tho there's no title bar atm so mb moot
+        if (!isOpen)
+            S_TTG_HideChat = !isOpen;
     }
 
     void RenderBackgroundGoneNotice() {
@@ -307,6 +315,7 @@ class TicTacGo : Game::Engine {
     // we call this from render, so it will always show even if OP Interface hidden.
     // that's b/c there's no real reason to hide the game window when you're actively in a game, and it autohides in a map
     void RenderInterface() {
+        if (ActivePlayer == TTGSquareState::Unclaimed) return;
         UI::SetNextWindowSize(Draw::GetWidth() * 0.5, Draw::GetHeight() * 0.6, UI::Cond::FirstUseEver);
         UI::PushFont(hoverUiFont);
         if (UI::Begin("Tic Tac GO!##" + idNonce)) {
@@ -367,7 +376,11 @@ class TicTacGo : Game::Engine {
             UI::AlignTextToFramePadding();
             UI::Text("Game Log");
             UI::TableNextColumn();
-            if (UI::Button("Leave Game")) client.SendLeave();
+            if (UI::Button("Leave Game")) {
+                if (IsGameFinished)
+                    client.SendLeave();
+                client.SendLeave();
+            }
             UI::EndTable();
         }
         UI::Separator();
@@ -385,7 +398,12 @@ class TicTacGo : Game::Engine {
         UI::PopFont();
     }
 
+    bool IsPlayerConnected(TTGSquareState player) {
+        return (IsSinglePlayerGame && player == TTGSquareState::Player2) || client.currentPlayers.Exists(GameInfo.teams[player][0]);
+    }
+
     void DrawPlayer(TTGSquareState player) {
+        if (ActivePlayer == TTGSquareState::Unclaimed) return;
         auto team = int(player);
         auto playerNum = team + 1;
         UI::PushFont(hoverUiFont);
@@ -393,7 +411,7 @@ class TicTacGo : Game::Engine {
         auto nameCol = "\\$" + (ActivePlayer == player ? "4b1" : "999");
         string name = IAmPlayer == player ? MyName : OpponentsName;
         UI::Text(nameCol + name);
-        if (!client.currentPlayers.Exists(GameInfo.teams[player][0])) {
+        if (!IsPlayerConnected(player)) {
             UI::SameLine();
             UI::Text("\\$ea4 (Disconnected)");
         }
@@ -478,7 +496,7 @@ class TicTacGo : Game::Engine {
     }
 
     bool get_IsMyTurn() {
-        return IAmPlayer == ActivePlayer;
+        return IAmPlayer == ActivePlayer || IsSinglePlayerGame;
     }
 
     bool SquarePartOfWin(int2 xy) {
@@ -611,6 +629,7 @@ class TicTacGo : Game::Engine {
         if (drawHeading) {
             if (DrawSubHeading1Button("Chat", "Hide##" + idNonce)) {
                 S_TTG_HideChat = true;
+                trace('hide chat');
             }
         }
         UI::PushFont(hoverUiFont);
@@ -774,14 +793,14 @@ class TicTacGo : Game::Engine {
             return true;
         } else if (IsWaitingForMove) {
             if (col >= 3 || row >= 3) return false;
-            if (fromPlayer != ActivePlayer) return false;
+            if (fromPlayer != ActivePlayer && !IsSinglePlayerGame) return false;
             bool moveIsClaiming = msgType == "G_TAKE_SQUARE";
             bool moveIsChallenging = msgType == "G_CHALLENGE_SQUARE";
             if (!moveIsChallenging && !moveIsClaiming) return false;
             if (moveIsChallenging) {
                 auto sqState = GetSquareState(col, row);
                 if (sqState == TTGSquareState::Unclaimed) return false;
-                return sqState != fromPlayer;
+                return sqState != fromPlayer || IsSinglePlayerGame;
             } else if (moveIsClaiming) {
                 print('test move claiming');
                 return GetSquareState(col, row) == TTGSquareState::Unclaimed;
@@ -819,7 +838,13 @@ class TicTacGo : Game::Engine {
             bool moveIsChallengeRes = msgType == "G_CHALLENGE_RESULT";
             if (!moveIsChallengeRes) throw("!moveIsChallengeRes: should be impossible");
             if (!challengeResult.active) throw("challenge is not active");
-            challengeResult.SetPlayersTime(lastFrom, int(pl['time']));
+            if (!IsSinglePlayerGame) {
+                challengeResult.SetPlayersTime(lastFrom, int(pl['time']));
+            } else {
+                // if we're in a single player game, set a slightly worse time for the inactive (we're always player 1)
+                challengeResult.SetPlayersTime(ActivePlayer, int(pl['time']));
+                challengeResult.SetPlayersTime(InactivePlayer, int(pl['time']) + 100);
+            }
             if (challengeResult.IsResolved) {
                 bool challengerWon = challengeResult.Winner != challengeResult.challenger;
                 auto eType = TTGGameEventType((IsInChallenge ? 4 : 2) | (challengerWon ? 0 : 1));
@@ -836,7 +861,7 @@ class TicTacGo : Game::Engine {
             }
         } else if (IsWaitingForMove) {
             if (col >= 3 || row >= 3) throw("impossible: col >= 3 || row >= 3");
-            if (lastFrom != ActivePlayer) throw("impossible: lastFrom != ActivePlayer");
+            if (lastFrom != ActivePlayer && !IsSinglePlayerGame) throw("impossible: lastFrom != ActivePlayer");
             bool moveIsClaiming = msgType == "G_TAKE_SQUARE";
             bool moveIsChallenging = msgType == "G_CHALLENGE_SQUARE";
             if (!moveIsChallenging && !moveIsClaiming) throw("impossible: not a valid move");
@@ -962,12 +987,14 @@ class TicTacGo : Game::Engine {
     int challengeEndTime = -1;
     int challengeScreenTimeout = -1;
     int currGameTime = -1;
+    int currPeriod = 15;  // frame time
     bool challengeRunActive = false;
     bool disableLaunchMapBtn = false;
 
     void RunChallengeAndReportResult() {
         challengeStartTime = -1;
         currGameTime = -1;
+        currPeriod = 15;
         // join map
         challengeRunActive = true;
         LoadMapNow(MapUrl(currMap));
@@ -1010,10 +1037,12 @@ class TicTacGo : Game::Engine {
             }
             currGameTime = GetApp().PlaygroundScript.Now;
             challengeEndTime = Time::Now;
+            currPeriod = GetApp().PlaygroundScript.Period;
             yield();
         }
-        // we over measure if we set the end time here, and under measure if we set it earlier. so average them.
-        // challengeEndTime = (challengeEndTime + Time::Now) / 2;
+        // we over measure if we set the end time here, and under measure if we use what was set earlier.
+        // so use last time plus the period. add to end time so GUI updates
+        challengeEndTime += currPeriod;
         duration = challengeEndTime - challengeStartTime;
         // report result
         ReportChallengeResult(duration);
@@ -1113,9 +1142,14 @@ class ChallengeResultState {
 
     TTGSquareState get_Winner() const {
         if (!IsResolved) return TTGSquareState::Unclaimed;
+        if (BothPlayersDNFed) return defender;
         if (player1Time == player2Time) return defender;
         if (player1Time < player2Time) return TTGSquareState::Player1;
         return TTGSquareState::Player2;
+    }
+
+    bool get_BothPlayersDNFed() const {
+        return player1Time >= DNF_TEST && player2Time >= DNF_TEST;
     }
 
     bool get_HavePlayer1Res() const {
@@ -1131,6 +1165,8 @@ class ChallengeResultState {
             player1Time = time;
         } else if (player == TTGSquareState::Player2) {
             player2Time = time;
+        } else {
+            throw("unknown player");
         }
 
         if (IsResolved) {

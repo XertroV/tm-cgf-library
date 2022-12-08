@@ -122,39 +122,32 @@ class TtgGame {
         UI::End();
     }
 
-    void RenderAuthenticating() {
+    void RenderLoadingScreen(const string &in loadingMsg) {
         if (BeginMainWindow()) {
-            DrawCenteredText(Icons::Heartbeat + "  Authenticating... (~3s)");
+            DrawCenteredText(loadingMsg);
         }
         UI::End();
+        RenderHeartbeatPulse(lobbyWindowPos + lobbyWindowSize / 2., lobbyWindowSize / 2.);
+    }
+
+    void RenderAuthenticating() {
+        RenderLoadingScreen(Icons::Heartbeat + "  Authenticating... (~3s)");
     }
 
     void RenderConnecting() {
-        if (BeginMainWindow()) {
-            DrawCenteredText(Icons::Users + "  Connecting...");
-        }
-        UI::End();
+        RenderLoadingScreen(Icons::Users + "  Connecting...");
     }
 
     void RenderLoggingIn() {
-        if (BeginMainWindow()) {
-            DrawCenteredText(Icons::Users + "  Logging In...");
-        }
-        UI::End();
+        RenderLoadingScreen(Icons::Users + "  Logging In...");
     }
 
     void RenderJoiningGameLobby() {
-        if (BeginMainWindow()) {
-            DrawCenteredText(Icons::Hashtag + "  Joining Lobby...");
-        }
-        UI::End();
+        RenderLoadingScreen(Icons::Hashtag + "  Joining Lobby...");
     }
 
     void RenderWaitingForGameInfo() {
-        if (BeginMainWindow()) {
-            DrawCenteredText(Icons::Hashtag + "  Waiting for game info...");
-        }
-        UI::End();
+        RenderLoadingScreen(Icons::Hashtag + "  Waiting for game info...");
     }
 
     bool isCreatingRoom = false;
@@ -330,6 +323,7 @@ class TtgGame {
     Json::Value@ gameOptions = Json::Object();
     // timeotu
     uint createRoomTimeout = 0;
+    bool m_singlePlayer = false;
 
     void DrawRoomCreation() {
 
@@ -343,6 +337,7 @@ class TtgGame {
         UI::SameLine();
         m_roomName = UI::InputText("##Room Name", m_roomName, changed);
         m_isPublic = UI::Checkbox("Is Public?", m_isPublic);
+        m_singlePlayer = UI::Checkbox("Single Player Game?", m_singlePlayer);
 
         DrawMapsNumMinMax();
 
@@ -405,6 +400,13 @@ class TtgGame {
         pl['min_secs'] = m_mapMinSecs;
         pl['max_secs'] = m_mapMaxSecs;
         auto vis = m_isPublic ? CGF::Visibility::global : CGF::Visibility::none;
+
+        if (m_singlePlayer) {
+            pl['n_teams'] = 1;
+            pl['player_limit'] = 1;
+            m_singlePlayer = false;
+        }
+
         client.SendPayload("CREATE_ROOM", pl, vis);
         // reset m_roomName in join room block
         // m_roomName = LocalPlayersName + "'s Room";

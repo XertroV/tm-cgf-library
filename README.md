@@ -26,7 +26,11 @@ bans, hide lobby names?, auth
 server version test!
 
 
-game option: stealing maps
+game option:
+- stealing maps
+- enable/disable records
+- auto DNF
+- give-up = DNF? (respawns okay)
 
 
 

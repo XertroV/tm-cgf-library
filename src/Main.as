@@ -17,6 +17,11 @@ void _Unload() {
 }
 
 void Render() {
+#if DEV
+    // auto screenSize = vec2(Draw::GetWidth(), Draw::GetHeight());
+    // RenderHeartbeatPulse(screenSize / 2., screenSize / 4.);
+#endif
+
     TTG::Render();
     // does nothing without sig_developer
     Debug::Render();

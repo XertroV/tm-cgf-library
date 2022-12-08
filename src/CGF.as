@@ -6,7 +6,7 @@ namespace Game {
     }
 
     enum ClientState {
-        Uninitialized, Connecting, Connected, Disconnected, DoNotReconnect, TimedOut, Shutdown
+        Uninitialized, Authenticating, Connecting, Connected, Disconnected, DoNotReconnect, TimedOut, Shutdown
     }
 
     enum GameState {
@@ -142,6 +142,7 @@ namespace Game {
         }
 
         void GetAuthToken() {
+            state = ClientState::Authenticating;
             @tokenTask = Auth::GetToken();
             while (!tokenTask.Finished()) yield();
             g_token = tokenTask.Token();
@@ -194,7 +195,8 @@ namespace Game {
         }
 
         int get_ConnectionDuration() { return IsConnected ? (Time::Now - connectedAt) : 0; }
-        bool get_IsAuthenticating() { return state == ClientState::Uninitialized && g_token == ""; }
+        bool get_IsUninitialized() { return state == ClientState::Uninitialized; }
+        bool get_IsAuthenticating() { return state == ClientState::Authenticating; }
         bool get_IsConnected() { return state == ClientState::Connected; }
         bool get_IsConnecting() { return state == ClientState::Connecting; }
         bool get_IsDisconnected() { return state == ClientState::Disconnected; }
