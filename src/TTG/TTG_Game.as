@@ -338,6 +338,10 @@ class TtgGame {
         m_roomName = UI::InputText("##Room Name", m_roomName, changed);
         m_isPublic = UI::Checkbox("Is Public?", m_isPublic);
         m_singlePlayer = UI::Checkbox("Single Player Game?", m_singlePlayer);
+        AddSimpleTooltip("Note: this will auto-disable the room being public.");
+        if (m_singlePlayer) {
+            m_isPublic = false;
+        }
 
         DrawMapsNumMinMax();
 

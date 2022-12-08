@@ -131,7 +131,7 @@ class TicTacGo : Game::Engine {
             return "";
         }
         if (ActivePlayer == IAmPlayer) {
-            return client.GetPlayerName(client.clientUid);
+            return MyName;
         } else {
             return OpponentsName;
         }
@@ -529,7 +529,8 @@ class TicTacGo : Game::Engine {
         bool clicked = _SquareButton(label + id, size, col, row, isBeingChallenged, ownedByMe, ownedByThem, isWinning, isDisabled);
         UI::PopFont();
 
-        if (clicked && !ownedByMe) {
+        if (clicked) log_trace('clicked');
+        if (clicked && (!ownedByMe || IsSinglePlayerGame)) {
             if (squareOpen) {
                 TakeSquare(col, row);
             } else {
@@ -606,7 +607,7 @@ class TicTacGo : Game::Engine {
             warn("tried to ChallengeFor an unclaimed square");
             return;
         }
-        if (sqState == IAmPlayer) {
+        if (sqState == IAmPlayer && !IsSinglePlayerGame) {
             return; // clicked own square
         }
         waitingForOwnMove = true;
