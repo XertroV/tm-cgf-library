@@ -11,6 +11,7 @@ class RoomInfo {
   private uint _min_secs;
   private uint _max_secs;
   private float _game_start_time;
+  private bool _started;
   // note: game_opts will always be a mapping of string => string
   private const Json::Value@ _game_opts;
 
@@ -18,7 +19,7 @@ class RoomInfo {
   RoomInfo(
     const string &in name, uint n_teams, uint n_players, uint player_limit,
     MaybeOfString@ join_code, bool is_public, uint ready_count,
-    uint n_maps, uint min_secs, uint max_secs, float game_start_time,
+    uint n_maps, uint min_secs, uint max_secs, float game_start_time, bool started,
     Json::Value@ game_opts
   ) {
     this._name = name;
@@ -32,6 +33,7 @@ class RoomInfo {
     this._min_secs = min_secs;
     this._max_secs = max_secs;
     this._game_start_time = game_start_time;
+    this._started = started;
     @this._game_opts = game_opts;
   }
 
@@ -48,6 +50,7 @@ class RoomInfo {
     this._min_secs = uint(j["min_secs"]);
     this._max_secs = uint(j["max_secs"]);
     this._game_start_time = float(j["game_start_time"]);
+    this._started = bool(j["started"]);
     @this._game_opts = j["game_opts"];
     if (_game_opts.GetType() != Json::Type::Object) throw("Invalid game_opts: not an obj");
   }
@@ -65,6 +68,8 @@ class RoomInfo {
     j["min_secs"] = _min_secs;
     j["max_secs"] = _max_secs;
     j["game_opts"] = _game_opts;
+    j["game_start_time"] = _game_start_time;
+    j["started"] = _started;
     return j;
   }
 
@@ -122,6 +127,10 @@ class RoomInfo {
     return this._game_start_time;
   }
 
+  bool get_started() const {
+    return this._started;
+  }
+
   /**
    * custom options for the game able to be set from the client UI (not enforced by the server)
    *
@@ -134,7 +143,7 @@ class RoomInfo {
   // Custom props
 
   bool get_HasStarted() const {
-    return 0 < game_start_time && game_start_time < float(Time::Stamp);
+    return this.started; // || (0 < game_start_time && game_start_time < float(Time::Stamp));
   }
 
   /* Methods // Mixin: ToString */

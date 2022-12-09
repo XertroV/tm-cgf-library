@@ -556,14 +556,11 @@ class TtgGame {
         if (UI::Button(teamsLocked ? Icons::Lock : Icons::Unlock)) {
             teamsLocked = !teamsLocked;
         }
-        UI::BeginDisabled(teamsLocked);
-        DrawTeamSelection();
-        UI::EndDisabled();
+        DrawTeamSelection(teamsLocked);
     }
 
     void DrawGameOptsText() {
         auto roomInfo = client.roomInfo;
-        Indent();
         if (TtgCollapsingHeader("Game Options")) {
             auto go = roomInfo.game_opts;
             auto currMode = TTGMode(Text::ParseInt(go['mode']));
@@ -631,7 +628,7 @@ class TtgGame {
         if (UI::Button("Reveal")) jcHidden = !jcHidden;
     }
 
-    void DrawTeamSelection() {
+    void DrawTeamSelection(bool disabled = false) {
         uint nTeams = client.roomInfo.n_teams;
         UI::Dummy(vec2(20, 0));
         UI::SameLine();
@@ -647,9 +644,11 @@ class TtgGame {
             // UI::TableNextColumn();
             for (uint i = 0; i < nTeams; i++) {
                 UI::TableNextColumn();
+                UI::BeginDisabled(disabled);
                 if (UI::Button("Join Team " + (i + 1))) {
                     client.SendPayload("JOIN_TEAM", JsonObject1("team_n", Json::Value(i)), CGF::Visibility::global);
                 }
+                UI::EndDisabled();
             }
 
             uint maxPlayersInAnyTeam = client.roomInfo.player_limit;

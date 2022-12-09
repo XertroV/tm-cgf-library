@@ -28,3 +28,6 @@ bool S_TTG_HideLobbyChat = false;
 
 [Setting category="Tic Tac Go" name="Hide Room Names?"]
 bool S_TTG_HideRoomNames = false;
+
+[Setting category="Tic Tac Go" name="Hide Player Events in Game Log?"]
+bool S_TTG_HidePlayerEvents = false;
