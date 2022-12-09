@@ -38,6 +38,7 @@ class TtgGame {
         warn("IsShutdown" + tostring(IsShutdown));
         if (!IsShutdown && client.IsMainLobby) {
             client.JoinLobby("TicTacGo");
+            startnew(CoroutineFunc(CheckLobbySoon));
         }
         while (!IsShutdown && client.IsInGameLobby) yield();
         if (IsShutdown) return;
@@ -50,6 +51,13 @@ class TtgGame {
                 }
             }
             yield();
+        }
+    }
+
+    void CheckLobbySoon() {
+        sleep(3000);
+        if (!IsShutdown && client.IsMainLobby) {
+            client.JoinLobby("TicTacGo");
         }
     }
 
@@ -346,7 +354,9 @@ class TtgGame {
         DrawMapsNumMinMax();
 
         // todo: implement game options
-        // DrawGameOptions();
+#if DEV
+        DrawSetGameOptions();
+#endif
 
         UI::BeginDisabled(Time::Now < createRoomTimeout);
         if (UI::Button("Create Room")) {
@@ -377,20 +387,29 @@ class TtgGame {
         }
     }
 
-    void DrawGameOptions() {
-        // UI::Text("Game Options:");
-        if (UI::CollapsingHeader("Game Options")) {
+    bool TtgCollapsingHeader(const string &in label) {
+        UI::PushStyleColor(UI::Col::Header, vec4(0, 0, 0, 0));
+        UI::PushStyleColor(UI::Col::HeaderHovered, vec4(.3, .9, .6, .2));
+        UI::PushStyleColor(UI::Col::HeaderActive, vec4(.3, .9, .6, .1));
+        bool open = UI::CollapsingHeader(label);
+        UI::PopStyleColor(3);
+        return open;
+    }
+
+    void DrawSetGameOptions() {
+        UI::AlignTextToFramePadding();
+        if (TtgCollapsingHeader("Game Options")) {
             Indent();
             JsonCheckbox("Enable records?", gameOptions, "enable_records", false);
             AddSimpleTooltip("Enable the records UI element when playing maps. (Default: disabled)");
 
-            Indent();
-            JsonCheckbox("Allow stealing maps?", gameOptions, "can_steal", true);
-            AddSimpleTooltip("Even after a map is claimed, it's not safe.\nYour opponent can challenge you for any of your claimed maps, and vice versa.");
+            // Indent();
+            // JsonCheckbox("Allow stealing maps?", gameOptions, "can_steal", true);
+            // AddSimpleTooltip("Even after a map is claimed, it's not safe.\nYour opponent can challenge you for any of your claimed maps, and vice versa.");
 
-            Indent();
-            JsonCheckbox("Auto DNF after 10s?", gameOptions, "auto_dnf", false);
-            AddSimpleTooltip("When a player can't possibly win a map, a 10s countdown will begin.\nWhen it reaches 0, they'll automatically DNF.");
+            // Indent();
+            // JsonCheckbox("Auto DNF after 10s?", gameOptions, "auto_dnf", false);
+            // AddSimpleTooltip("When a player can't possibly win a map, a 10s countdown will begin.\nWhen it reaches 0, they'll automatically DNF.");
 
             // hmm, think we need to add game-mode stuff for this.
             // Indent();
@@ -413,6 +432,7 @@ class TtgGame {
         pl['maps_required'] = m_nbMapsReq;
         pl['min_secs'] = m_mapMinSecs;
         pl['max_secs'] = m_mapMaxSecs;
+        pl['game_opts'] = gameOptions;
         auto vis = m_isPublic ? CGF::Visibility::global : CGF::Visibility::none;
 
         if (m_singlePlayer) {
@@ -444,10 +464,11 @@ class TtgGame {
             client.SendLeave();
         }
 
-        uint currNPlayers = client.roomInfo.n_players;
-        uint pLimit = client.roomInfo.player_limit;
-        uint nTeams = client.roomInfo.n_teams;
-        string joinCode = client.roomInfo.join_code.GetOr("???");
+        auto roomInfo = client.roomInfo;
+        uint currNPlayers = roomInfo.n_players;
+        uint pLimit = roomInfo.player_limit;
+        uint nTeams = roomInfo.n_teams;
+        string joinCode = roomInfo.join_code.GetOr("???");
         UI::AlignTextToFramePadding();
         UI::Text("Players: " + currNPlayers + " / " + pLimit);
         // UI::AlignTextToFramePadding();
@@ -455,6 +476,9 @@ class TtgGame {
 
         DrawJoinCode(joinCode);
 
+#if DEV
+        DrawGameOptsText();
+#endif
         DrawReadySection();
 
         UI::AlignTextToFramePadding();
@@ -464,6 +488,16 @@ class TtgGame {
             client.SendPayload("LIST_TEAMS");
         }
         DrawTeamSelection();
+    }
+
+    void DrawGameOptsText() {
+        auto roomInfo = client.roomInfo;
+        Indent();
+        if (TtgCollapsingHeader("Game Options")) {
+            auto go = roomInfo.game_opts;
+            Indent(2);
+            UI::Text("Records Enabled: " + string(go['enable_records']));
+        }
     }
 
     bool markReady = false;

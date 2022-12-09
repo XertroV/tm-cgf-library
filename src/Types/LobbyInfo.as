@@ -56,6 +56,10 @@ class LobbyInfo {
     return this._n_clients;
   }
 
+  void set_n_clients(uint value) {
+    this._n_clients = value;
+  }
+
   uint get_n_rooms() const {
     return this._n_rooms;
   }
@@ -122,5 +126,15 @@ class LobbyInfo {
 
   void AddRoom(const Json::Value@ j) {
     this._rooms.InsertLast(RoomInfo(j));
+  }
+
+  void RetireRoom(const Json::Value@ j) {
+    string name = j['name'];
+    for (uint i = 0; i < _rooms.Length; i++) {
+      if (_rooms[i].name == name) {
+        _rooms.RemoveAt(i);
+        break;
+      }
+    }
   }
 }

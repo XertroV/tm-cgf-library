@@ -11,12 +11,14 @@ class RoomInfo {
   private uint _min_secs;
   private uint _max_secs;
   private float _game_start_time;
+  private const Json::Value@ _game_opts;
 
   /* Methods // Mixin: Default Constructor */
   RoomInfo(
     const string &in name, uint n_teams, uint n_players, uint player_limit,
     MaybeOfString@ join_code, bool is_public, uint ready_count,
-    uint n_maps, uint min_secs, uint max_secs, float game_start_time
+    uint n_maps, uint min_secs, uint max_secs, float game_start_time,
+    Json::Value@ game_opts
   ) {
     this._name = name;
     this._n_teams = n_teams;
@@ -29,6 +31,7 @@ class RoomInfo {
     this._min_secs = min_secs;
     this._max_secs = max_secs;
     this._game_start_time = game_start_time;
+    @this._game_opts = game_opts;
   }
 
   /* Methods // Mixin: ToFrom JSON Object */
@@ -44,6 +47,8 @@ class RoomInfo {
     this._min_secs = uint(j["min_secs"]);
     this._max_secs = uint(j["max_secs"]);
     this._game_start_time = float(j["game_start_time"]);
+    @this._game_opts = j["game_opts"];
+    if (_game_opts.GetType() != Json::Type::Object) throw("Invalid game_opts: not an obj");
   }
 
   Json::Value@ ToJson() {
@@ -58,6 +63,7 @@ class RoomInfo {
     j["n_maps"] = _n_maps;
     j["min_secs"] = _min_secs;
     j["max_secs"] = _max_secs;
+    j["game_opts"] = _game_opts;
     return j;
   }
 
@@ -113,6 +119,10 @@ class RoomInfo {
 
   float get_game_start_time() const {
     return this._game_start_time;
+  }
+
+  const Json::Value@ get_game_opts() const {
+    return this._game_opts;
   }
 
   // Custom props

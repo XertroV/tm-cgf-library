@@ -7,9 +7,12 @@ class GameInfoFull {
   private array<int> _map_list;
   private string _room;
   private string _lobby;
+  private const Json::Value@ _game_opts;
 
   /* Methods // Mixin: Default Constructor */
-  GameInfoFull(const User@[] &in players, uint n_game_msgs, const string[][] &in teams, const int[] &in team_order, const int[] &in map_list, const string &in room, const string &in lobby) {
+  GameInfoFull(const User@[] &in players, uint n_game_msgs, const string[][] &in teams, const int[] &in team_order,
+    const int[] &in map_list, const string &in room, const string &in lobby, Json::Value@ game_opts
+  ) {
     this._players = players;
     this._n_game_msgs = n_game_msgs;
     this._teams = teams;
@@ -17,6 +20,7 @@ class GameInfoFull {
     this._map_list = map_list;
     this._room = room;
     this._lobby = lobby;
+    @this._game_opts = game_opts;
   }
 
   /* Methods // Mixin: ToFrom JSON Object */
@@ -44,6 +48,8 @@ class GameInfoFull {
     }
     this._room = string(j["room"]);
     this._lobby = string(j["lobby"]);
+    @this._game_opts = j["game_opts"];
+    if (_game_opts.GetType() != Json::Type::Object) throw("Invalid game_opts: not an obj");
   }
 
   /* Methods // Mixin: Getters */
@@ -73,6 +79,10 @@ class GameInfoFull {
 
   const string get_lobby() const {
     return this._lobby;
+  }
+
+  const Json::Value@ get_game_opts() const {
+    return this._game_opts;
   }
 
   /* Methods // Mixin: ToString */

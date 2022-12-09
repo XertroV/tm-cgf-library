@@ -91,6 +91,7 @@ namespace Game {
             AddMessageHandler("LOBBY_INFO", CGF::MessageHandler(MsgHandler_LobbyInfo));
             AddMessageHandler("ROOM_INFO", CGF::MessageHandler(MsgHandler_RoomInfo));
             AddMessageHandler("NEW_ROOM", CGF::MessageHandler(MsgHandler_NewRoom));
+            AddMessageHandler("ROOM_RETIRED", CGF::MessageHandler(MsgHandler_RetireRoom));
             AddMessageHandler("ROOM_UPDATE", CGF::MessageHandler(MsgHandler_RoomUpdate));
             AddMessageHandler("PLAYER_LEFT", CGF::MessageHandler(MsgHandler_PlayerEvent));
             AddMessageHandler("PLAYER_JOINED", CGF::MessageHandler(MsgHandler_PlayerEvent));
@@ -604,6 +605,14 @@ namespace Game {
             return true;
         }
 
+        bool MsgHandler_RetireRoom(Json::Value@ j) {
+            if (lobbyInfo is null) warn("New Room but lobby info is null! Skipping");
+            else {
+                lobbyInfo.RetireRoom(j['payload']);
+            }
+            return true;
+        }
+
         bool MsgHandler_RoomUpdate(Json::Value@ j) {
             auto pl = j['payload'];
             string name = pl['name'];
@@ -641,6 +650,9 @@ namespace Game {
         void AddPlayer(const string &in uid, const string &in username) {
             currentPlayers[uid] = username;
             readyStatus[uid] = false;
+            if (IsMainLobby || IsInGameLobby) {
+                lobbyInfo.n_clients += 1;
+            }
         }
 
         void UpdatePlayersFromCanonical(const Json::Value@ players) {

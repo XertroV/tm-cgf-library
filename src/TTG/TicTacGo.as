@@ -38,6 +38,7 @@ class TicTacGo : Game::Engine {
     string idNonce;
 
     TTGGameState state = TTGGameState::PreStart;
+    TicTacGoState@ stateObj = TicTacGoState();
 
     TTGSquareState IAmPlayer;
     TTGSquareState TheyArePlayer;
@@ -46,7 +47,6 @@ class TicTacGo : Game::Engine {
     bool IsBattleMode = false;
     TTGSquareState WinningPlayer;
     int2[] WinningSquares;
-    string[] playerUids;
 
     ChallengeResultState@ challengeResult;
 
@@ -68,6 +68,7 @@ class TicTacGo : Game::Engine {
 
     void ResetState() {
         trace("TTG State Reset!");
+        stateObj.Reset();
         // reset board
         turnCounter = 0;
         gameLog.Resize(0);
