@@ -32,26 +32,11 @@ enum TTGGameState {
 
 class TicTacGo : Game::Engine {
     Game::Client@ client;
-    // TTGSquareState[][] boardState;
-    // bool[][] boardMapKnown;
     string idNonce;
 
-    // TTGGameState state = TTGGameState::PreStart;
     TicTacGoState@ stateObj;
 
-    // TTGSquareState IAmPlayer;
-    // TTGSquareState TheyArePlayer;
-    // TTGSquareState ActivePlayer;
-    // bool IsSinglePlayerGame = false;
-    // bool IsBattleMode = false;
-    // TTGSquareState WinningPlayer;
-    // int2[] WinningSquares;
-
-    // ChallengeResultState@ challengeResult;
-
     Json::Value@[] incomingEvents;
-    // TTGGameEvent@[] gameLog;
-    // uint turnCounter = 0;
 
     TicTacGo(Game::Client@ client, bool setRandomNonce = false) {
         if (setRandomNonce)
@@ -61,30 +46,12 @@ class TicTacGo : Game::Engine {
         client.AddMessageHandler("PLAYER_LEFT", CGF::MessageHandler(MsgHandler_PlayerEvent));
         client.AddMessageHandler("PLAYER_JOINED", CGF::MessageHandler(MsgHandler_PlayerEvent));
         client.AddMessageHandler("LOBBY_LIST", CGF::MessageHandler(MsgHandler_Ignore));
-        // @challengeResult = ChallengeResultState();
         ResetState();
     }
 
     void ResetState() {
         trace("TTG State Reset!");
         stateObj.Reset();
-        // // reset board
-        // turnCounter = 0;
-        // gameLog.Resize(0);
-        // boardState.Resize(3);
-        // boardMapKnown.Resize(3);
-        // challengeResult.Reset();
-        // for (uint x = 0; x < boardState.Length; x++) {
-        //     boardState[x].Resize(3);
-        //     boardMapKnown[x].Resize(3);
-        //     for (uint y = 0; y < boardState[x].Length; y++) {
-        //         boardState[x][y] = TTGSquareState::Unclaimed;
-        //         boardMapKnown[x][y] = false;
-        //     }
-        // }
-        // state = TTGGameState::PreStart;
-        // ActivePlayer = TTGSquareState::Unclaimed;
-        // WinningPlayer = TTGSquareState::Unclaimed;
     }
 
     void PrettyPrintBoardState() {
@@ -119,71 +86,6 @@ class TicTacGo : Game::Engine {
         return client.gameInfoFull;
     }
 
-    // string OpponentsName = "??";
-    // string ActivePlayersName = "??";
-
-    // const string get_ActivePlayersName() {
-    //     string uid;
-    //     if (ActivePlayer == TTGSquareState::Unclaimed) {
-    //         return "";
-    //     }
-    //     if (ActivePlayer == IAmPlayer) {
-    //         return MyName;
-    //     } else {
-    //         return OpponentsName;
-    //     }
-    //     return client.GetPlayerName(uid);
-    // }
-
-    // const string get_OpponentsName() {
-    //     return client.GetPlayerName(GameInfo.teams[int(TheyArePlayer)][0]);
-    // }
-
-    // const string get_MyName() {
-    //     // return client.GetPlayerName(GameInfo.teams[int(IAmPlayer)][0]);
-    //     return client.GetPlayerName(client.clientUid);
-    // }
-
-    // const string GetPlayersName(TTGSquareState p) {
-    //     return (p == IAmPlayer) ? MyName : OpponentsName;
-    //     // return client.GetPlayerName(GameInfo.teams[int(p)][0]);
-    // }
-
-    // string setPlayersRes = "";
-
-    // void SetPlayers() {
-    //     while (GameInfo is null) {
-    //         log_trace("SetPlayers found null game info, yielding");
-    //         yield();
-    //     }
-    //     ActivePlayer = TTGSquareState(GameInfo.team_order[0]);
-    //     IsSinglePlayerGame = GameInfo.team_order.Length == 1;
-    //     IsBattleMode = GameInfo.teams[0].Length > 1 || (!IsSinglePlayerGame && GameInfo.teams[1].Length > 1);
-    //     string myUid = client.clientUid;
-    //     bool isPlayer1 = GameInfo.teams[0][0] == myUid;
-    //     string oppUid = IsSinglePlayerGame ? myUid : GameInfo.teams[isPlayer1 ? 1 : 0][0];
-    //     if (isPlayer1) {
-    //         IAmPlayer = TTGSquareState::Player1;
-    //         TheyArePlayer = TTGSquareState::Player2;
-    //     } else {
-    //         IAmPlayer = TTGSquareState::Player2;
-    //         TheyArePlayer = TTGSquareState::Player1;
-    //     }
-    //     print("ActivePlayer (start): " + tostring(ActivePlayer));
-    //     setPlayersRes = "Active=" + tostring(ActivePlayer) + "; " + "IAmPlayer=" + tostring(IAmPlayer);
-    //     for (uint i = 0; i < GameInfo.players.Length; i++) {
-    //         auto item = GameInfo.players[i];
-    //         if (item.uid == oppUid) {
-    //             OpponentsName = item.username;
-    //             break;
-    //         }
-    //     }
-    //     if (OpponentsName == "??") {
-    //         warn("Could not find opponents name.");
-    //     }
-    //     gameLog.InsertLast(TTGGameEvent_StartingPlayer(ActivePlayer, ActivePlayersName));
-    // }
-
     void OnGameStart() {
         trace("On game start!");
         MM::setMenuPage("/empty");
@@ -193,38 +95,9 @@ class TicTacGo : Game::Engine {
     }
 
     void OnGameEnd() {
-        // gameFinished = true;
         stateObj.OnGameEnd();
-        // state = TTGGameState::GameFinished;
         MM::setMenuPage("/home");
     }
-
-    // TTGSquareState GetSquareState(int col, int row) const {
-    //     // trace_dev("xy: " + col + ", " + row);
-    //     return boardState[col][row];
-    // }
-
-    // void SetSquareState(int col, int row, TTGSquareState newState) {
-    //     trace("set (" + col + ", " + row + ") to " + tostring(newState));
-    //     boardState[col][row] = newState;
-    //     // PrettyPrintBoardState();
-    // }
-
-    // void MarkSquareKnown(int col, int row) {
-    //     boardMapKnown[col][row] = true;
-    // }
-
-    // bool SquareKnown(int col, int row) {
-    //     return boardMapKnown[col][row];
-    // }
-
-    // bool SquareOwnedByMe(int col, int row) const {
-    //     return IAmPlayer == boardState[col][row];
-    // }
-
-    // bool SquareOwnedByThem(int col, int row) const {
-    //     return TheyArePlayer == boardState[col][row];
-    // }
 
     void Render() {
         if (!CurrentlyInMap) {
@@ -497,19 +370,6 @@ class TicTacGo : Game::Engine {
         }
     }
 
-    // bool get_IsMyTurn() {
-    //     // return IAmPlayer == ActivePlayer || IsSinglePlayerGame;
-    //     stateObj.IsMyTurn;
-    // }
-
-    // bool SquarePartOfWin(int2 xy) {
-    //     for (uint i = 0; i < WinningSquares.Length; i++) {
-    //         auto s = WinningSquares[i];
-    //         if (xy.x == s.x && xy.y == s.y) return true;
-    //     }
-    //     return false;
-    // }
-
     const string IconForPlayer(TTGSquareState player) {
         if (player == TTGSquareState::Unclaimed) return Icons::QuestionCircleO;
         return player == TTGSquareState::Player1 ? Icons::CircleO : Icons::Kenney::Times;
@@ -683,81 +543,6 @@ class TicTacGo : Game::Engine {
         return true;
     }
 
-
-    // void AdvancePlayerTurns() {
-    //     // todo: check for win
-    //     if (CheckGameWon()) return;
-    //     // else, update active player
-    //     // ActivePlayer = ActivePlayer == IAmPlayer ? TheyArePlayer : IAmPlayer;
-    //     ActivePlayer = InactivePlayer;
-    //     turnCounter++;
-    // }
-
-    // // check if 3 squares are claimed and equal
-    // bool AreSquaresEqual(int2 a, int2 b, int2 c) {
-    //     auto _a = GetSquareState(a.x, a.y);
-    //     auto _b = GetSquareState(b.x, b.y);
-    //     bool win = _a != TTGSquareState::Unclaimed
-    //         && _a == _b
-    //         && _b == GetSquareState(c.x, c.y);
-    //     if (win) WinningPlayer = _a;
-    //     WinningSquares.Resize(0);
-    //     WinningSquares.InsertLast(a);
-    //     WinningSquares.InsertLast(b);
-    //     WinningSquares.InsertLast(c);
-    //     return win;
-    // }
-
-    // bool CheckGameWon() {
-    //     // check diags, rows, cols
-    //     auto tmp = array<TTGSquareState>(3);
-    //     bool gameWon = false
-    //         // diags
-    //         || AreSquaresEqual(int2(0, 0), int2(1, 1), int2(2, 2))
-    //         || AreSquaresEqual(int2(0, 2), int2(1, 1), int2(2, 0))
-    //         // columns
-    //         || AreSquaresEqual(int2(0, 0), int2(0, 1), int2(0, 2))
-    //         || AreSquaresEqual(int2(1, 0), int2(1, 1), int2(1, 2))
-    //         || AreSquaresEqual(int2(2, 0), int2(2, 1), int2(2, 2))
-    //         // rows
-    //         || AreSquaresEqual(int2(0, 0), int2(1, 0), int2(2, 0))
-    //         || AreSquaresEqual(int2(0, 1), int2(1, 1), int2(2, 1))
-    //         || AreSquaresEqual(int2(0, 2), int2(1, 2), int2(2, 2))
-    //         ;
-    //     if (gameWon) {
-    //         state = TTGGameState::GameFinished;
-    //     }
-    //     return gameWon;
-    // }
-
-    // bool get_IsPreStart() const {
-    //     return state == TTGGameState::PreStart;
-    // }
-
-    // bool get_IsWaitingForMove() const {
-    //     return state == TTGGameState::WaitingForMove;
-    // }
-
-    // bool get_IsInClaim() const {
-    //     return state == TTGGameState::InClaim;
-    // }
-
-    // bool get_IsInChallenge() const {
-    //     return state == TTGGameState::InChallenge;
-    // }
-
-    // bool get_IsInClaimOrChallenge() const {
-    //     return IsInChallenge || IsInClaim;
-    // }
-
-    // bool get_IsInAGame() const {
-    //     return !(IsGameFinished || IsPreStart);
-    // }
-
-    // bool get_IsGameFinished() const {
-    //     return state == TTGGameState::GameFinished;
-    // }
-
     bool waitingForOwnMove = false;
 
     void GameLoop() {
@@ -786,130 +571,6 @@ class TicTacGo : Game::Engine {
             incomingEvents.RemoveRange(0, incomingEvents.Length);
         }
     }
-
-
-    // bool IsValidMove(const string &in msgType, uint col, uint row, TTGSquareState fromPlayer) const {
-    //     if (fromPlayer == TTGSquareState::Unclaimed) return false;
-    //     if (IsGameFinished) return false;
-    //     if (IsInChallenge || IsInClaim) {
-    //         bool moveIsChallengeRes = msgType == "G_CHALLENGE_RESULT";
-    //         if (!moveIsChallengeRes) return false;
-    //         if (challengeResult.HasResultFor(fromPlayer)) return false;
-    //         return true;
-    //     } else if (IsWaitingForMove) {
-    //         if (col >= 3 || row >= 3) return false;
-    //         if (fromPlayer != ActivePlayer && !IsSinglePlayerGame) return false;
-    //         bool moveIsClaiming = msgType == "G_TAKE_SQUARE";
-    //         bool moveIsChallenging = msgType == "G_CHALLENGE_SQUARE";
-    //         if (!moveIsChallenging && !moveIsClaiming) return false;
-    //         if (moveIsChallenging) {
-    //             auto sqState = GetSquareState(col, row);
-    //             if (sqState == TTGSquareState::Unclaimed) return false;
-    //             return sqState != fromPlayer || IsSinglePlayerGame;
-    //         } else if (moveIsClaiming) {
-    //             print('test move claiming');
-    //             return GetSquareState(col, row) == TTGSquareState::Unclaimed;
-    //         }
-    //         return false;
-    //     }
-    //     return false;
-    // }
-
-
-    // void ProcessMove(Json::Value@ msg) {
-    //     string msgType = msg['type'];
-    //     auto pl = msg['payload'];
-    //     int seq = pl['seq'];
-    //     // deserialize move
-    //     uint col, row;
-    //     try {
-    //         col = pl['col'];
-    //         row = pl['row'];
-    //     } catch {
-    //         warn("Exception processing move: " + getExceptionInfo());
-    //         return;
-    //     }
-    //     // check if valid move
-    //     if (!IsValidMove(msgType, col, row, lastFrom)) {
-    //         warn("Invalid move from " + tostring(lastFrom) + ": " + Json::Write(JsonObject2("type", msgType, "payload", pl)));
-    //         return;
-    //     }
-
-    //     trace("Processing valid move of type: " + msgType + "; " + Json::Write(pl));
-
-    //     // proceed with state mutation
-
-    //     if (IsInChallenge || IsInClaim) {
-    //         bool moveIsChallengeRes = msgType == "G_CHALLENGE_RESULT";
-    //         if (!moveIsChallengeRes) throw("!moveIsChallengeRes: should be impossible");
-    //         if (!challengeResult.active) throw("challenge is not active");
-    //         if (!IsSinglePlayerGame) {
-    //             challengeResult.SetPlayersTime(lastFrom, int(pl['time']));
-    //         } else {
-    //             // if we're in a single player game, set a slightly worse time for the inactive player
-    //             challengeResult.SetPlayersTime(ActivePlayer, int(pl['time']));
-    //             challengeResult.SetPlayersTime(InactivePlayer, int(pl['time']) + 100);
-    //         }
-    //         if (challengeResult.IsResolved) {
-    //             bool challengerWon = challengeResult.Winner != challengeResult.challenger;
-    //             auto eType = TTGGameEventType((IsInChallenge ? 4 : 2) | (challengerWon ? 0 : 1));
-    //             gameLog.InsertLast(TTGGameEvent_MapResult(this, eType, challengeResult, turnCounter + 1));
-
-    //             challengeEndedAt = Time::Now;
-    //             challengeResult.Reset();
-
-    //             bool claimFailed = IsInClaim && challengerWon;
-    //             auto sqState = claimFailed ? TTGSquareState::Unclaimed : challengeResult.Winner;
-    //             SetSquareState(challengeResult.col, challengeResult.row, sqState);
-    //             state = TTGGameState::WaitingForMove;
-    //             AdvancePlayerTurns();
-    //         }
-    //     } else if (IsWaitingForMove) {
-    //         if (col >= 3 || row >= 3) throw("impossible: col >= 3 || row >= 3");
-    //         if (lastFrom != ActivePlayer && !IsSinglePlayerGame) throw("impossible: lastFrom != ActivePlayer");
-    //         bool moveIsClaiming = msgType == "G_TAKE_SQUARE";
-    //         bool moveIsChallenging = msgType == "G_CHALLENGE_SQUARE";
-    //         if (!moveIsChallenging && !moveIsClaiming) throw("impossible: not a valid move");
-    //         auto sqState = GetSquareState(col, row);
-    //         if (moveIsChallenging) {
-    //             if (sqState == TTGSquareState::Unclaimed) throw('invalid, square claimed');
-    //             if (sqState == ActivePlayer) throw('invalid, cant challenge self');
-    //             // begin challenge
-    //             state = TTGGameState::InChallenge;
-    //             challengeResult.Activate(col, row, ActivePlayer, state);
-    //             startnew(CoroutineFunc(BeginChallengeSoon));
-    //         } else if (moveIsClaiming) {
-    //             if (sqState != TTGSquareState::Unclaimed) throw("claiming claimed square");
-    //             state = TTGGameState::InClaim;
-    //             challengeResult.Activate(col, row, ActivePlayer, state);
-    //             startnew(CoroutineFunc(BeginChallengeSoon));
-    //             // SetSquareState(col, row, ActivePlayer);
-    //             // AdvancePlayerTurns();
-    //         }
-    //         MarkSquareKnown(col, row);
-    //     }
-    // }
-
-    // Json::Value@ currMap;
-    // int currTrackId;
-    // string currTrackIdStr;
-
-    // void BeginChallengeSoon() {
-    //     auto col = challengeResult.col;
-    //     auto row = challengeResult.row;
-    //     auto map = GetMap(col, row);
-    //     @currMap = map;
-    //     currTrackId = map['TrackID'];
-    //     currTrackIdStr = tostring(currTrackId);
-    //     challengeResult.startTime = Time::Now + 3000;
-    //     // sleep(3000);
-    // }
-
-    // Json::Value@ GetMap(int col, int row) {
-    //     int mapIx = row * 3 + col;
-    //     if (mapIx >= client.mapsList.Length) throw('bad map index');
-    //     return client.mapsList[mapIx];
-    // }
 
     vec4 challengeWindowBgCol = btnChallengeCol * vec4(.3, .3, .3, 1);
 
@@ -997,18 +658,6 @@ class TicTacGo : Game::Engine {
             UI::Text("(No Thumbnail)");
         }
     }
-
-    // void EndChallenge() {
-    //     challengeRunActive = false;
-    //     ReturnToMenu();
-    // }
-
-    // void ReportChallengeResult(int duration) {
-    //     auto pl = JsonObject1("time", duration);
-    //     pl['col'] = challengeResult.col;
-    //     pl['row'] = challengeResult.row;
-    //     client.SendPayload("G_CHALLENGE_RESULT", pl);
-    // }
 
 #if DEV
     void LogPlayerStartTime() {
@@ -1151,18 +800,7 @@ class ChallengeResultState {
 
     // when not in single player
     void SetPlayersTime(const string &in uid, int time) {
-        throw('todo');
-        // if (player == TTGSquareState::Player1) {
-        //     player1Time = time;
-        // } else if (player == TTGSquareState::Player2) {
-        //     player2Time = time;
-        // } else {
-        //     throw("unknown player");
-        // }
-
-        // if (IsResolved) {
-        //     active = false;
-        // }
+        uidTimes[uid] = time;
     }
 
     void SetPlayersTime(TTGSquareState player, int time) {
