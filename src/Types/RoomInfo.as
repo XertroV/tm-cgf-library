@@ -11,6 +11,7 @@ class RoomInfo {
   private uint _min_secs;
   private uint _max_secs;
   private float _game_start_time;
+  // note: game_opts will always be a mapping of string => string
   private const Json::Value@ _game_opts;
 
   /* Methods // Mixin: Default Constructor */
@@ -121,6 +122,11 @@ class RoomInfo {
     return this._game_start_time;
   }
 
+  /**
+   * custom options for the game able to be set from the client UI (not enforced by the server)
+   *
+   * note: game_opts will always be a mapping of string => string
+   */
   const Json::Value@ get_game_opts() const {
     return this._game_opts;
   }

@@ -307,6 +307,7 @@ namespace Game {
         Json::Value@ ReadMessage() {
             while (IsConnected && !socket.CanRead() && socket.Available() < 2) yield();
             if (socket.Available() < 2) {
+                if (IsDisconnected || IsShutdown) return null;
                 // todo: something went wrong
                 warn("We don't have enough data to read -- connection issues mb?");
                 this.Disconnect();

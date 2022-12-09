@@ -6,10 +6,10 @@
  */
 
 enum TTGMode {
-    SinglePlayer,
-    Standard,
-    Teams,
-    BattleMode
+    SinglePlayer = 1,
+    Standard = 2,
+    Teams = 6,
+    BattleMode = 64
 }
 
 class SquareState {
@@ -45,6 +45,8 @@ class TicTacGoState {
     TTGGameEvent@[] gameLog;
     uint turnCounter = 0;
 
+    bool opt_EnableRecords = false;
+
     TicTacGoState() {
         Reset();
     }
@@ -64,6 +66,41 @@ class TicTacGoState {
             }
         }
     }
+
+    void LoadFromGameOpts(Json::Value@ game_opts) {
+        Reset();
+        if (game_opts.GetType() != Json::Type::Object) {
+            log_warn("LoadFromGameOpts: game_opts is not a json object");
+            return;
+        }
+        opt_EnableRecords = GetGameOptBool(game_opts, 'enable_records', false);
+        // mode = GetGameOptMode(game_opts);
+        mode = TTGMode(GetGameOptInt(game_opts, 'mode', int(TTGMode::Standard)));
+    }
+
+    bool GetGameOptBool(Json::Value@ opts, const string &in key, bool def) {
+        try {
+            return opts[key];
+        } catch {
+            return def;
+        }
+    }
+
+    int GetGameOptInt(Json::Value@ opts, const string &in key, int def) {
+        try {
+            return opts[key];
+        } catch {
+            return def;
+        }
+    }
+
+    // TTGMode GetGameOptMode(Json::Value@ opts) {
+    //     try {
+    //         return TTGMode(int(opts['mode']));
+    //     } catch {
+    //         return TTGMode::Standard;
+    //     }
+    // }
 
     TTGSquareState get_InactiveLeader() {
         return ActiveLeader == TTGSquareState::Player1 ? TTGSquareState::Player2 : TTGSquareState::Player1;

@@ -33,9 +33,6 @@ class TtgGame {
         while (!IsShutdown && !client.IsLoggedIn) yield();
         yield();
         yield();
-        uint joinAttemptCount = 0;
-        warn("lobby loop waiting for main");
-        warn("IsShutdown" + tostring(IsShutdown));
         if (!IsShutdown && client.IsMainLobby) {
             client.JoinLobby("TicTacGo");
             startnew(CoroutineFunc(CheckLobbySoon));
@@ -48,6 +45,7 @@ class TtgGame {
                 lastScope = client.currScope;
                 if (lastScope == Game::Scope::InRoom) {
                     m_roomName = LocalPlayersName + "'s Room";
+                    teamsLocked = false;
                 }
             }
             yield();
@@ -328,7 +326,7 @@ class TtgGame {
     int m_mapMinSecs = 15;
     int m_mapMaxSecs = 45;
     // game stuff
-    Json::Value@ gameOptions = Json::Object();
+    Json::Value@ gameOptions = DefaultTtgGameOptions();
     // timeotu
     uint createRoomTimeout = 0;
     bool m_singlePlayer = false;
@@ -355,7 +353,9 @@ class TtgGame {
 
         // todo: implement game options
 #if DEV
+        if (m_singlePlayer) gameOptions['mode'] = 1;
         DrawSetGameOptions();
+        if (m_singlePlayer && int(gameOptions['mode']) != 1) m_singlePlayer = false;
 #endif
 
         UI::BeginDisabled(Time::Now < createRoomTimeout);
@@ -396,10 +396,54 @@ class TtgGame {
         return open;
     }
 
+    void DrawModeSelectable(TTGMode mode, TTGMode curr) {
+        if (UI::Selectable(tostring(mode), mode == curr)) {
+            gameOptions['mode'] = int(mode);
+        }
+        if (UI::IsItemHovered()) {
+            DrawModeTooltip(mode);
+        }
+    }
+
+    void DrawModeTooltip(TTGMode mode) {
+        UI::BeginTooltip();
+        auto pos = UI::GetCursorPos();
+        UI::Dummy(vec2(lobbyWindowSize.x / 3., 0));
+        UI::SetCursorPos(pos);
+        UI::SetNextItemWidth(lobbyWindowSize.x / 3.);
+        UI::TextWrapped("\\$ddd" + ModeDescription(mode));
+        UI::EndTooltip();
+    }
+
     void DrawSetGameOptions() {
         UI::AlignTextToFramePadding();
         if (TtgCollapsingHeader("Game Options")) {
-            Indent();
+            Indent(2);
+            auto currMode = TTGMode(int(gameOptions['mode']));
+            UI::AlignTextToFramePadding();
+            UI::Text("Mode:");
+            UI::SameLine();
+            if (UI::BeginCombo("##go-mode", tostring(currMode))) {
+                DrawModeSelectable(TTGMode::SinglePlayer, currMode);
+                DrawModeSelectable(TTGMode::Standard, currMode);
+                DrawModeSelectable(TTGMode::Teams, currMode);
+                DrawModeSelectable(TTGMode::BattleMode, currMode);
+                UI::EndCombo();
+            }
+            if (UI::IsItemHovered()) {
+                DrawModeTooltip(currMode);
+            }
+
+            if (int(currMode) > 2) {
+                // draw room size dragger
+                UI::AlignTextToFramePadding();
+                Indent(2);
+                UI::Text("Player Limit:");
+                UI::SameLine();
+                m_playerLimit = UI::SliderInt("##-playerlimit", m_playerLimit, 3, 64);
+            }
+
+            Indent(2);
             JsonCheckbox("Enable records?", gameOptions, "enable_records", false);
             AddSimpleTooltip("Enable the records UI element when playing maps. (Default: disabled)");
 
@@ -418,6 +462,24 @@ class TtgGame {
         }
     }
 
+    const string ModeDescription(TTGMode mode) {
+        switch (mode) {
+            case TTGMode::SinglePlayer:
+                return "Play as both players. When you claim or challenge a square and finish the map, the active position (challenger) will get the win by 100ms. If you DNF, the defender will get the win. This is useful for testing out what the game is like without needing another player.";
+                break;
+            case TTGMode::Standard:
+                return "Standard 2 player game. Every time a square is claimed or challenged, the active player (challenger) must win a head-to-head race to claim the square. Ties resolve in favor of the inactive player (defender).";
+                break;
+            case TTGMode::Teams:
+                return "2 teams, scored like in match making / ranked. For a total of N players, 1st place gets N points, 2nd place N-1 points, etc. The team with more points wins the round.";
+                break;
+            case TTGMode::BattleMode:
+                return "Up to 64 players over 2 teams. The best time from each team is used each round. Similar to Standard mode. Auto-DNF turned on is recommended.";
+                break;
+        }
+        return "Unknown mode. D:";
+    }
+
     void JsonCheckbox(const string &in label, Json::Value@ jsonObj, const string &in key, bool _default) {
         bool tmp = jsonObj.Get(key, _default);
         tmp = UI::Checkbox(label, tmp);
@@ -426,24 +488,25 @@ class TtgGame {
 
     void CreateRoom() {
         auto pl = Json::Object();
+        bool singlePlayer = int(gameOptions['mode']) == 1;
+        bool isStd = int(gameOptions['mode']) == 2;
         pl['name'] = m_roomName;
-        pl['player_limit'] = m_playerLimit;
-        pl['n_teams'] = m_nbTeams;
+        pl['player_limit'] = m_playerLimit; // might be > 2 for teams or battle mode
+        pl['n_teams'] = 2;
         pl['maps_required'] = m_nbMapsReq;
         pl['min_secs'] = m_mapMinSecs;
         pl['max_secs'] = m_mapMaxSecs;
         pl['game_opts'] = gameOptions;
-        auto vis = m_isPublic ? CGF::Visibility::global : CGF::Visibility::none;
+        auto vis = (m_isPublic && !singlePlayer) ? CGF::Visibility::global : CGF::Visibility::none;
 
-        if (m_singlePlayer) {
+        if (singlePlayer) {
             pl['n_teams'] = 1;
             pl['player_limit'] = 1;
-            m_singlePlayer = false;
+        } else if (isStd) {
+            pl['player_limit'] = 2;
         }
 
         client.SendPayload("CREATE_ROOM", pl, vis);
-        // reset m_roomName in join room block
-        // m_roomName = LocalPlayersName + "'s Room";
     }
 
     void RenderRoom() {
@@ -458,6 +521,8 @@ class TtgGame {
         UI::End();
         RenderLobbyChatWindow("Room");
     }
+
+    bool teamsLocked = false;
 
     void DrawRoomMain() {
         if (DrawHeading1Button(RoomNameText(client.roomInfo), "Leave##leave-room")) {
@@ -487,7 +552,13 @@ class TtgGame {
         if (UI::Button(Icons::Refresh)) {
             client.SendPayload("LIST_TEAMS");
         }
+        UI::SameLine();
+        if (UI::Button(teamsLocked ? Icons::Lock : Icons::Unlock)) {
+            teamsLocked = !teamsLocked;
+        }
+        UI::BeginDisabled(teamsLocked);
         DrawTeamSelection();
+        UI::EndDisabled();
     }
 
     void DrawGameOptsText() {
@@ -495,6 +566,9 @@ class TtgGame {
         Indent();
         if (TtgCollapsingHeader("Game Options")) {
             auto go = roomInfo.game_opts;
+            auto currMode = TTGMode(Text::ParseInt(go['mode']));
+            Indent(2);
+            UI::Text("Mode: " + tostring(currMode));
             Indent(2);
             UI::Text("Records Enabled: " + string(go['enable_records']));
         }
@@ -641,4 +715,14 @@ namespace TTG {
             game.RenderInterface();
         }
     }
+}
+
+
+
+
+Json::Value@ DefaultTtgGameOptions() {
+    auto go = Json::Object();
+    go['mode'] = int(TTGMode::Standard);
+    go['enable_records'] = false;
+    return go;
 }
