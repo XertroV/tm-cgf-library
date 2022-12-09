@@ -42,7 +42,8 @@ class TicTacGo : Game::Engine {
     TTGSquareState IAmPlayer;
     TTGSquareState TheyArePlayer;
     TTGSquareState ActivePlayer;
-    bool IsSinglePlayerGame;
+    bool IsSinglePlayerGame = false;
+    bool IsBattleMode = false;
     TTGSquareState WinningPlayer;
     int2[] WinningSquares;
     string[] playerUids;
@@ -161,6 +162,7 @@ class TicTacGo : Game::Engine {
         }
         ActivePlayer = TTGSquareState(GameInfo.team_order[0]);
         IsSinglePlayerGame = GameInfo.team_order.Length == 1;
+        IsBattleMode = GameInfo.teams[0].Length > 1 || (!IsSinglePlayerGame && GameInfo.teams[1].Length > 1);
         string myUid = client.clientUid;
         bool isPlayer1 = GameInfo.teams[0][0] == myUid;
         string oppUid = IsSinglePlayerGame ? myUid : GameInfo.teams[isPlayer1 ? 1 : 0][0];
@@ -406,8 +408,9 @@ class TicTacGo : Game::Engine {
         if (ActivePlayer == TTGSquareState::Unclaimed) return;
         auto team = int(player);
         auto playerNum = team + 1;
+        bool isMe = player == IAmPlayer;
         UI::PushFont(hoverUiFont);
-        UI::Text(IconForPlayer(player) + " -- Player " + playerNum);
+        UI::Text(IconForPlayer(player) + " -- Player " + playerNum + (isMe ? " (You)" : ""));
         auto nameCol = "\\$" + (ActivePlayer == player ? "4b1" : "999");
         string name = IAmPlayer == player ? MyName : OpponentsName;
         UI::Text(nameCol + name);
@@ -664,7 +667,8 @@ class TicTacGo : Game::Engine {
     }
 
     void SendChatMsg() {
-        client.SendChat(m_chatMsg, CGF::Visibility::global);
+        if (m_chatMsg != "" && m_chatMsg.Trim().Length > 0)
+            client.SendChat(m_chatMsg, CGF::Visibility::global);
         m_chatMsg = "";
     }
 
@@ -1036,6 +1040,7 @@ class TicTacGo : Game::Engine {
         }
         // we over measure if we set the end time here, and under measure if we use what was set earlier.
         // so use last time plus the period. add to end time so GUI updates
+        // ! note: we could use better methods for calculating duration (MLFeed is an example), but the goal here is something simple, reasonably robust, and *light*. Dependancies can be added per-plugin based on that game's requirements. We don't really need that sort of accuracy here.
         challengeEndTime += currPeriod;
         duration = challengeEndTime - challengeStartTime;
         // report result

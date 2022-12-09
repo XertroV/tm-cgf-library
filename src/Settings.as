@@ -23,7 +23,7 @@ bool S_LegacyAuth = false;
 [Setting category="Tic Tac Go" name="Hide Chat Always?"]
 bool S_TTG_HideChat = false;
 
-[Setting category="Tic Tac Go" name="Hide Lobby Chat?"]
+[Setting category="Tic Tac Go" name="Hide Lobby/Room Chat?"]
 bool S_TTG_HideLobbyChat = false;
 
 [Setting category="Tic Tac Go" name="Hide Room Names?"]

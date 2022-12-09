@@ -128,7 +128,8 @@ namespace Game {
         }
 
         void Initialize() {
-            GetAuthToken();
+            if (!S_LocalDev)
+                GetAuthToken();
             Connect();
             while (!IsConnected) {
                 warn("Attempting reconnect during init in 1s");
@@ -226,7 +227,7 @@ namespace Game {
                 NotifyWarning("Server version is different from expected. Is there a CGF update?\n\nVersion: " + ver);
             }
             int nbClients = int(latestServerInfo['n_clients']);
-            print("Connected. Server version: " + ver);
+            // print("Connected. Server version: " + ver);
             NotifyInfo("Connected.\nServer Version: " + ver + "\nCurrent Players: " + (nbClients + 1));
             // login via openplanet auth
             if (S_LocalDev || S_LegacyAuth) {

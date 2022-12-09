@@ -74,7 +74,7 @@ void NotifyWarning(const string &in msg) {
 }
 
 void NotifyInfo(const string &in msg) {
-    print("[INFO] " + msg);
+    log_info("[INFO] " + msg);
     UI::ShowNotification(Meta::ExecutingPlugin().Name, msg, vec4(.1, .5, .9, .3), 10000);
 }
 

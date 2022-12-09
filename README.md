@@ -13,6 +13,7 @@ GL HF
 
 todo:
 
+
 - DNRC command (do not reconnect)
 - games
   - game engine
@@ -21,19 +22,25 @@ todo:
 
 (something i'm forgetting)
 
-bans, hide lobby names?, auth
+bans
 
 server version test!
 
+implement game opts on server
 
-game option:
+game options:
+
 - stealing maps
 - enable/disable records
 - auto DNF
 - give-up = DNF? (respawns okay)
+- battle mode (1 leader per team, up to 64 players over 2 teams; todo: figure out scoring / win condition)
+-
 
 
 
+
+done: hide lobby names?, auth
 
 
 
