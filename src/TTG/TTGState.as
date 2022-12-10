@@ -50,6 +50,7 @@ class TicTacGoState {
     TTGSquareState WinningLeader = TTGSquareState::Unclaimed;
     int2[] WinningSquares;
 
+    string MyName;
     string MyLeadersName;
     string OpposingLeaderName;
 
@@ -58,6 +59,7 @@ class TicTacGoState {
     uint turnCounter = 0;
 
     bool opt_EnableRecords = false;
+    int opt_AutoDNF = -1;
 
     TicTacGoState(Game::Client@ client) {
         @this.client = client;
@@ -100,9 +102,14 @@ class TicTacGoState {
             return;
         }
         opt_EnableRecords = GetGameOptBool(game_opts, 'enable_records', false);
-        // mode = GetGameOptMode(game_opts);
+        opt_AutoDNF = GetGameOptInt(game_opts, 'auto_dnf', -1);
         mode = TTGMode(GetGameOptInt(game_opts, 'mode', int(TTGMode::Standard)));
         warn("Set mode to: " + tostring(mode));
+        // mode = GetGameOptMode(game_opts);
+    }
+
+    int get_opt_AutoDNF_ms() {
+        return opt_AutoDNF * 1000;
     }
 
     GameInfoFull@ get_GameInfo() {
@@ -164,6 +171,9 @@ class TicTacGoState {
             }
             if (item.uid == myLeaderUid) {
                 MyLeadersName = item.username;
+            }
+            if (item.uid == client.clientUid) {
+                MyName = item.username;
             }
         }
         if (OpposingLeaderName == "??") {
@@ -329,7 +339,11 @@ class TicTacGoState {
         if (IsGameFinished) return false;
         if (IsInChallenge || IsInClaim) {
             bool moveIsChallengeRes = msgType == "G_CHALLENGE_RESULT";
-            if (!moveIsChallengeRes) return false;
+            bool moveIsForceEnd = msgType == "G_CHALLENGE_FORCE_END";
+            if (!moveIsChallengeRes && !moveIsForceEnd) return false;
+            if (moveIsForceEnd) {
+                return client.currAdmins.Find(lastFromUid) >= 0;
+            }
             if (IsSinglePlayer && challengeResult.HasResultFor(fromPlayer)) return false;
             if (!IsSinglePlayer && challengeResult.HasResultFor(lastFromUid)) return false;
             return true;
@@ -385,14 +399,19 @@ class TicTacGoState {
 
         if (IsInChallenge || IsInClaim) {
             bool moveIsChallengeRes = msgType == "G_CHALLENGE_RESULT";
-            if (!moveIsChallengeRes) throw("!moveIsChallengeRes: should be impossible");
+            bool moveIsForceEnd = msgType == "G_CHALLENGE_FORCE_END";
+            if (!moveIsChallengeRes && !moveIsForceEnd) throw("not a valid move type: should be impossible");
             if (!challengeResult.active) throw("challenge is not active");
-            if (!IsSinglePlayer) {
-                challengeResult.SetPlayersTime(lastFromUid, int(pl['time']), lastFromTeam);
-            } else {
+            if (moveIsForceEnd) {
+                challengeResult.ForceEnd();
+                if (!challengeResult.IsResolved)
+                    warn("we just force ended the challenge but it did not resolve!");
+            } else if (IsSinglePlayer) {
                 // if we're in a single player game, set a slightly worse time for the inactive player
                 challengeResult.SetPlayersTime(ActiveLeader, int(pl['time']));
                 challengeResult.SetPlayersTime(InactiveLeader, int(pl['time']) + 100);
+            } else {
+                challengeResult.SetPlayersTime(lastFromUid, int(pl['time']), lastFromTeam);
             }
             if (challengeResult.IsResolved) {
                 bool challengerWon = challengeResult.Winner != challengeResult.challenger;
@@ -501,6 +520,7 @@ class TicTacGoState {
         while (uiConfig.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
         sleep(300); // we don't need to get the time immediately, so give some time for values to update
         while (player.StartTime < 0) yield();
+        HideGameUI::opt_EnableRecords = opt_EnableRecords;
         startnew(HideGameUI::OnMapLoad);
         // record start
         currGameTime = GetApp().PlaygroundScript.Now;
@@ -511,13 +531,14 @@ class TicTacGoState {
         while (uiConfig is null || uiConfig.UISequence != CGamePlaygroundUIConfig::EUISequence::Finish) {
             duration = Time::Now - challengeStartTime;
             auto oppTime = challengeResult.GetResultFor(TheirTeamLeader, DNF_TIME);
-            auto timeLeft = oppTime + AUTO_DNF_TIMEOUT - duration;
-            // if (timeLeft < 0) {
-            //     cast<CGameManiaPlanet>(GetApp()).BackToMainMenu();
-            // }
-            // timeLeft < 0 ||
-            if (GetApp().PlaygroundScript is null || uiConfig is null) {
-                // player quit (unless auto DNF)
+            auto timeLeft = oppTime + opt_AutoDNF_ms - duration;
+            bool shouldDnf = opt_AutoDNF_ms > 0 && timeLeft <= 0;
+            if (shouldDnf || GetApp().PlaygroundScript is null || uiConfig is null) {
+                if (shouldDnf) {
+                    log_warn("shouldDnf. time left: " + timeLeft + "; oppTime: " + oppTime + ", duration=" + duration);
+                }
+                cast<CGameManiaPlanet>(GetApp()).BackToMainMenu();
+                // player quit (or auto DNF)
                 ReportChallengeResult(DNF_TIME); // more than 24 hrs, just
                 warn("Player quit map");
                 EndChallenge();

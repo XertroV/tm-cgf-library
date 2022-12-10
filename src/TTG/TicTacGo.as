@@ -32,21 +32,26 @@ enum TTGGameState {
 
 class TicTacGo : Game::Engine {
     Game::Client@ client;
-    string idNonce;
+    // string idNonce;
 
     TicTacGoState@ stateObj;
 
     Json::Value@[] incomingEvents;
 
     TicTacGo(Game::Client@ client, bool setRandomNonce = false) {
-        if (setRandomNonce)
-            idNonce = tostring(Math::Rand(0, 99999999));
+        // if (setRandomNonce)
+        //     idNonce = client.clientUid;
+            // idNonce = tostring(Math::Rand(0, 99999999));
         @this.client = client;
         @this.stateObj = TicTacGoState(client);
         client.AddMessageHandler("PLAYER_LEFT", CGF::MessageHandler(MsgHandler_PlayerEvent));
         client.AddMessageHandler("PLAYER_JOINED", CGF::MessageHandler(MsgHandler_PlayerEvent));
         client.AddMessageHandler("LOBBY_LIST", CGF::MessageHandler(MsgHandler_Ignore));
         ResetState();
+    }
+
+    const string get_idNonce() {
+        return client.clientUid;
     }
 
     void ResetState() {
@@ -110,10 +115,19 @@ class TicTacGo : Game::Engine {
         if (stateObj.currGameTime < 0) return;
         if (!stateObj.challengeRunActive) return;
         RenderChatWindow();
-        // print("render going ahead");
+        RenderTimer();
+        if (stateObj.IsSinglePlayer || stateObj.IsStandard)
+            RenderOpponentStatus();
+        else if (stateObj.IsTeams) {
+            throw('todo: render teams');
+        }
+        else if (stateObj.IsBattleMode) {
+            throw('todo: render battle');
+        }
+    }
+
+    void RenderTimer() {
         auto duration = stateObj.challengeEndTime - stateObj.challengeStartTime;
-        // string sign = duration < 0 ? "-" : "";
-        // duration = Math::Abs(duration);
         nvg::Reset();
         nvg::TextAlign(nvg::Align::Center | nvg::Align::Bottom);
         nvg::FontFace(nvgFontTimer);
@@ -122,16 +136,20 @@ class TicTacGo : Game::Engine {
         auto textPos = vec2(Draw::GetWidth() / 2., Draw::GetHeight() * 0.98);
         vec2 offs = vec2(fs, fs) * 0.05;
         NvgTextWShadow(textPos, offs.x, TimeFormat(duration), vec4(1, 1, 1, 1));
+    }
+
+    // works in single player and standard
+    void RenderOpponentStatus() {
         auto challengeResult = stateObj.challengeResult;
+        auto duration = stateObj.challengeEndTime - stateObj.challengeStartTime;
         if (challengeResult.HasResultFor(stateObj.TheirTeamLeader)) {
             nvg::TextAlign(nvg::Align::Center | nvg::Align::Top);
             nvg::FontFace(nvgFontMessage);
-            textPos *= vec2(1, 0.03);
-            fs *= .7;
+            vec2 textPos = vec2(Draw::GetWidth() / 2., Draw::GetHeight() * 0.03);
+            auto fs = Draw::GetHeight() * 0.045;
             nvg::FontSize(fs);
-            offs *= .7;
+            vec2 offs = vec2(fs, fs) * 0.05;
             auto oppTime = challengeResult.GetResultFor(stateObj.TheirTeamLeader, DNF_TIME);
-            auto timeLeft = oppTime + AUTO_DNF_TIMEOUT - duration;
             auto col = vec4(1, .5, 0, 1);
             string msg = oppTime > DNF_TEST ? stateObj.OpposingLeaderName + " DNF'd"
                 : stateObj.OpposingLeaderName + "'s Time: " + Time::Format(challengeResult.GetResultFor(stateObj.TheirTeamLeader));
@@ -139,14 +157,12 @@ class TicTacGo : Game::Engine {
             if (duration > oppTime) {
                 textPos += vec2(0, fs);
                 NvgTextWShadow(textPos, offs.x, "You lost.", col);
-                // textPos += vec2(0, fs);
-                // NvgTextWShadow(textPos, offs.x, "Auto DNFing in " + TimeFormat(timeLeft, true, false), col);
+                if (stateObj.opt_AutoDNF > 0) {
+                    auto timeLeft = oppTime + stateObj.opt_AutoDNF_ms - duration;
+                    textPos += vec2(0, fs);
+                    NvgTextWShadow(textPos, offs.x, "Auto DNFing in " + Text::Format("%.1f", 0.001 * timeLeft), col);
+                }
             }
-
-            // nvg::FillColor(vec4(0, 0, 0, 1));
-            // nvg::Text(textPos + offs, );
-            // nvg::FillColor(vec4(.8, .4, 0, 1));
-            // nvg::Text(textPos, OpponentsName + "'s Time: " + Time::Format(challengeResult.GetResultFor(TheyArePlayer)));
         }
     }
 
@@ -187,7 +203,7 @@ class TicTacGo : Game::Engine {
         if (stateObj.ActiveLeader == TTGSquareState::Unclaimed) return;
         UI::SetNextWindowSize(Draw::GetWidth() * 0.5, Draw::GetHeight() * 0.6, UI::Cond::FirstUseEver);
         UI::PushFont(hoverUiFont);
-        if (UI::Begin("Tic Tac GO!##" + idNonce)) {
+        if (UI::Begin("Tic Tac GO! ("+stateObj.MyName+")##" + idNonce)) {
             // Tic Tac Toe interface
             auto available = UI::GetContentRegionAvail();
             auto midColSize = available * vec2(.5, 1) - UI::GetStyleVarVec2(UI::StyleVar::FramePadding);
@@ -493,12 +509,10 @@ class TicTacGo : Game::Engine {
         if (drawHeading) {
             if (DrawSubHeading1Button("Chat", "Hide##" + idNonce)) {
                 S_TTG_HideChat = true;
-                trace('hide chat');
+                log_trace('hide chat');
             }
         }
         UI::PushFont(hoverUiFont);
-        // UI::Text("Chat");
-        // UI::Separator();
         bool changed;
         m_chatMsg = UI::InputText("##ttg-chat-msg"+idNonce, m_chatMsg, changed, UI::InputTextFlags::EnterReturnsTrue);
         if (changed) UI::SetKeyboardFocusHere(-1);
@@ -508,15 +522,12 @@ class TicTacGo : Game::Engine {
         }
         UI::Separator();
         if (UI::BeginChild("##ttg-chat", vec2(), true, UI::WindowFlags::AlwaysAutoResize)) {
-            // UI::Text("Chat Ix: " + client.chatNextIx);
             auto @chat = client.mainChat;
             string chatMsg;
             for (int i = 0; i < client.mainChat.Length; i++) {
                 auto thisIx = (int(client.chatNextIx) - i - 1 + chat.Length) % chat.Length;
                 auto msg = chat[thisIx];
                 if (msg is null) break;
-                // UI::Text("" + thisIx + ".");
-                // UI::SameLine();
                 chatMsg = ColoredString(string(msg['payload']['content']));
                 UI::TextWrapped(Time::FormatString("%H:%M", int64(msg['ts'])) + " [ " + HighlightGray(string(msg['from']['username'])) + " ]:\n  " + chatMsg);
                 UI::Dummy(vec2(0, 2));
@@ -572,70 +583,149 @@ class TicTacGo : Game::Engine {
         }
     }
 
-    vec4 challengeWindowBgCol = btnChallengeCol * vec4(.3, .3, .3, 1);
-
-    void DrawChallengeWindow() {
-        if (!(stateObj.IsInChallenge || stateObj.IsInClaim) && stateObj.challengeEndedAt + 6000 < Time::Now) return;
-        if (CurrentlyInMap) return;
-        if (stateObj.currMap is null) return;
-        auto currMap = stateObj.currMap;
+    // call EndChallengeWindow regardless of what this returns.
+    bool BeginChallengeWindow() {
         auto flags = UI::WindowFlags::NoTitleBar
             | UI::WindowFlags::AlwaysAutoResize;
         UI::PushStyleVar(UI::StyleVar::FramePadding, vec2(20, 20));
         UI::PushStyleVar(UI::StyleVar::WindowRounding, 20);
         UI::PushStyleVar(UI::StyleVar::WindowPadding, vec2(20, 20));
         UI::PushStyleColor(UI::Col::WindowBg, challengeWindowBgCol);
+        return UI::Begin("ttg-challenge-window-" + idNonce, flags);
+    }
+
+    void EndChallengeWindow() {
+        UI::End();
+        UI::PopStyleColor(1);
+        UI::PopStyleVar(3);
+    }
+
+    vec4 challengeWindowBgCol = btnChallengeCol * vec4(.3, .3, .3, 1);
+
+    void DrawChallengeWindow() {
+        if (!(stateObj.IsInChallenge || stateObj.IsInClaim) && stateObj.challengeEndedAt + 6000 < Time::Now) return;
+        if (CurrentlyInMap) return;
+        if (stateObj.currMap is null) return;
+        if (BeginChallengeWindow()) {
+            UI::PushFont(mapUiFont);
+            if (stateObj.IsSinglePlayer || stateObj.IsStandard)
+                DrawStdChallengeWindow();
+            if (stateObj.IsTeams)
+                DrawTeamsChallengeWindow();
+            if (stateObj.IsBattleMode)
+                DrawBattleModeChallengeWindow();
+            UI::PopFont();
+            UI::Separator();
+            DrawThumbnail(stateObj.currTrackIdStr);
+        }
+        EndChallengeWindow();
+    }
+
+    void DrawStdChallengeWindow() {
+        auto currMap = stateObj.currMap;
         auto challengeResult = stateObj.challengeResult;
         auto OpposingTLName = stateObj.OpposingLeaderName;
         auto MyName = stateObj.MyLeadersName;
         auto myTeam = stateObj.MyTeamLeader;
         auto theirTeam = stateObj.TheirTeamLeader;
-        if (UI::Begin("ttg-challenge-window-" + idNonce, flags)) {
-            UI::PushFont(mapUiFont);
-            string challengeStr;
-            bool iAmChallenging = challengeResult.challenger == stateObj.MyTeamLeader;
-            if (challengeResult.IsClaim) {
-                if (iAmChallenging) challengeStr = "Beat " + OpposingTLName + " to claim this map!";
-                else challengeStr = "Beat " + OpposingTLName + " to deny their claim!";
-            } else {
-                if (iAmChallenging) challengeStr = "You are challenging " + OpposingTLName;
-                else challengeStr = OpposingTLName + " challenges you!";
-            }
-            UI::TextWrapped(challengeStr);
-            UI::Text("First to finish wins!");
-            UI::Text("Restarting does not zero timer!");
-            UI::Separator();
-            UI::Text("Map: " + ColoredString(currMap['Name']));
-            UI::Text(string(currMap['LengthName']) + " / " + string(currMap['DifficultyName']));
-            UI::AlignTextToFramePadding();
-            if (challengeResult.IsResolved) {
-                UI::Text("-- RESULT --");
-                UI::Text(MyName + ": " + FormatChallengeTime(challengeResult.GetResultFor(myTeam)));
-                UI::Text(OpposingTLName + ": " + FormatChallengeTime(challengeResult.GetResultFor(theirTeam)));
-                UI::AlignTextToFramePadding();
-                UI::Text("Winner: " + stateObj.GetLeadersName(challengeResult.Winner));
-            } else if (challengeResult.HasResultFor(myTeam)) {
-                UI::Text("Waiting for " + OpposingTLName + " to set a time.");
-                UI::Text(MyName + ": " + FormatChallengeTime(challengeResult.GetResultFor(myTeam)));
-            } else {
-                if (challengeResult.startTime > Time::Now) {
-                    auto timeLeft = float(challengeResult.startTime - Time::Now) / 1000.;
-                    UI::Text("Starting in: " + Text::Format("%.1f", timeLeft));
-                } else {
-                    UI::BeginDisabled(stateObj.disableLaunchMapBtn);
-                    if (UI::Button("LAUNCH MAP")) {
-                        startnew(CoroutineFunc(stateObj.RunChallengeAndReportResult));
-                    }
-                    UI::EndDisabled();
-                }
-            }
-            UI::PopFont();
-            UI::Separator();
-            DrawThumbnail(stateObj.currTrackIdStr);
+        string challengeStr;
+        bool iAmChallenging = challengeResult.challenger == stateObj.MyTeamLeader;
+        if (challengeResult.IsClaim) {
+            if (iAmChallenging) challengeStr = "Beat " + OpposingTLName + " to claim this map!";
+            else challengeStr = "Beat " + OpposingTLName + " to deny their claim!";
+        } else {
+            if (iAmChallenging) challengeStr = "You are challenging " + OpposingTLName;
+            else challengeStr = OpposingTLName + " challenges you!";
         }
-        UI::End();
-        UI::PopStyleColor(1);
-        UI::PopStyleVar(3);
+        UI::TextWrapped(challengeStr);
+        UI::Text("First to finish wins!");
+        UI::Text("Restarting does not zero timer!");
+        UI::Separator();
+        DrawChallengeMapName();
+        UI::Separator();
+        UI::AlignTextToFramePadding();
+        if (challengeResult.IsResolved) {
+            UI::Text("-- RESULT --");
+            UI::Text(MyName + ": " + FormatChallengeTime(challengeResult.GetResultFor(myTeam)));
+            UI::Text(OpposingTLName + ": " + FormatChallengeTime(challengeResult.GetResultFor(theirTeam)));
+            UI::AlignTextToFramePadding();
+            UI::Text("Winner: " + stateObj.GetLeadersName(challengeResult.Winner));
+        } else if (challengeResult.HasResultFor(myTeam)) {
+            UI::Text("Waiting for " + OpposingTLName + " to set a time.");
+            UI::Text(MyName + ": " + FormatChallengeTime(challengeResult.GetResultFor(myTeam)));
+        } else {
+            DrawChallengePlayMapButton();
+        }
+    }
+
+    void DrawChallengeMapName() {
+        auto currMap = stateObj.currMap;
+        UI::TextWrapped("Map: " + ColoredString(currMap['Name']));
+        UI::Text(string(currMap['LengthName']) + " / " + string(currMap['DifficultyName']));
+    }
+
+    void DrawTeamsChallengeWindow() {
+        auto currMap = stateObj.currMap;
+        auto challengeResult = stateObj.challengeResult;
+        auto OpposingTLName = stateObj.OpposingLeaderName;
+        auto MyName = stateObj.MyLeadersName;
+        auto myTeam = stateObj.MyTeamLeader;
+        auto theirTeam = stateObj.TheirTeamLeader;
+        string challengeStr;
+        bool iAmChallenging = challengeResult.challenger == stateObj.MyTeamLeader;
+        if (challengeResult.IsClaim) {
+            if (iAmChallenging) challengeStr = "Beat Team " + OpposingTLName + " to claim this map!";
+            else challengeStr = "Beat Team " + OpposingTLName + " to deny their claim!";
+        } else {
+            if (iAmChallenging) challengeStr = "Your team challenges Team " + OpposingTLName;
+            else challengeStr = "Team " + OpposingTLName + " challenges your team!";
+        }
+        UI::TextWrapped(challengeStr);
+        UI::Text("Score the most points to win!");
+        UI::Text("Restarting does not zero timer!");
+        UI::Separator();
+        DrawChallengeMapName();
+        UI::Separator();
+        if (challengeResult.IsResolved) {
+            // draw winning team
+        } else if (challengeResult.IsEmpty) {
+            DrawChallengePlayMapButton();
+        } else {
+            // draw in progress
+        }
+    }
+
+    void DrawBattleModeChallengeWindow() {
+        auto currMap = stateObj.currMap;
+        auto challengeResult = stateObj.challengeResult;
+        auto OpposingTLName = stateObj.OpposingLeaderName;
+        auto MyName = stateObj.MyLeadersName;
+        auto myTeam = stateObj.MyTeamLeader;
+        auto theirTeam = stateObj.TheirTeamLeader;
+        string challengeStr;
+        bool iAmChallenging = challengeResult.challenger == stateObj.MyTeamLeader;
+        if (challengeResult.IsClaim) {
+            if (iAmChallenging) challengeStr = "Beat " + OpposingTLName + " to claim this map!";
+            else challengeStr = "Beat " + OpposingTLName + " to deny their claim!";
+        } else {
+            if (iAmChallenging) challengeStr = "You are challenging " + OpposingTLName;
+            else challengeStr = OpposingTLName + " challenges you!";
+        }
+        UI::TextWrapped(challengeStr);
+    }
+
+    void DrawChallengePlayMapButton() {
+        auto challengeResult = stateObj.challengeResult;
+        if (challengeResult.startTime > Time::Now) {
+            auto timeLeft = float(challengeResult.startTime - Time::Now) / 1000.;
+            UI::Text("Starting in: " + Text::Format("%.1f", timeLeft));
+        } else {
+            UI::BeginDisabled(stateObj.disableLaunchMapBtn);
+            if (UI::Button("LAUNCH MAP")) {
+                startnew(CoroutineFunc(stateObj.RunChallengeAndReportResult));
+            }
+            UI::EndDisabled();
+        }
     }
 
     const string FormatChallengeTime(int time) {
@@ -704,8 +794,6 @@ class ChallengeResultState {
     void Reset() {
         startTime = -1;
         active = false;
-        @teamUids = array<array<string>>();
-        totalUids = -1;
     }
 
     void Activate(uint col, uint row, TTGSquareState challenger, TTGGameState type, string[][] &in teamUids, TTGMode mode) {
@@ -725,6 +813,10 @@ class ChallengeResultState {
         teamsRanking.Resize(0);
     }
 
+    bool get_IsEmpty() const {
+        return player1Time < 0 && player2Time < 0 && uidTimes.GetSize() == 0;
+    }
+
     bool get_IsClaim() const {
         return challengeType == TTGGameState::InClaim;
     }
@@ -736,6 +828,7 @@ class ChallengeResultState {
     bool get_IsResolved() const {
         return ResolvedLegacyMethod || totalUids > 0 && totalUids == uidTimes.GetSize();
     }
+
 
     bool get_ResolvedLegacyMethod() const {
         return player1Time > 0 && player2Time > 0;
@@ -844,6 +937,22 @@ class ChallengeResultState {
         return player2Time > 0;
     }
 
+    // force and end to the round, filling in any un-filled scores
+    void ForceEnd() {
+        if (player1Time <= 0) player1Time = DNF_TIME;
+        if (player2Time <= 0) player2Time = DNF_TIME;
+        DnfUnfinishedForTeam(teamUids[0], TTGSquareState::Player1);
+        DnfUnfinishedForTeam(teamUids[1], TTGSquareState::Player2);
+    }
+
+    void DnfUnfinishedForTeam(string[] &in thisTeamsUids, TTGSquareState team) {
+        for (uint i = 0; i < thisTeamsUids.Length; i++) {
+            auto uid = thisTeamsUids[i];
+            if (!uidTimes.Exists(uid))
+                SetPlayersTime(uid, DNF_TIME, team);
+        }
+    }
+
     // when not in single player
     void SetPlayersTime(const string &in uid, int time, TTGSquareState team) {
         uidTimes[uid] = time;
@@ -873,12 +982,19 @@ class ChallengeResultState {
     }
 
     bool HasResultFor(TTGSquareState player) const {
-        if (player == TTGSquareState::Unclaimed) throw("should never pass unclaimed, here");
-        return (player == TTGSquareState::Player1 && HavePlayer1Res) || (player == TTGSquareState::Player2 && HavePlayer2Res);
+        if (mode == TTGMode::SinglePlayer) {
+            if (player == TTGSquareState::Unclaimed) throw("should never pass unclaimed, here");
+            return (player == TTGSquareState::Player1 && HavePlayer1Res) || (player == TTGSquareState::Player2 && HavePlayer2Res);
+        } else if (mode == TTGMode::Standard) {
+            return HasResultFor(teamUids[player][0]);
+        }
+        throw("Don't call this from teams or battle mode");
+        return false;
     }
 
     int GetResultFor(TTGSquareState player, int _default = -1) const {
         if (player == TTGSquareState::Unclaimed) throw("should never pass unclaimed, here");
+        if (mode == TTGMode::Standard) return GetResultFor(teamUids[player][0], _default);
         auto ret = player == TTGSquareState::Player1 ? player1Time : player2Time;
         if (ret < 0) return _default;
         return ret;
@@ -1028,31 +1144,4 @@ string HighlightWin(const string &in msg) {
 
 string HighlightLoss(const string &in msg) {
     return "\\$<\\$e71" + msg + "\\$>";
-}
-
-
-namespace HideGameUI {
-    string[] HidePages =
-        { "UIModule_Race_Chrono"
-        , "UIModule_Race_RespawnHelper"
-        // , "UIModule_Race_Checkpoint"
-        , "UIModule_Race_Record"
-        };
-    void OnMapLoad() {
-        auto app = cast<CGameManiaPlanet>(GetApp());
-        while (app.Network.ClientManiaAppPlayground is null) yield();
-        // wait for UI layers and a few frames extra
-        auto uiConf = app.Network.ClientManiaAppPlayground;
-        while (uiConf.UILayers.Length < 10) yield();
-        for (uint i = 0; i < uiConf.UILayers.Length; i++) {
-            auto layer = uiConf.UILayers[i];
-            string first100Chars = string(layer.ManialinkPage.SubStr(0, 100));
-            auto parts = first100Chars.Trim().Split('manialink name="');
-            if (parts.Length < 2) continue;
-            auto pageName = parts[1].Split('"')[0];
-            if (pageName.StartsWith("UIModule_Race") && HidePages.Find(pageName) >= 0) {
-                layer.IsVisible = false;
-            }
-        }
-    }
 }

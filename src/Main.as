@@ -20,9 +20,10 @@ void _Unload() {
 }
 
 void Render() {
-#if DEV
+#if DEV || UNIT_TEST
     // auto screenSize = vec2(Draw::GetWidth(), Draw::GetHeight());
     // RenderHeartbeatPulse(screenSize / 2., screenSize / 4.);
+    RenderTests();
 #endif
 
     TTG::Render();

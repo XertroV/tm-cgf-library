@@ -7,7 +7,12 @@ void log_test(const string &in msg) {
     print(msg);
 }
 
+bool RENDER_TESTS = true;
+
 void TestScoring() {
+    if (RENDER_TESTS) {
+        startnew(RenderTests_Loops);
+    }
     for (uint i = 0; i < 10; i++) {
         yield();
         Test_Teams_Scoring();
@@ -28,18 +33,14 @@ void Test_Teams_Scoring() {
     cr.SetPlayersTime(teams[1][0], 111, TTGSquareState::Player2);
     cr.SetPlayersTime(teams[1][1], 200, TTGSquareState::Player2);
     cr.SetPlayersTime(teams[1][2], DNF_TIME, TTGSquareState::Player2);
-    // leaders order based on which is defender, then t2p2, then t1p2, then p3 based on defender
-    // if (team1Advantage && challenger == 0) {
-    //     assert(cr.teamsRanking[0].uid == teams[challenger][0], '1st place');
-    //     assert(cr.teamsRanking[1].uid == teams[defender][0], '2nd place');
-    // } else {
     assert(cr.teamsRanking[0].uid == teams[team1Advantage ? 0 : defender][0], '1st place');
     assert(cr.teamsRanking[1].uid == teams[team1Advantage ? 1 : challenger][0], '2nd place');
     assert(cr.teamsRanking[2].uid == teams[1][1], '3rd place');
     assert(cr.teamsRanking[3].uid == teams[0][1], '4th place');
     assert(cr.teamsRanking[4].uid == teams[team1Advantage ? 0 : defender][2], '5th place');
     assert(cr.teamsRanking[5].uid == teams[team1Advantage ? 1 : challenger][2], '6th place');
-    log_test("\\$0d5 -- RAN TEST: Scoring -- ");
+    assert(cr.Winner == (team1Advantage ? 0 : defender), 'Winner');
+    print("\\$0d5 -- RAN TEST: Scoring -- ");
     log_test("winner: " + cr.Winner);
     log_test("challenger: " + cr.challenger);
     log_test("defender: " + cr.defender);
@@ -66,12 +67,58 @@ bool RandomBool() {
 
 string[][]@ GenTeams(int t1_n = 3, int t2_n = 3) {
     string[][] teams = {{}, {}};
-    for (uint i = 0; i < t1_n; i++) teams[0].InsertLast("t1-" + i);
-    for (uint i = 0; i < t2_n; i++) teams[1].InsertLast("t2-" + i);
+    for (int i = 0; i < t1_n; i++) teams[0].InsertLast("t1-" + i);
+    for (int i = 0; i < t2_n; i++) teams[1].InsertLast("t2-" + i);
     return teams;
 }
 
 
+
+void RenderTests() {
+    if (!RENDER_TESTS) return;
+    RenderTest_Scoring_Teams();
+}
+
+void RenderTests_Loops() {
+    startnew(RenderTest_Scoring_Teams_Loop);
+}
+
+
+ChallengeResultState@ rt_s_t_cr = ChallengeResultState();
+
+void RenderTest_Scoring_Teams_Loop() {
+    while (true) {
+        yield();
+        auto teams = GenTeams(3, 3);
+        auto challenger = RandomTeam();
+        auto defender = TTGSquareState(-(challenger - 1));
+        bool team1Advantage = RandomBool();
+        int t1p1Time = team1Advantage ? 100 : 111;
+        auto cr = rt_s_t_cr;
+        cr.Reset();
+        cr.Activate(1, 1, challenger, TTGGameState::InClaim, teams, TTGMode::Teams);
+        sleep(500);
+        cr.SetPlayersTime(teams[0][0], t1p1Time, TTGSquareState::Player1);
+        sleep(500);
+        cr.SetPlayersTime(teams[0][1], 222, TTGSquareState::Player1);
+        sleep(500);
+        cr.SetPlayersTime(teams[0][2], team1Advantage ? 999 : DNF_TIME, TTGSquareState::Player1);
+        sleep(500);
+        cr.SetPlayersTime(teams[1][0], 111, TTGSquareState::Player2);
+        sleep(500);
+        cr.SetPlayersTime(teams[1][1], 200, TTGSquareState::Player2);
+        sleep(500);
+        cr.SetPlayersTime(teams[1][2], DNF_TIME, TTGSquareState::Player2);
+    }
+}
+
+void RenderTest_Scoring_Teams() {
+
+}
+
+
+
 #else
 void TestScoring() {}
+void RenderTests() {}
 #endif

@@ -29,3 +29,11 @@ bool IsJsonString(Json::Value@ j) {
     if (j is null) return false;
     return j.GetType() == Json::Type::String;
 }
+
+
+
+void JsonCheckbox(const string &in label, Json::Value@ jsonObj, const string &in key, bool _default) {
+    bool tmp = jsonObj.Get(key, _default);
+    tmp = UI::Checkbox(label, tmp);
+    jsonObj[key] = tmp;
+}

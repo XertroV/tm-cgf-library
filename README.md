@@ -13,6 +13,9 @@ GL HF
 
 todo:
 
+- G_CHALLENGE_FORCE
+-
+
 
 - DNRC command (do not reconnect)
 - games
@@ -20,13 +23,9 @@ todo:
   - elo / ranked?
 
 
-(something i'm forgetting)
-
 bans
 
 server version test!
-
-implement game opts on server
 
 game options:
 

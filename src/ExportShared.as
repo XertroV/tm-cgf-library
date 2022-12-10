@@ -24,4 +24,13 @@ namespace CGF {
     interface GameEngine {
         // void ProcessGameMessage(const string &in )
     }
+
+    enum MaxDifficulty {
+        Beginner = 0,
+        Intermediate = 1,
+        Advanced = 2,
+        Expert = 3,
+        Lunatic = 4,
+        Impossible = 5
+    }
 }

@@ -325,6 +325,7 @@ class TtgGame {
     bool m_isPublic = true;
     int m_mapMinSecs = 15;
     int m_mapMaxSecs = 45;
+    CGF::MaxDifficulty m_maxDifficulty = CGF::MaxDifficulty::Expert;
     // game stuff
     Json::Value@ gameOptions = DefaultTtgGameOptions();
     // timeotu
@@ -350,6 +351,7 @@ class TtgGame {
         }
 
         DrawMapsNumMinMax();
+        DrawMapsMaxDifficulty();
 
         // todo: implement game options
 #if DEV
@@ -368,7 +370,7 @@ class TtgGame {
 
     void DrawMapsNumMinMax() {
         UI::AlignTextToFramePadding();
-        UI::Text("Map Length:");
+        UI::Text("Map Constraints:");
         UI::AlignTextToFramePadding();
         Indent();
         TextSameLine("Min Len (s): ");
@@ -384,6 +386,27 @@ class TtgGame {
         m_mapMaxSecs = int(Math::Ceil(m_mapMaxSecs / 15.0)) * 15;
         if (m_mapMaxSecs < m_mapMinSecs) {
             m_mapMinSecs = m_mapMaxSecs;
+        }
+    }
+
+    void DrawMapsMaxDifficulty() {
+        Indent();
+        UI::AlignTextToFramePadding();
+        TextSameLine("Max Difficulty: ");
+        if (UI::BeginCombo("##max-difficulty", tostring(m_maxDifficulty))) {
+            DrawDifficultySelectable(CGF::MaxDifficulty::Beginner);
+            DrawDifficultySelectable(CGF::MaxDifficulty::Intermediate);
+            DrawDifficultySelectable(CGF::MaxDifficulty::Advanced);
+            DrawDifficultySelectable(CGF::MaxDifficulty::Expert);
+            DrawDifficultySelectable(CGF::MaxDifficulty::Lunatic);
+            DrawDifficultySelectable(CGF::MaxDifficulty::Impossible);
+            UI::EndCombo();
+        }
+    }
+
+    void DrawDifficultySelectable(CGF::MaxDifficulty d) {
+        if (UI::Selectable(tostring(d), m_maxDifficulty == d)) {
+            m_maxDifficulty = d;
         }
     }
 
@@ -414,6 +437,9 @@ class TtgGame {
         UI::TextWrapped("\\$ddd" + ModeDescription(mode));
         UI::EndTooltip();
     }
+
+    bool m_AutoDnfEnabled = false;
+    int m_autoDnfSecs = -1;
 
     void DrawSetGameOptions() {
         UI::AlignTextToFramePadding();
@@ -451,9 +477,16 @@ class TtgGame {
             // JsonCheckbox("Allow stealing maps?", gameOptions, "can_steal", true);
             // AddSimpleTooltip("Even after a map is claimed, it's not safe.\nYour opponent can challenge you for any of your claimed maps, and vice versa.");
 
-            // Indent();
-            // JsonCheckbox("Auto DNF after 10s?", gameOptions, "auto_dnf", false);
-            // AddSimpleTooltip("When a player can't possibly win a map, a 10s countdown will begin.\nWhen it reaches 0, they'll automatically DNF.");
+            Indent(2);
+            m_AutoDnfEnabled = UI::Checkbox("Auto DNF?", m_AutoDnfEnabled);
+            AddSimpleTooltip("Players will automatically DNF after X seconds.");
+
+            if (m_AutoDnfEnabled) {
+                Indent(2);
+                UI::Text("Auto DNF Seconds: ");
+                UI::SameLine();
+                m_autoDnfSecs = UI::SliderInt("##-autodnfsecs", m_autoDnfSecs, 1, 60);
+            }
 
             // hmm, think we need to add game-mode stuff for this.
             // Indent();
@@ -476,22 +509,19 @@ class TtgGame {
         return "Unknown mode. D:";
     }
 
-    void JsonCheckbox(const string &in label, Json::Value@ jsonObj, const string &in key, bool _default) {
-        bool tmp = jsonObj.Get(key, _default);
-        tmp = UI::Checkbox(label, tmp);
-        jsonObj[key] = tmp;
-    }
-
     void CreateRoom() {
         auto pl = Json::Object();
         bool singlePlayer = int(gameOptions['mode']) == 1;
         bool isStd = int(gameOptions['mode']) == 2;
+        gameOptions['auto_dnf'] = m_AutoDnfEnabled ? m_autoDnfSecs : -1;
+
         pl['name'] = m_roomName;
         pl['player_limit'] = m_playerLimit; // might be > 2 for teams or battle mode
         pl['n_teams'] = 2;
         pl['maps_required'] = m_nbMapsReq;
         pl['min_secs'] = m_mapMinSecs;
         pl['max_secs'] = m_mapMaxSecs;
+        pl['max_difficulty'] = int(m_maxDifficulty);
         pl['game_opts'] = gameOptions;
         auto vis = (m_isPublic && !singlePlayer) ? CGF::Visibility::global : CGF::Visibility::none;
 
@@ -552,6 +582,7 @@ class TtgGame {
         if (UI::Button(teamsLocked ? Icons::Lock : Icons::Unlock)) {
             teamsLocked = !teamsLocked;
         }
+        AddSimpleTooltip("Disable the 'join team' buttons so you don't accidentally press them and change team.\nRecommended if you are a team leader.");
         DrawTeamSelection(teamsLocked);
     }
 
@@ -564,6 +595,9 @@ class TtgGame {
             UI::Text("Mode: " + tostring(currMode));
             Indent(2);
             UI::Text("Records Enabled: " + string(go['enable_records']));
+            Indent(2);
+            auto auto_dnf = Text::ParseInt(go.Get('auto_dnf', '-1'));
+            UI::Text("Auto DNF: " + (auto_dnf > 0 ? tostring(auto_dnf) + " seconds" : "Disabled"));
         }
     }
 
