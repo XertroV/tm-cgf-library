@@ -7,6 +7,9 @@ void Main() {
     // startnew(Debug::Main);
     sleep(100);
     OnSettingsChanged();
+#if DEV || UNIT_TEST
+    startnew(TestScoring);
+#endif
 }
 
 
