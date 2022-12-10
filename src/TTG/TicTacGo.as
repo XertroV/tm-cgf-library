@@ -698,6 +698,7 @@ class ChallengeResultState {
     dictionary uidTimes;
     string[][]@ teamUids;
     int totalUids = -1;
+    UidRank@[] teamsRanking;
 
 
     void Reset() {
@@ -721,6 +722,7 @@ class ChallengeResultState {
         @this.teamUids = teamUids;
         totalUids = teamUids[0].Length + (teamUids.Length == 1 ? 0 : teamUids[1].Length);
         this.mode = mode;
+        teamsRanking.Resize(0);
     }
 
     bool get_IsClaim() const {
@@ -772,11 +774,55 @@ class ChallengeResultState {
     }
 
     TTGSquareState get_WinnerTeams() const {
-        return TTGSquareState::Unclaimed;
+        int[] score = {0, 0};
+        for (uint i = 0; i < teamsRanking.Length; i++) {
+            auto ur = teamsRanking[i];
+            auto points = totalUids - i;
+            if (ur.time >= DNF_TEST) continue;
+            score[ur.team] += points;
+        }
+        if (score[0] > score[1]) {
+            return TTGSquareState::Player1;
+        } else if (score[1] > score[0]) {
+            return TTGSquareState::Player2;
+        }
+        return defender;
+    }
+
+    void OnNewTime_Teams(const string &in uid, int time, TTGSquareState team) {
+        // defenders have priority
+        // InsertRankings(teamUids[defender], defender);
+        // InsertRankings(teamUids[challenger], challenger);
+        InsertRanking(UidRank(uid, time, team));
+    }
+
+    // void InsertRankings(string[] &in theTeam, TTGSquareState team) {
+    //     for (uint i = 0; i < theTeam.Length; i++) {
+    //         auto uid = theTeam[i];
+    //         auto time = GetResultFor(uid);
+    //         if (time < 0) continue;
+    //         InsertRanking(UidRank(uid, time, team));
+    //     }
+    // }
+
+    void InsertRanking(UidRank@ ur) {
+        for (uint i = 0; i < teamsRanking.Length; i++) {
+            auto other = teamsRanking[i];
+            if (ur.time < other.time) {
+                teamsRanking.InsertAt(i, ur);
+                return;
+            } else if (ur.time == other.time && ur.team == defender && other.team == challenger) {
+                teamsRanking.InsertAt(i, ur);
+                return;
+            }
+        }
+        // if we get here, then we haven't inserted it yet
+        teamsRanking.InsertLast(ur);
     }
 
     TTGSquareState get_WinnerBattleMode() const {
-        return TTGSquareState::Unclaimed;
+        // return TTGSquareState::Unclaimed;
+        return WinnerStandard;
     }
 
     TTGSquareState get_WinnerLegacyMethod() const {
@@ -799,8 +845,11 @@ class ChallengeResultState {
     }
 
     // when not in single player
-    void SetPlayersTime(const string &in uid, int time) {
+    void SetPlayersTime(const string &in uid, int time, TTGSquareState team) {
         uidTimes[uid] = time;
+        if (mode == TTGMode::Teams) {
+            OnNewTime_Teams(uid, time, team);
+        }
     }
 
     void SetPlayersTime(TTGSquareState player, int time) {
@@ -818,8 +867,9 @@ class ChallengeResultState {
     }
 
     bool HasResultFor(const string &in uid) const {
-        throw('has result for uid unimpl');
-        return false;
+        return uidTimes.Exists(uid);
+        // throw('has result for uid unimpl');
+        // return false;
     }
 
     bool HasResultFor(TTGSquareState player) const {
@@ -834,6 +884,12 @@ class ChallengeResultState {
         return ret;
     }
 
+    int GetResultFor(const string &in uid, int def = -1) const {
+        int ret;
+        if (uidTimes.Get(uid, ret)) return ret;
+        return def;
+    }
+
     int get_ChallengerTime() const {
         return GetResultFor(challenger);
     }
@@ -842,6 +898,20 @@ class ChallengeResultState {
         return GetResultFor(defender);
     }
 }
+
+
+class UidRank {
+    string uid;
+    uint time;
+    TTGSquareState team;
+
+    UidRank(const string &in uid, uint time, TTGSquareState team) {
+        this.uid = uid;
+        this.time = time;
+        this.team = team;
+    }
+}
+
 
 enum TTGGameEventType {
     ClaimFail = 2,

@@ -191,8 +191,8 @@ class TtgGame {
     void RenderLobbyChatWindow(const string &in scopeName = "Lobby") {
         if (S_TTG_HideLobbyChat) return;
         bool isOpen = !S_TTG_HideLobbyChat;
-        UI::SetNextWindowSize(300, lobbyWindowSize.y, UI::Cond::Always);
-        UI::SetNextWindowPos(lobbyWindowPos.x + lobbyWindowSize.x + 20, lobbyWindowPos.y, UI::Cond::Always);
+        UI::SetNextWindowSize(300, int(lobbyWindowSize.y), UI::Cond::Always);
+        UI::SetNextWindowPos(int(lobbyWindowPos.x + lobbyWindowSize.x + 20), int(lobbyWindowPos.y), UI::Cond::Always);
         if (UI::Begin(scopeName + " Chat##" + client.clientUid, isOpen, lobbyChatWindowFlags)) {
             ttg.DrawChat(false);
         }
@@ -273,7 +273,7 @@ class TtgGame {
                 UI::TableHeadersRow();
                 UI::ListClipper clipper(li.rooms.Length);
                 while (clipper.Step()) {
-                    for (uint i = clipper.DisplayStart; i < clipper.DisplayEnd; i++) {
+                    for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++) {
                         DrawRoomListItem(li.rooms[i]);
                     }
                 }
@@ -373,7 +373,7 @@ class TtgGame {
         Indent();
         TextSameLine("Min Len (s): ");
         m_mapMinSecs = UI::InputInt("##min-len-s", m_mapMinSecs, 15);
-        m_mapMinSecs = Math::Max(15, Math::Floor(m_mapMinSecs / 15.0) * 15.0);
+        m_mapMinSecs = Math::Max(15, int(Math::Floor(m_mapMinSecs / 15.0)) * 15);
         if (m_mapMaxSecs < m_mapMinSecs) {
             m_mapMaxSecs = m_mapMinSecs;
         }
@@ -381,7 +381,7 @@ class TtgGame {
         Indent();
         TextSameLine("Max Len (s): ");
         m_mapMaxSecs = UI::InputInt("##max-len-s", m_mapMaxSecs, 15);
-        m_mapMaxSecs = Math::Ceil(m_mapMaxSecs / 15.0) * 15.0;
+        m_mapMaxSecs = int(Math::Ceil(m_mapMaxSecs / 15.0)) * 15;
         if (m_mapMaxSecs < m_mapMinSecs) {
             m_mapMinSecs = m_mapMaxSecs;
         }
@@ -466,16 +466,12 @@ class TtgGame {
         switch (mode) {
             case TTGMode::SinglePlayer:
                 return "Play as both players. When you claim or challenge a square and finish the map, the active position (challenger) will get the win by 100ms. If you DNF, the defender will get the win. This is useful for testing out what the game is like without needing another player.";
-                break;
             case TTGMode::Standard:
                 return "Standard 2 player game. Every time a square is claimed or challenged, the active player (challenger) must win a head-to-head race to claim the square. Ties resolve in favor of the inactive player (defender).";
-                break;
             case TTGMode::Teams:
                 return "2 teams, scored like in match making / ranked. For a total of N players, 1st place gets N points, 2nd place N-1 points, etc. The team with more points wins the round.";
-                break;
             case TTGMode::BattleMode:
                 return "Up to 64 players over 2 teams. The best time from each team is used each round. Similar to Standard mode. Auto-DNF turned on is recommended.";
-                break;
         }
         return "Unknown mode. D:";
     }

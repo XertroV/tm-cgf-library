@@ -388,7 +388,7 @@ class TicTacGoState {
             if (!moveIsChallengeRes) throw("!moveIsChallengeRes: should be impossible");
             if (!challengeResult.active) throw("challenge is not active");
             if (!IsSinglePlayer) {
-                challengeResult.SetPlayersTime(lastFromUid, int(pl['time']));
+                challengeResult.SetPlayersTime(lastFromUid, int(pl['time']), lastFromTeam);
             } else {
                 // if we're in a single player game, set a slightly worse time for the inactive player
                 challengeResult.SetPlayersTime(ActiveLeader, int(pl['time']));
