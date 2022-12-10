@@ -13,7 +13,7 @@ GL HF
 
 todo:
 
-- G_CHALLENGE_FORCE
+- G_CHALLENGE_FORCE_END
 -
 
 

@@ -40,6 +40,7 @@ void Test_Teams_Scoring() {
     assert(cr.teamsRanking[4].uid == teams[team1Advantage ? 0 : defender][2], '5th place');
     assert(cr.teamsRanking[5].uid == teams[team1Advantage ? 1 : challenger][2], '6th place');
     assert(cr.Winner == (team1Advantage ? 0 : defender), 'Winner');
+    assert(cr.WinnerStandard == (team1Advantage ? 0 : defender), 'WinnerStandard');
     print("\\$0d5 -- RAN TEST: Scoring -- ");
     log_test("winner: " + cr.Winner);
     log_test("challenger: " + cr.challenger);

@@ -684,6 +684,18 @@ namespace Game {
             return true;
         }
 
+        bool IsPlayerAdmin(const string &in uid) {
+            return currAdmins.Find(uid) >= 0;
+        }
+
+        bool IsPlayerMod(const string &in uid) {
+            return currMods.Find(uid) >= 0;
+        }
+
+        bool IsPlayerAdminOrMod(const string &in uid) {
+            return IsPlayerAdmin(uid) || IsPlayerMod(uid);
+        }
+
         void RemovePlayerFromTeams(const string &in uid) {
             uidToTeamNb.Delete(uid);
             for (uint i = 0; i < currTeams.Length; i++) {

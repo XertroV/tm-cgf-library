@@ -342,7 +342,7 @@ class TicTacGoState {
             bool moveIsForceEnd = msgType == "G_CHALLENGE_FORCE_END";
             if (!moveIsChallengeRes && !moveIsForceEnd) return false;
             if (moveIsForceEnd) {
-                return client.currAdmins.Find(lastFromUid) >= 0;
+                return client.IsPlayerAdminOrMod(lastFromUid);
             }
             if (IsSinglePlayer && challengeResult.HasResultFor(fromPlayer)) return false;
             if (!IsSinglePlayer && challengeResult.HasResultFor(lastFromUid)) return false;
@@ -403,7 +403,9 @@ class TicTacGoState {
             if (!moveIsChallengeRes && !moveIsForceEnd) throw("not a valid move type: should be impossible");
             if (!challengeResult.active) throw("challenge is not active");
             if (moveIsForceEnd) {
+                if (!client.IsPlayerAdminOrMod(lastFromUid)) throw("force end from a non admin/mod");
                 challengeResult.ForceEnd();
+                gameLog.InsertLast(TTGGameEvent_ForceEnd(lastFromUsername, lastFromUid));
                 if (!challengeResult.IsResolved)
                     warn("we just force ended the challenge but it did not resolve!");
             } else if (IsSinglePlayer) {
@@ -496,8 +498,10 @@ class TicTacGoState {
     bool challengeRunActive = false;
     bool disableLaunchMapBtn = false;
     uint challengeEndedAt;
+    bool showForceEndPrompt = false;
 
     void RunChallengeAndReportResult() {
+        showForceEndPrompt = false;
         disableLaunchMapBtn = true;
         challengeStartTime = -1;
         currGameTime = -1;
@@ -533,14 +537,17 @@ class TicTacGoState {
             auto oppTime = challengeResult.GetResultFor(TheirTeamLeader, DNF_TIME);
             auto timeLeft = oppTime + opt_AutoDNF_ms - duration;
             bool shouldDnf = opt_AutoDNF_ms > 0 && timeLeft <= 0;
+            // if the challenge is resolved (e.g., via force ending) then we want to exit out
+            shouldDnf = shouldDnf || challengeResult.IsResolved;
             if (shouldDnf || GetApp().PlaygroundScript is null || uiConfig is null) {
                 if (shouldDnf) {
                     log_warn("shouldDnf. time left: " + timeLeft + "; oppTime: " + oppTime + ", duration=" + duration);
                 }
-                cast<CGameManiaPlanet>(GetApp()).BackToMainMenu();
+                // don't report a time if the challenge is resolved b/c it's an invalid move
+                if (!challengeResult.IsResolved)
+                    ReportChallengeResult(DNF_TIME); // more than 24 hrs, just
                 // player quit (or auto DNF)
-                ReportChallengeResult(DNF_TIME); // more than 24 hrs, just
-                warn("Player quit map");
+                warn("Map left. Either: player quit, autodnf, or challenge resolved");
                 EndChallenge();
                 return;
             }
@@ -572,6 +579,9 @@ class TicTacGoState {
         client.SendPayload("G_CHALLENGE_RESULT", pl);
     }
 
+    void SendForceEnd() {
+        client.SendPayload("G_CHALLENGE_FORCE_END", JsonObject2("col", challengeResult.col, "row", challengeResult.row));
+    }
 }
 
 

@@ -105,6 +105,7 @@ class TicTacGo : Game::Engine {
     }
 
     void Render() {
+        RenderForceEndMaybe();
         if (!CurrentlyInMap) {
             if (stateObj.IsInAGame)
                 RenderBackgroundGoneNotice();
@@ -124,6 +125,32 @@ class TicTacGo : Game::Engine {
         else if (stateObj.IsBattleMode) {
             throw('todo: render battle');
         }
+    }
+
+    protected uint forceEndWaitingTime = 30000;
+    protected uint lastForceEndSent = 0;
+    void RenderForceEndMaybe() {
+        if (stateObj.IsPreStart || stateObj.IsWaitingForMove || stateObj.IsGameFinished) return;
+        // if a challenge is active
+        if (!stateObj.challengeResult.active) return;
+        // wait 30 s
+        auto fr = stateObj.challengeResult.firstResultAt;
+        if (fr <= 0 || Time::Now - fr < forceEndWaitingTime) return;
+        // only for admins/mods
+        if (!client.IsPlayerAdminOrMod(client.clientUid)) return;
+        UI::SetNextWindowPos(30, 30, UI::Cond::Always);
+        UI::PushFont(mapUiFont);
+        if (UI::Begin("Force End Round", UI::WindowFlags::NoCollapse | UI::WindowFlags::NoResize | UI::WindowFlags::NoMove | UI::WindowFlags::AlwaysAutoResize)) {
+            UI::Text("Round gone on too long?");
+            UI::BeginDisabled(lastForceEndSent + 3000 > Time::Now);
+            if (UI::Button("Force End")) {
+                stateObj.SendForceEnd();
+                lastForceEndSent = Time::Now;
+            }
+            UI::EndDisabled();
+        }
+        UI::End();
+        UI::PopFont();
     }
 
     void RenderTimer() {
@@ -173,6 +200,7 @@ class TicTacGo : Game::Engine {
         if (S_TTG_HideChat) return;
         bool isOpen = !S_TTG_HideChat;
         UI::SetNextWindowSize(400, 250, UI::Cond::FirstUseEver);
+        UI::SetNextWindowPos(100, Draw::GetHeight() - 250 - 100, UI::Cond::FirstUseEver);
         if (UI::Begin("chat window" + idNonce, isOpen, chatWindowFlags)) {
             // draw a child so buttons work
             if (UI::BeginChild("chat window child" + idNonce)) {
@@ -577,7 +605,12 @@ class TicTacGo : Game::Engine {
                 if (gotOwnMessage) waitingForOwnMove = false;
                 // auto fromPlayer = gotOwnMessage ? IAmPlayer : TheyArePlayer;
                 // lastFrom = fromPlayer;
-                stateObj.ProcessMove(msg);
+                try {
+                    stateObj.ProcessMove(msg);
+                } catch {
+                    warn("Exception processing move: " + getExceptionInfo());
+                    warn("The move: " + Json::Write(msg));
+                }
             }
             incomingEvents.RemoveRange(0, incomingEvents.Length);
         }
@@ -780,6 +813,7 @@ class ChallengeResultState {
     int row = -1;
     int col = -1;
     int startTime = -1;
+    int firstResultAt = -1;
     TTGSquareState challenger = TTGSquareState::Unclaimed;
     TTGSquareState defender = TTGSquareState::Unclaimed;
     TTGGameState challengeType;
@@ -811,6 +845,7 @@ class ChallengeResultState {
         totalUids = teamUids[0].Length + (teamUids.Length == 1 ? 0 : teamUids[1].Length);
         this.mode = mode;
         teamsRanking.Resize(0);
+        firstResultAt = -1;
     }
 
     bool get_IsEmpty() const {
@@ -831,13 +866,12 @@ class ChallengeResultState {
 
 
     bool get_ResolvedLegacyMethod() const {
-        return player1Time > 0 && player2Time > 0;
+        return mode == TTGMode::SinglePlayer && player1Time > 0 && player2Time > 0;
     }
 
     TTGSquareState get_Winner() const {
         if (!IsResolved) return TTGSquareState::Unclaimed;
         if (ResolvedLegacyMethod) return WinnerLegacyMethod;
-        // todo: details depend on scoring method
         if (mode == TTGMode::Standard) return WinnerStandard;
         if (mode == TTGMode::Teams) return WinnerTeams;
         if (mode == TTGMode::BattleMode) return WinnerBattleMode;
@@ -856,7 +890,7 @@ class ChallengeResultState {
                 int time = DNF_TIME;
                 //if (!uidTimes.Exists(uid)) continue;
                 if (!uidTimes.Get(uid, time)) continue;
-                if (time < minTime || ((time == minTime || minTime > DNF_TEST) && currTeam == defender)) {
+                if (time < minTime || (currTeam == defender && (time == minTime || minTime > DNF_TEST))) {
                     minTime = time;
                     winningTeam = currTeam;
                 }
@@ -919,6 +953,7 @@ class ChallengeResultState {
     }
 
     TTGSquareState get_WinnerLegacyMethod() const {
+        if (mode != TTGMode::SinglePlayer) throw('cant get legacy winner outside single player');
         if (BothPlayersDNFed) return defender;
         if (player1Time == player2Time) return defender;
         if (player1Time < player2Time) return TTGSquareState::Player1;
@@ -953,8 +988,14 @@ class ChallengeResultState {
         }
     }
 
+    void CheckFirstResultAt() {
+        if (firstResultAt < 0)
+            firstResultAt = Time::Now;
+    }
+
     // when not in single player
     void SetPlayersTime(const string &in uid, int time, TTGSquareState team) {
+        CheckFirstResultAt();
         uidTimes[uid] = time;
         if (mode == TTGMode::Teams) {
             OnNewTime_Teams(uid, time, team);
@@ -962,6 +1003,7 @@ class ChallengeResultState {
     }
 
     void SetPlayersTime(TTGSquareState player, int time) {
+        CheckFirstResultAt();
         if (player == TTGSquareState::Player1) {
             player1Time = time;
         } else if (player == TTGSquareState::Player2) {
@@ -1038,6 +1080,18 @@ enum TTGGameEventType {
 
 interface TTGGameEvent {
     void Draw();
+}
+
+
+class TTGGameEvent_ForceEnd : TTGGameEvent {
+    string msg;
+    TTGGameEvent_ForceEnd(const string &in name, const string &in uid) {
+        msg = name + " \\$<\\$4afforce ended\\$> the round. (uid=" + uid.SubStr(0, 6) + "...)";
+    }
+
+    void Draw() {
+        UI::TextWrapped(msg);
+    }
 }
 
 
