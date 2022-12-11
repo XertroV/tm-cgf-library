@@ -302,7 +302,7 @@ class TtgGame {
         if (room is null)
             return "?? unknown";
         auto nameParts = room.name.Split("##", 2);
-        return nameParts.Length > 1 ? nameParts[0] + " \\$888" + nameParts[1] : nameParts[0];
+        return nameParts.Length > 1 ? ColoredString(nameParts[0]) + " \\$888" + nameParts[1] : ColoredString(nameParts[0]);
     }
 
     const string RoomNameNonce(RoomInfo@ room) {
