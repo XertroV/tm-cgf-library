@@ -431,7 +431,7 @@ class TtgGame {
     }
 
     bool m_AutoDnfEnabled = false;
-    int m_autoDnfSecs = -1;
+    int m_autoDnfSecs = 30;
 
     void DrawSetGameOptions() {
         UI::AlignTextToFramePadding();

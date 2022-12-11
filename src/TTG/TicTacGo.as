@@ -171,8 +171,8 @@ class TicTacGo : Game::Engine {
         auto fs = Draw::GetHeight() * 0.06;
         nvg::FontSize(fs);
         auto textPos = vec2(Draw::GetWidth() / 2., Draw::GetHeight() * 0.98);
-        vec2 offs = vec2(fs, fs) * 0.05;
-        NvgTextWShadow(textPos, offs.x, TimeFormat(duration), vec4(1, 1, 1, 1));
+        // vec2 offs = vec2(fs, fs) * 0.05;
+        NvgTextWShadow(textPos, fs * 0.05, TimeFormat(duration), vec4(1, 1, 1, 1));
     }
 
     // works in single player and standard
@@ -190,10 +190,10 @@ class TicTacGo : Game::Engine {
             auto col = vec4(1, .5, 0, 1);
             string msg = oppTime > DNF_TEST ? stateObj.OpposingLeaderName + " DNF'd"
                 : stateObj.OpposingLeaderName + "'s Time: " + Time::Format(challengeResult.GetResultFor(stateObj.TheirTeamLeader));
-            NvgTextWShadow(textPos, fs, msg, col);
+            NvgTextWShadow(textPos, fs * 0.05, msg, col);
             if (duration > oppTime) {
                 textPos += vec2(0, fs);
-                NvgTextWShadow(textPos, fs, "You lost.", col);
+                NvgTextWShadow(textPos, fs * 0.05, "You lost.", col);
                 auto timeLeft = oppTime + stateObj.opt_AutoDNF_ms - duration;
                 textPos += vec2(0, fs);
                 RenderAutoDnfInner(textPos, fs, timeLeft, col);
@@ -205,8 +205,8 @@ class TicTacGo : Game::Engine {
         // if we should exit the challenge, don't show the autodnf msg
         if (stateObj.shouldExitChallenge) return;
         if (stateObj.opt_AutoDNF > 0) {
-            NvgTextWShadow(textPos, fs * .03, "Auto DNFing in", col);
-            NvgTextWShadow(textPos + vec2(0, fs * 1.2), fs * .03, Text::Format("%.1f", 0.001 * float(timeLeft)), col);
+            NvgTextWShadow(textPos, fs * .05, "Auto DNFing in", col);
+            NvgTextWShadow(textPos + vec2(0, fs * 1.2), fs * .05, Text::Format("%.1f", 0.001 * float(timeLeft)), col);
         }
     }
 
@@ -365,7 +365,7 @@ class TicTacGo : Game::Engine {
     }
 
     bool IsPlayerConnected(TTGSquareState player) {
-        return (stateObj.IsSinglePlayer && player == TTGSquareState::Player2) || client.currentPlayers.Exists(GameInfo.teams[player][0]);
+        return (stateObj.IsSinglePlayer) || client.currentPlayers.Exists(GameInfo.teams[player][0]);
     }
 
     void DrawPlayer(TTGSquareState player) {
