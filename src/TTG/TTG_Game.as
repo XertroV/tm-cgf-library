@@ -328,7 +328,7 @@ class TtgGame {
     CGF::MaxDifficulty m_maxDifficulty = CGF::MaxDifficulty::Expert;
     // game stuff
     Json::Value@ gameOptions = DefaultTtgGameOptions();
-    int m_opt_finishesToWin = 1;
+    int m_opt_finishesToWin = 4;
     // timeotu
     uint createRoomTimeout = 0;
     bool m_singlePlayer = false;
@@ -509,9 +509,9 @@ class TtgGame {
             case TTGMode::Standard:
                 return "Standard 2 player game. Every time a square is claimed or challenged, the active player (challenger) must win a head-to-head race to claim the square. Ties resolve in favor of the inactive player (defender).";
             case TTGMode::Teams:
-                return "2 teams, scored like in match making / ranked. For a total of N players, 1st place gets N points, 2nd place N-1 points, etc. The team with more points wins the round.";
+                return "2 teams, scored like in match making / ranked. For a total of N players, 1st place gets N points, 2nd place N-1 points, etc. The team with more points wins the round. The first player on each team is that team's leader. Each Leader is the only player to input tic-tac-toe moves, but all players race.";
             case TTGMode::BattleMode:
-                return "Up to 64 players over 2 teams. The best time from each team is used each round. Similar to Standard mode. Auto-DNF turned on is recommended.";
+                return "Up to 32 (eventually 64) players over 2 teams. The first team to N finishes wins the round. The first player on each team is that team's leader. Each Leader is the only player to input tic-tac-toe moves, but all players race. Auto-DNF turned on is recommended.";
         }
         return "Unknown mode. D:";
     }
