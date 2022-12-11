@@ -138,7 +138,7 @@ class TicTacGo : Game::Engine {
         if (!stateObj.challengeResult.active) return;
         // wait 30 s
         auto fr = stateObj.challengeResult.firstResultAt;
-        if (fr <= 0 || Time::Now - fr < forceEndWaitingTime) return;
+        if (fr <= 0 || Time::Now - fr < int(forceEndWaitingTime)) return;
         // only for admins/mods
         if (!client.IsPlayerAdminOrMod(client.clientUid)) return;
         UI::SetNextWindowPos(Draw::GetWidth() - 400, 50, UI::Cond::Appearing);
@@ -213,7 +213,7 @@ class TicTacGo : Game::Engine {
     void RenderAutoDnf() {
         if (stateObj.challengeResult.ranking.Length == 0) return;
         if (stateObj.challengeResult.HasResultFor(client.clientUid)) return;
-        auto bestTime = stateObj.challengeResult.ranking[0].time;
+        auto bestTime = int(stateObj.challengeResult.ranking[0].time);
         if (bestTime <= 0 || bestTime > DNF_TEST) return;
         auto duration = stateObj.challengeEndTime - stateObj.challengeStartTime;
         if (duration < bestTime) return;
@@ -278,7 +278,7 @@ class TicTacGo : Game::Engine {
     // that's b/c there's no real reason to hide the game window when you're actively in a game, and it autohides in a map
     void RenderInterface() {
         if (stateObj.ActiveLeader == TTGSquareState::Unclaimed) return;
-        UI::SetNextWindowSize(Draw::GetWidth() * 0.5, Draw::GetHeight() * 0.6, UI::Cond::FirstUseEver);
+        UI::SetNextWindowSize(Draw::GetWidth() / 2, Draw::GetHeight() * 3 / 5, UI::Cond::FirstUseEver);
         UI::PushFont(hoverUiFont);
         if (UI::Begin("Tic Tac GO! ("+stateObj.MyName+")##" + idNonce)) {
             // Tic Tac Toe interface
@@ -469,7 +469,7 @@ class TicTacGo : Game::Engine {
         return player == TTGSquareState::Player1 ? Icons::CircleO : Icons::Times;
     }
 
-    void DrawTTGSquare(uint col, uint row, vec2 size) {
+    void DrawTTGSquare(int col, int row, vec2 size) {
         auto sqState = stateObj.GetSquareState(col, row);
         bool squareOpen = sqState.owner == TTGSquareState::Unclaimed;
         string label = squareOpen ? "" : IconForPlayer(sqState.owner);
@@ -601,7 +601,7 @@ class TicTacGo : Game::Engine {
         if (UI::BeginChild("##ttg-chat", vec2(), true, UI::WindowFlags::AlwaysAutoResize)) {
             auto @chat = client.mainChat;
             string chatMsg;
-            for (int i = 0; i < client.mainChat.Length; i++) {
+            for (int i = 0; i < int(client.mainChat.Length); i++) {
                 auto thisIx = (int(client.chatNextIx) - i - 1 + chat.Length) % chat.Length;
                 auto msg = chat[thisIx];
                 if (msg is null) break;
@@ -802,7 +802,7 @@ class TicTacGo : Game::Engine {
 
     void DrawChallengePlayMapButton() {
         auto challengeResult = stateObj.challengeResult;
-        if (challengeResult.startTime > Time::Now) {
+        if (challengeResult.startTime > int(Time::Now)) {
             auto timeLeft = float(challengeResult.startTime - Time::Now) / 1000.;
             UI::AlignTextToFramePadding();
             UI::Text("Starting in: " + Text::Format("%.1f", timeLeft));
@@ -925,12 +925,12 @@ class ChallengeResultState {
     }
 
     bool get_AllTimesAreSubmitted() const {
-        return totalUids > 0 && totalUids == uidTimes.GetSize();
+        return totalUids > 0 && totalUids == int(uidTimes.GetSize());
     }
 
     bool get_BattleModeEnoughFinishes() const {
         if (mode != TTGMode::BattleMode) return false;
-        if (uidTimes.GetSize() < finishesToWin) return false;
+        if (int(uidTimes.GetSize()) < finishesToWin) return false;
         return WinnerBattleMode != TTGSquareState::Unclaimed;
     }
 
@@ -951,10 +951,10 @@ class ChallengeResultState {
     TTGSquareState get_WinnerStandard() const {
         int minTime = DNF_TIME;
         TTGSquareState winningTeam = TTGSquareState::Unclaimed;
-        for (int i = 0; i < teamUids.Length; i++) {
+        for (int i = 0; i < int(teamUids.Length); i++) {
             auto currTeam = TTGSquareState(i);
             auto @team = teamUids[i];
-            for (int j = 0; j < team.Length; j++) {
+            for (uint j = 0; j < team.Length; j++) {
                 string uid = team[j];
                 int time = DNF_TIME;
                 //if (!uidTimes.Exists(uid)) continue;
@@ -1022,7 +1022,6 @@ class ChallengeResultState {
     }
 
     TTGSquareState get_WinnerBattleMode() const {
-        return WinnerStandard;
         int winsReq = Math::Max(1, finishesToWin);
         int[] score = {0, 0};
         for (uint i = 0; i < ranking.Length; i++) {
@@ -1036,7 +1035,7 @@ class ChallengeResultState {
         }
         if (score[0] >= winsReq) return TTGSquareState::Player1;
         if (score[1] >= winsReq) return TTGSquareState::Player2;
-        if (ranking.Length == totalUids) return defender;
+        if (int(ranking.Length) == totalUids) return defender;
         return TTGSquareState::Unclaimed;
     }
 

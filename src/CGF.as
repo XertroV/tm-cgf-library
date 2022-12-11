@@ -316,9 +316,9 @@ namespace Game {
             auto msgLen = socket.ReadUint16();
             dev_print("Reading message of length: " + msgLen);
             // ! I think reading a socket can cause TM to hang if the server doesn't finish writing out the msg
-            while (IsConnected && socket.Available() < msgLen && socket.CanWrite()) yield();
-            if (socket.Available() < msgLen) {
-                // todo: something went wrong
+            while (IsConnected && socket.Available() < int(msgLen) && socket.CanWrite()) yield();
+            if (socket.Available() < int(msgLen)) {
+                if (IsShutdown) return null;
                 warn("We don't have enough data to read -- connection issues mb?");
                 this.Disconnect();
                 return null;
@@ -498,8 +498,8 @@ namespace Game {
             if (IsInGame) return GameState::Started;
             if (IsInRoom) {
                 if (gameStartTime < 0) return GameState::NotStarted;
-                if (gameStartTime > Time::Now) return GameState::StartingSoon;
-                if (gameStartTime <= Time::Now) return GameState::Started;
+                if (gameStartTime > float(Time::Now)) return GameState::StartingSoon;
+                if (gameStartTime <= float(Time::Now)) return GameState::Started;
             }
             if (IsMainLobby || IsInGameLobby) return GameState::None;
             warn("CurrGameState found all conditions were false, returning None as default.");
@@ -709,7 +709,7 @@ namespace Game {
         }
 
         void AddPlayerToTeam(const string &in uid, int team) {
-            if (team < 0 or team >= roomInfo.n_teams) {
+            if (team < 0 or team >= int(roomInfo.n_teams)) {
                 warn("Tried to add player to invalid team");
                 return;
             }

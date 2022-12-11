@@ -251,7 +251,7 @@ class ChatTab : Tab {
         if (UI::BeginChild("##debug-chat", vec2(), true, UI::WindowFlags::AlwaysAutoResize)) {
             UI::Text("Chat Ix: " + parent.client.chatNextIx);
             auto @chat = parent.client.mainChat;
-            for (int i = 0; i < parent.client.mainChat.Length; i++) {
+            for (uint i = 0; i < parent.client.mainChat.Length; i++) {
                 auto thisIx = (int(parent.client.chatNextIx) - i - 1 + chat.Length) % chat.Length;
                 auto msg = chat[thisIx];
                 if (msg is null) break;
@@ -410,7 +410,7 @@ class RoomsTab : Tab {
             UI::TableNextColumn();
             TextSameLine("Min Len (s): ");
             m_mapMinSecs = UI::InputInt("##min-len-s", m_mapMinSecs, 15);
-            m_mapMinSecs = Math::Floor(m_mapMinSecs / 15.0) * 15.0;
+            m_mapMinSecs = int(Math::Floor(m_mapMinSecs / 15.0) * 15.0);
 
             UI::TableNextColumn();
             UI::Dummy(vec2(20, 0));
@@ -418,7 +418,7 @@ class RoomsTab : Tab {
             UI::TableNextColumn();
             TextSameLine("Max Len (s): ");
             m_mapMaxSecs = UI::InputInt("##max-len-s", m_mapMaxSecs, 15);
-            m_mapMaxSecs = Math::Ceil(m_mapMaxSecs / 15.0) * 15.0;
+            m_mapMaxSecs = int(Math::Ceil(m_mapMaxSecs / 15.0) * 15.0);
             auto tmp = m_mapMinSecs;
             m_mapMinSecs = Math::Max(0, Math::Min(m_mapMinSecs, m_mapMaxSecs));
             m_mapMaxSecs = Math::Min(600, Math::Max(tmp, m_mapMaxSecs));

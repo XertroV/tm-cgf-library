@@ -354,12 +354,10 @@ class TtgGame {
         DrawMapsNumMinMax();
         DrawMapsMaxDifficulty();
 
-        // todo: implement game options
-#if DEV
+        // update modes and single player based on ticking the single player box
         if (m_singlePlayer) gameOptions['mode'] = 1;
         DrawSetGameOptions();
         if (m_singlePlayer && int(gameOptions['mode']) != 1) m_singlePlayer = false;
-#endif
 
         UI::BeginDisabled(Time::Now < createRoomTimeout);
         if (UI::Button("Create Room")) {
@@ -411,13 +409,15 @@ class TtgGame {
         }
     }
 
-    void DrawModeSelectable(TTGMode mode, TTGMode curr) {
-        if (UI::Selectable(tostring(mode), mode == curr)) {
+    bool DrawModeSelectable(TTGMode mode, TTGMode curr) {
+        bool clicked = UI::Selectable(tostring(mode), mode == curr);
+        if (clicked) {
             gameOptions['mode'] = int(mode);
         }
         if (UI::IsItemHovered()) {
             DrawModeTooltip(mode);
         }
+        return clicked;
     }
 
     void DrawModeTooltip(TTGMode mode) {
@@ -444,8 +444,12 @@ class TtgGame {
             if (UI::BeginCombo("##go-mode", tostring(currMode))) {
                 DrawModeSelectable(TTGMode::SinglePlayer, currMode);
                 DrawModeSelectable(TTGMode::Standard, currMode);
-                DrawModeSelectable(TTGMode::Teams, currMode);
-                DrawModeSelectable(TTGMode::BattleMode, currMode);
+                if (DrawModeSelectable(TTGMode::Teams, currMode)) {
+                    m_playerLimit = 6;
+                }
+                if (DrawModeSelectable(TTGMode::BattleMode, currMode)) {
+                    m_playerLimit = 16;
+                }
                 UI::EndCombo();
             }
             if (UI::IsItemHovered()) {
@@ -458,7 +462,9 @@ class TtgGame {
                 Indent(2);
                 UI::Text("Player Limit:");
                 UI::SameLine();
-                m_playerLimit = UI::SliderInt("##-playerlimit", m_playerLimit, 3, 64);
+                // can bump this up to 64 but lets be conservative for the moment
+                uint upperLimit = 32;
+                m_playerLimit = UI::SliderInt("##-playerlimit", m_playerLimit, 3, upperLimit);
             }
 
             if (currMode == TTGMode::BattleMode) {
@@ -571,9 +577,8 @@ class TtgGame {
 
         DrawJoinCode(joinCode);
 
-#if DEV
         DrawGameDetailsText();
-#endif
+
         DrawReadySection();
 
         UI::AlignTextToFramePadding();

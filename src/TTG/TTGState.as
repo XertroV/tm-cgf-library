@@ -518,7 +518,7 @@ class TicTacGoState {
 
     Json::Value@ GetMap(int col, int row) {
         int mapIx = row * 3 + col;
-        if (mapIx >= client.mapsList.Length) throw('bad map index');
+        if (mapIx >= int(client.mapsList.Length)) throw('bad map index');
         if (mapIx < 0) throw('negavive col/row?: ' + col + ", " + row);
         return client.mapsList[mapIx];
     }
