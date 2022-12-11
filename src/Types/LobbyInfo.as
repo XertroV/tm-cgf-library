@@ -92,27 +92,9 @@ class LobbyInfo {
     return ret + '}';
   }
 
-  /* Methods // Mixin: Op Eq */
-  bool opEquals(const LobbyInfo@ &in other) {
-    if (other is null) {
-      return false; // this obj can never be null.
-    }
-    bool _tmp_arrEq_rooms = _rooms.Length == other.rooms.Length;
-    for (uint i = 0; i < _rooms.Length; i++) {
-      if (!_tmp_arrEq_rooms) {
-        break;
-      }
-      _tmp_arrEq_rooms = _tmp_arrEq_rooms && (_rooms[i] == other.rooms[i]);
-    }
-    return true
-      && _name == other.name
-      && _n_clients == other.n_clients
-      && _n_rooms == other.n_rooms
-      && _n_public_rooms == other.n_public_rooms
-      && _tmp_arrEq_rooms
-      ;
-  }
+  // custom additions
 
+  // update from json to avoid allocating and freeing memory
   void UpdateFrom(const Json::Value@ j) {
     this._name = string(j["name"]);
     this._n_clients = uint(j["n_clients"]);

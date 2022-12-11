@@ -13,8 +13,14 @@ GL HF
 
 todo:
 
-- G_CHALLENGE_FORCE_END
--
+- teams scoring check
+- teams mode in general
+- battle mode scoring
+
+
+- auto dnf notice
+- game resolved notice (timeout 3s)
+
 
 
 - DNRC command (do not reconnect)

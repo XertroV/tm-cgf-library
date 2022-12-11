@@ -57,9 +57,12 @@ class TicTacGoState {
     ChallengeResultState@ challengeResult = ChallengeResultState();
     TTGGameEvent@[] gameLog;
     uint turnCounter = 0;
+    protected string[][] teamNames;
 
     bool opt_EnableRecords = false;
     int opt_AutoDNF = -1;
+    // used during battle mode
+    int opt_FinishesToWin = 1;
 
     TicTacGoState(Game::Client@ client) {
         @this.client = client;
@@ -72,6 +75,7 @@ class TicTacGoState {
         turnCounter = 0;
         gameLog.Resize(0);
         challengeResult.Reset();
+        teamNames.Resize(0);
         ActiveLeader = TTGSquareState::Unclaimed;
         MyTeamLeader = TTGSquareState::Unclaimed;
         TheirTeamLeader = TTGSquareState::Unclaimed;
@@ -106,6 +110,7 @@ class TicTacGoState {
         mode = TTGMode(GetGameOptInt(game_opts, 'mode', int(TTGMode::Standard)));
         warn("Set mode to: " + tostring(mode));
         // mode = GetGameOptMode(game_opts);
+        if (IsBattleMode) opt_FinishesToWin = GetGameOptInt(game_opts, 'finishes_to_win', 1);
     }
 
     int get_opt_AutoDNF_ms() {
@@ -141,6 +146,29 @@ class TicTacGoState {
         return GameInfo.teams;
     }
 
+    const string[][]@ get_TeamNames() {
+        if (teamNames.Length == 0 && TeamUids.Length != 0) {
+            teamNames.Resize(TeamUids.Length);
+            for (uint i = 0; i < TeamUids.Length; i++) {
+                auto @team = TeamUids[i];
+                teamNames[i].Resize(team.Length);
+                for (uint p = 0; p < team.Length; p++) {
+                    auto u = GetGameInfoUser(team[p]);
+                    teamNames[i][p] = u is null ? "? Unk" : u.username;
+                }
+            }
+        }
+        return teamNames;
+    }
+
+    const User@ GetGameInfoUser(const string &in uid) {
+        for (uint i = 0; i < GameInfo.players.Length; i++) {
+            User@ item = GameInfo.players[i];
+            if (uid == item.uid) return item;
+        }
+        return null;
+    }
+
 
 
     void InitGameOnStart() {
@@ -155,6 +183,7 @@ class TicTacGoState {
         // bool isPlayer1 = GameInfo.teams[0][0] == myUid;
         string myLeaderUid = IsSinglePlayer ? myUid : GameInfo.teams[onTeam1 ? 0 : 1][0];
         string oppUid = IsSinglePlayer ? myUid : GameInfo.teams[onTeam1 ? 1 : 0][0];
+        IAmALeader = myUid == myLeaderUid;
         if (onTeam1) {
             MyTeamLeader = TTGSquareState::Player1;
             TheirTeamLeader = TTGSquareState::Player2;
@@ -165,7 +194,7 @@ class TicTacGoState {
         print("ActivePlayer (start): " + tostring(ActiveLeader));
         // setPlayersRes = "Active=" + tostring(ActivePlayer) + "; " + "MyTeamLeader=" + tostring(MyTeamLeader);
         for (uint i = 0; i < GameInfo.players.Length; i++) {
-            auto item = GameInfo.players[i];
+            User@ item = GameInfo.players[i];
             if (item.uid == oppUid) {
                 OpposingLeaderName = item.username;
             }
@@ -180,6 +209,8 @@ class TicTacGoState {
             warn("Could not find opponents name.");
         }
         gameLog.InsertLast(TTGGameEvent_StartingPlayer(ActiveLeader, ActiveLeadersName));
+        // call this to autogen the lists at game start, which is more convenient than on-demand
+        auto tmp = TeamNames;
     }
 
 
@@ -413,43 +444,45 @@ class TicTacGoState {
                 challengeResult.SetPlayersTime(ActiveLeader, int(pl['time']));
                 challengeResult.SetPlayersTime(InactiveLeader, int(pl['time']) + 100);
             } else {
-                challengeResult.SetPlayersTime(lastFromUid, int(pl['time']), lastFromTeam);
+                challengeResult.SetPlayersTime(lastFromUid, lastFromUsername, int(pl['time']), lastFromTeam);
             }
             if (challengeResult.IsResolved) {
                 bool challengerWon = challengeResult.Winner != challengeResult.challenger;
                 auto eType = TTGGameEventType((IsInChallenge ? 4 : 2) | (challengerWon ? 0 : 1));
-                gameLog.InsertLast(TTGGameEvent_MapResult(this, eType, challengeResult, turnCounter + 1));
-
-                challengeEndedAt = Time::Now;
-                challengeResult.Reset();
+                gameLog.InsertLast(TTGGameEvent_ResultForMode(this, eType, challengeResult, turnCounter + 1));
 
                 bool claimFailed = IsInClaim && challengerWon;
                 auto sqState = claimFailed ? TTGSquareState::Unclaimed : challengeResult.Winner;
                 SetSquareState(challengeResult.col, challengeResult.row, sqState);
+
+                @challengeResult = ChallengeResultState();
+                challengeEndedAt = Time::Now;
+
                 state = TTGGameState::WaitingForMove;
                 AdvancePlayerTurns();
+
             }
         } else if (IsWaitingForMove) {
             if (col >= 3 || row >= 3) throw("impossible: col >= 3 || row >= 3");
+            if (col < 0 || row < 0) throw("impossible: col < 0 || row < 0");
             if (lastFromLeader != ActiveLeader && !IsSinglePlayer) throw("impossible: lastFrom != ActiveLeader");
             bool moveIsClaiming = msgType == "G_TAKE_SQUARE";
             bool moveIsChallenging = msgType == "G_CHALLENGE_SQUARE";
             if (!moveIsChallenging && !moveIsClaiming) throw("impossible: not a valid move");
             auto sqState = GetSquareState(col, row);
+            auto finishesToWin = IsBattleMode ? opt_FinishesToWin : 1;
             if (moveIsChallenging) {
                 if (sqState.IsUnclaimed) throw('invalid, square claimed');
                 if (sqState.IsOwnedBy(ActiveLeader)) throw('invalid, cant challenge self');
                 // begin challenge
                 state = TTGGameState::InChallenge;
-                challengeResult.Activate(col, row, ActiveLeader, state, TeamUids, mode);
+                challengeResult.Activate(col, row, ActiveLeader, state, TeamUids, TeamNames, mode, finishesToWin);
                 startnew(CoroutineFunc(BeginChallengeSoon));
             } else if (moveIsClaiming) {
                 if (!sqState.IsUnclaimed) throw("claiming claimed square");
                 state = TTGGameState::InClaim;
-                challengeResult.Activate(col, row, ActiveLeader, state, TeamUids, mode);
+                challengeResult.Activate(col, row, ActiveLeader, state, TeamUids, TeamNames, mode, finishesToWin);
                 startnew(CoroutineFunc(BeginChallengeSoon));
-                // SetSquareState(col, row, ActiveLeader);
-                // AdvancePlayerTurns();
             }
             MarkSquareKnown(col, row);
         }
@@ -466,6 +499,8 @@ class TicTacGoState {
     int challengePreWaitPeriod = 3000;
 
     void BeginChallengeSoon() {
+        // this can happen when replaying game events
+        if (!challengeResult.active) return;
         auto col = challengeResult.col;
         auto row = challengeResult.row;
         auto map = GetMap(col, row);
@@ -483,6 +518,7 @@ class TicTacGoState {
     Json::Value@ GetMap(int col, int row) {
         int mapIx = row * 3 + col;
         if (mapIx >= client.mapsList.Length) throw('bad map index');
+        if (mapIx < 0) throw('negavive col/row?: ' + col + ", " + row);
         return client.mapsList[mapIx];
     }
 
@@ -499,9 +535,12 @@ class TicTacGoState {
     bool disableLaunchMapBtn = false;
     uint challengeEndedAt;
     bool showForceEndPrompt = false;
+    bool shouldExitChallenge = false;
+    uint shouldExitChallengeTime = DNF_TIME;
 
     void RunChallengeAndReportResult() {
         showForceEndPrompt = false;
+        shouldExitChallenge = false;
         disableLaunchMapBtn = true;
         challengeStartTime = -1;
         currGameTime = -1;
@@ -538,14 +577,20 @@ class TicTacGoState {
             auto timeLeft = oppTime + opt_AutoDNF_ms - duration;
             bool shouldDnf = opt_AutoDNF_ms > 0 && timeLeft <= 0;
             // if the challenge is resolved (e.g., via force ending) then we want to exit out
-            shouldDnf = shouldDnf || challengeResult.IsResolved;
-            if (shouldDnf || GetApp().PlaygroundScript is null || uiConfig is null) {
+            // also if we already have a result
+            shouldExitChallenge = challengeResult.IsResolved || challengeResult.HasResultFor(client.clientUid);
+            if (shouldDnf || shouldExitChallenge || GetApp().PlaygroundScript is null || uiConfig is null) {
                 if (shouldDnf) {
                     log_warn("shouldDnf. time left: " + timeLeft + "; oppTime: " + oppTime + ", duration=" + duration);
                 }
                 // don't report a time if the challenge is resolved b/c it's an invalid move
-                if (!challengeResult.IsResolved)
+                if (!shouldExitChallenge)
                     ReportChallengeResult(DNF_TIME); // more than 24 hrs, just
+                // if we are still in the map we want to let hte user know before we exit
+                if (shouldExitChallenge) {
+                    Await3SecondsOrMapLeft();
+                    shouldExitChallengeTime = Time::Now + 3000;
+                }
                 // player quit (or auto DNF)
                 warn("Map left. Either: player quit, autodnf, or challenge resolved");
                 EndChallenge();
@@ -565,6 +610,11 @@ class TicTacGoState {
         ReportChallengeResult(duration);
         sleep(3000);
         EndChallenge();
+    }
+
+    void Await3SecondsOrMapLeft() {
+        uint to = Time::Now + 3000;
+        while (to > Time::Now && CurrentlyInMap) yield();
     }
 
     void EndChallenge() {

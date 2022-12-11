@@ -10,7 +10,7 @@ const int DNF_TIME = 86400999;
 const int DNF_TEST = 86400000;
 
 UI::Font@ boardFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 50., -1, -1, true, true, true);
-UI::Font@ mapUiFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 35, -1, -1, true, true, true);
+UI::Font@ mapUiFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 30, -1, -1, true, true, true);
 UI::Font@ hoverUiFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 20, -1, -1, true, true, true);
 int nvgFontMessage = nvg::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf");
 // int nvgFontTimer = nvg::LoadFont("fonts/MontserratMono-SemiBoldItalic.ttf");
@@ -117,13 +117,16 @@ class TicTacGo : Game::Engine {
         if (!stateObj.challengeRunActive) return;
         RenderChatWindow();
         RenderTimer();
+        RenderLeavingChallenge();
         if (stateObj.IsSinglePlayer || stateObj.IsStandard)
             RenderOpponentStatus();
         else if (stateObj.IsTeams) {
-            throw('todo: render teams');
+            RenderTeamsScoreBoard(stateObj.challengeResult);
+            RenderAutoDnf();
         }
         else if (stateObj.IsBattleMode) {
             throw('todo: render battle');
+            RenderAutoDnf();
         }
     }
 
@@ -148,6 +151,13 @@ class TicTacGo : Game::Engine {
                 lastForceEndSent = Time::Now;
             }
             UI::EndDisabled();
+            uint numDisconnected = GameInfo.players.Length - client.currentPlayers.GetSize();
+            if (numDisconnected > 0) {
+                UI::PushFont(hoverUiFont);
+                UI::AlignTextToFramePadding();
+                UI::Text(tostring(numDisconnected) + " players disconnected.");
+                UI::PopFont();
+            }
         }
         UI::End();
         UI::PopFont();
@@ -184,13 +194,47 @@ class TicTacGo : Game::Engine {
             if (duration > oppTime) {
                 textPos += vec2(0, fs);
                 NvgTextWShadow(textPos, offs.x, "You lost.", col);
-                if (stateObj.opt_AutoDNF > 0) {
-                    auto timeLeft = oppTime + stateObj.opt_AutoDNF_ms - duration;
-                    textPos += vec2(0, fs);
-                    NvgTextWShadow(textPos, offs.x, "Auto DNFing in " + Text::Format("%.1f", 0.001 * timeLeft), col);
-                }
+                auto timeLeft = oppTime + stateObj.opt_AutoDNF_ms - duration;
+                textPos += vec2(0, fs);
+                RenderAutoDnfInner(textPos, offs, timeLeft, col);
             }
         }
+    }
+
+    void RenderAutoDnfInner(vec2 textPos, vec2 shadowOffs, uint timeLeft, vec4 col) {
+        // if we should exit the challenge, don't show the autodnf msg
+        if (stateObj.opt_AutoDNF > 0 && !stateObj.shouldExitChallenge) {
+            NvgTextWShadow(textPos, shadowOffs.x, "Auto DNFing in " + Text::Format("%.1f", 0.001 * timeLeft), col);
+        }
+    }
+
+    void RenderAutoDnf() {
+        if (stateObj.challengeResult.ranking.Length == 0) return;
+        if (stateObj.challengeResult.HasResultFor(client.clientUid)) return;
+        auto bestTime = stateObj.challengeResult.ranking[0].time;
+        if (bestTime <= 0 || bestTime > DNF_TEST) return;
+        auto duration = stateObj.challengeEndTime - stateObj.challengeStartTime;
+        if (duration < bestTime) return;
+        auto timeLeft = bestTime + stateObj.opt_AutoDNF_ms - duration;
+        vec2 screen = vec2(Draw::GetWidth(), Draw::GetHeight());
+        vec2 pos = screen * vec2(.5, .15);
+        float fs = screen.y * 0.04;
+        nvg::Reset();
+        nvg::FontFace(nvgFontMessage);
+        nvg::FontSize(fs);
+        nvg::TextAlign(nvg::Align::Center | nvg::Align::Middle);
+        RenderAutoDnfInner(pos, vec2(fs, fs) * .05, timeLeft, vec4(1, .5, 0, 1));
+    }
+
+    void RenderLeavingChallenge(vec4 col = vec4(.8, .4, .1, .75)) {
+        if (!stateObj.shouldExitChallenge || !CurrentlyInMap) return;
+        vec2 pos = vec2(Draw::GetWidth(), Draw::GetHeight()) / 2.;
+        float fs = Draw::GetHeight() * 0.05;
+        nvg::Reset();
+        nvg::FontFace(nvgFontMessage);
+        nvg::FontSize(fs);
+        nvg::TextAlign(nvg::Align::Center | nvg::Align::Middle);
+        NvgTextWShadow(pos, 4, "Challenge Over. Exiting in " + Text::Format("%.1f", 0.001 * float(float(stateObj.shouldExitChallengeTime) - Time::Now)), col);
     }
 
     int chatWindowFlags = UI::WindowFlags::NoTitleBar
@@ -377,7 +421,7 @@ class TicTacGo : Game::Engine {
             UI::TableNextColumn();
             UI::PushFont(hoverUiFont);
             if (stateObj.IsMyTurn)
-                UI::Text(HighlightWin("Your Turn!"));
+                UI::Text(HighlightWin(stateObj.IAmALeader ? "Your Turn!" : "Your Leader's Turn!"));
             else
                 UI::Text(activeName + "'s Turn");
             UI::PopFont();
@@ -416,8 +460,8 @@ class TicTacGo : Game::Engine {
 
     const string IconForPlayer(TTGSquareState player) {
         if (player == TTGSquareState::Unclaimed) return Icons::QuestionCircleO;
-        return player == TTGSquareState::Player1 ? Icons::CircleO : Icons::Kenney::Times;
-        // return player == TTGSquareState::Player1 ? Icons::CircleO : Icons::Times;
+        // return player == TTGSquareState::Player1 ? Icons::CircleO : Icons::Kenney::Times;
+        return player == TTGSquareState::Player1 ? Icons::CircleO : Icons::Times;
     }
 
     void DrawTTGSquare(uint col, uint row, vec2 size) {
@@ -432,7 +476,7 @@ class TicTacGo : Game::Engine {
         bool ownedByThem = stateObj.SquareOwnedByThem(col, row);
 
         UI::PushFont(boardFont);
-        bool isDisabled = !stateObj.IsWaitingForMove || not stateObj.IsMyTurn || waitingForOwnMove;
+        bool isDisabled = !stateObj.IsWaitingForMove || not stateObj.IsMyTurn || waitingForOwnMove || !stateObj.IAmALeader;
         bool clicked = _SquareButton(label + id, size, col, row, isBeingChallenged, ownedByMe, ownedByThem, isWinning, isDisabled);
         UI::PopFont();
 
@@ -557,7 +601,12 @@ class TicTacGo : Game::Engine {
                 auto msg = chat[thisIx];
                 if (msg is null) break;
                 chatMsg = ColoredString(string(msg['payload']['content']));
-                UI::TextWrapped(Time::FormatString("%H:%M", int64(msg['ts'])) + " [ " + HighlightGray(string(msg['from']['username'])) + " ]:\n  " + chatMsg);
+                string username = string(msg['from']['username']);
+                string prefix;
+                if (client.IsInGame) {
+                    prefix = IconForPlayer(stateObj.UidToTeam(string(msg['from']['uid']))) + " ";
+                }
+                UI::TextWrapped(Time::FormatString("%H:%M", int64(msg['ts'])) + " [ " + prefix + HighlightGray(username) + " ]:\n  " + chatMsg);
                 UI::Dummy(vec2(0, 2));
             }
         }
@@ -566,7 +615,7 @@ class TicTacGo : Game::Engine {
     }
 
     void SendChatMsg() {
-        if (m_chatMsg != "" && m_chatMsg.Trim().Length > 0)
+        if (m_chatMsg.Trim() != "")
             client.SendChat(m_chatMsg, CGF::Visibility::global);
         m_chatMsg = "";
     }
@@ -719,12 +768,10 @@ class TicTacGo : Game::Engine {
         UI::Separator();
         DrawChallengeMapName();
         UI::Separator();
-        if (challengeResult.IsResolved) {
-            // draw winning team
-        } else if (challengeResult.IsEmpty) {
+        if (challengeResult.IsEmpty || !challengeResult.HasResultFor(client.clientUid)) {
             DrawChallengePlayMapButton();
         } else {
-            // draw in progress
+            UITeamsScoreBoard(stateObj.challengeResult);
         }
     }
 
@@ -745,12 +792,14 @@ class TicTacGo : Game::Engine {
             else challengeStr = OpposingTLName + " challenges you!";
         }
         UI::TextWrapped(challengeStr);
+        throw("battle mode challenge todo");
     }
 
     void DrawChallengePlayMapButton() {
         auto challengeResult = stateObj.challengeResult;
         if (challengeResult.startTime > Time::Now) {
             auto timeLeft = float(challengeResult.startTime - Time::Now) / 1000.;
+            UI::AlignTextToFramePadding();
             UI::Text("Starting in: " + Text::Format("%.1f", timeLeft));
         } else {
             UI::BeginDisabled(stateObj.disableLaunchMapBtn);
@@ -807,6 +856,7 @@ class ChallengeInfo {
 
 
 class ChallengeResultState {
+    string id = Crypto::RandomBase64(8);
     int player1Time = -1;
     int player2Time = -1;
     bool active = false;
@@ -821,16 +871,17 @@ class ChallengeResultState {
     TTGMode mode;
     dictionary uidTimes;
     string[][]@ teamUids;
+    string[][]@ teamNames;
     int totalUids = -1;
-    UidRank@[] teamsRanking;
-
+    UidRank@[] ranking;
+    int finishesToWin = 1;
 
     void Reset() {
         startTime = -1;
         active = false;
     }
 
-    void Activate(uint col, uint row, TTGSquareState challenger, TTGGameState type, string[][] &in teamUids, TTGMode mode) {
+    void Activate(uint col, uint row, TTGSquareState challenger, TTGGameState type, string[][] &in teamUids, string[][] &in teamNames, TTGMode mode, int battle_finishesToWin) {
         if (active) throw("already active");
         this.col = int(col);
         this.row = int(row);
@@ -841,11 +892,13 @@ class ChallengeResultState {
         this.challenger = challenger;
         this.defender = challenger == TTGSquareState::Player1 ? TTGSquareState::Player2 : TTGSquareState::Player1;
         challengeType = type;
+        @this.teamNames = teamNames;
         @this.teamUids = teamUids;
         totalUids = teamUids[0].Length + (teamUids.Length == 1 ? 0 : teamUids[1].Length);
         this.mode = mode;
-        teamsRanking.Resize(0);
+        ranking.Resize(0);
         firstResultAt = -1;
+        this.finishesToWin = battle_finishesToWin;
     }
 
     bool get_IsEmpty() const {
@@ -861,9 +914,20 @@ class ChallengeResultState {
     }
 
     bool get_IsResolved() const {
-        return ResolvedLegacyMethod || totalUids > 0 && totalUids == uidTimes.GetSize();
+        return ResolvedLegacyMethod
+            || AllTimesAreSubmitted
+            || BattleModeEnoughFinishes;
     }
 
+    bool get_AllTimesAreSubmitted() const {
+        return totalUids > 0 && totalUids == uidTimes.GetSize();
+    }
+
+    bool get_BattleModeEnoughFinishes() const {
+        if (mode != TTGMode::BattleMode) return false;
+        if (uidTimes.GetSize() < finishesToWin) return false;
+        return WinnerBattleMode != TTGSquareState::Unclaimed;
+    }
 
     bool get_ResolvedLegacyMethod() const {
         return mode == TTGMode::SinglePlayer && player1Time > 0 && player2Time > 0;
@@ -900,14 +964,19 @@ class ChallengeResultState {
         return winningTeam;
     }
 
-    TTGSquareState get_WinnerTeams() const {
+    int[]@ get_TeamsCurrentScore() const {
         int[] score = {0, 0};
-        for (uint i = 0; i < teamsRanking.Length; i++) {
-            auto ur = teamsRanking[i];
+        for (uint i = 0; i < ranking.Length; i++) {
+            auto ur = ranking[i];
             auto points = totalUids - i;
-            if (ur.time >= DNF_TEST) continue;
+            if (ur.time >= DNF_TEST || ur.time <= 0) continue;
             score[ur.team] += points;
         }
+        return score;
+    }
+
+    TTGSquareState get_WinnerTeams() const {
+        auto score = TeamsCurrentScore;
         if (score[0] > score[1]) {
             return TTGSquareState::Player1;
         } else if (score[1] > score[0]) {
@@ -916,11 +985,11 @@ class ChallengeResultState {
         return defender;
     }
 
-    void OnNewTime_Teams(const string &in uid, int time, TTGSquareState team) {
+    void OnNewTime(const string &in uid, const string &in name, int time, TTGSquareState team) {
         // defenders have priority
         // InsertRankings(teamUids[defender], defender);
         // InsertRankings(teamUids[challenger], challenger);
-        InsertRanking(UidRank(uid, time, team));
+        InsertRanking(UidRank(uid, name, time, team));
     }
 
     // void InsertRankings(string[] &in theTeam, TTGSquareState team) {
@@ -933,23 +1002,37 @@ class ChallengeResultState {
     // }
 
     void InsertRanking(UidRank@ ur) {
-        for (uint i = 0; i < teamsRanking.Length; i++) {
-            auto other = teamsRanking[i];
+        for (uint i = 0; i < ranking.Length; i++) {
+            auto other = ranking[i];
             if (ur.time < other.time) {
-                teamsRanking.InsertAt(i, ur);
+                ranking.InsertAt(i, ur);
                 return;
             } else if (ur.time == other.time && ur.team == defender && other.team == challenger) {
-                teamsRanking.InsertAt(i, ur);
+                ranking.InsertAt(i, ur);
                 return;
             }
         }
         // if we get here, then we haven't inserted it yet
-        teamsRanking.InsertLast(ur);
+        ranking.InsertLast(ur);
     }
 
     TTGSquareState get_WinnerBattleMode() const {
-        // return TTGSquareState::Unclaimed;
         return WinnerStandard;
+        int winsReq = Math::Max(1, finishesToWin);
+        int[] score = {0, 0};
+        for (uint i = 0; i < ranking.Length; i++) {
+            auto ur = ranking[i];
+            if (ur.time > 0 && ur.time < DNF_TEST) {
+                score[ur.team] += 1;
+            }
+        }
+        if (score[0] >= winsReq && score[1] >= winsReq) {
+            throw("Two winners in battle mode? Should not be possible.");
+        }
+        if (score[0] >= winsReq) return TTGSquareState::Player1;
+        if (score[1] >= winsReq) return TTGSquareState::Player2;
+        if (ranking.Length == totalUids) return defender;
+        return TTGSquareState::Unclaimed;
     }
 
     TTGSquareState get_WinnerLegacyMethod() const {
@@ -976,15 +1059,17 @@ class ChallengeResultState {
     void ForceEnd() {
         if (player1Time <= 0) player1Time = DNF_TIME;
         if (player2Time <= 0) player2Time = DNF_TIME;
-        DnfUnfinishedForTeam(teamUids[0], TTGSquareState::Player1);
-        DnfUnfinishedForTeam(teamUids[1], TTGSquareState::Player2);
+        DnfUnfinishedForTeam(TTGSquareState::Player1);
+        DnfUnfinishedForTeam(TTGSquareState::Player2);
     }
 
-    void DnfUnfinishedForTeam(string[] &in thisTeamsUids, TTGSquareState team) {
+    void DnfUnfinishedForTeam(TTGSquareState team) {
+        auto @thisTeamsUids = teamUids[team];
+        auto @thisTeamsNames = teamNames[team];
         for (uint i = 0; i < thisTeamsUids.Length; i++) {
             auto uid = thisTeamsUids[i];
             if (!uidTimes.Exists(uid))
-                SetPlayersTime(uid, DNF_TIME, team);
+                SetPlayersTime(uid, thisTeamsNames[i], DNF_TIME, team);
         }
     }
 
@@ -994,12 +1079,10 @@ class ChallengeResultState {
     }
 
     // when not in single player
-    void SetPlayersTime(const string &in uid, int time, TTGSquareState team) {
+    void SetPlayersTime(const string &in uid, const string &in name, int time, TTGSquareState team) {
         CheckFirstResultAt();
         uidTimes[uid] = time;
-        if (mode == TTGMode::Teams) {
-            OnNewTime_Teams(uid, time, team);
-        }
+        OnNewTime(uid, name, time, team);
     }
 
     void SetPlayersTime(TTGSquareState player, int time) {
@@ -1062,11 +1145,13 @@ class UidRank {
     string uid;
     uint time;
     TTGSquareState team;
+    string name;
 
-    UidRank(const string &in uid, uint time, TTGSquareState team) {
+    UidRank(const string &in uid, const string &in name, uint time, TTGSquareState team) {
         this.uid = uid;
         this.time = time;
         this.team = team;
+        this.name = name;
     }
 }
 
@@ -1117,6 +1202,20 @@ class TTGGameEvent_PlayerEvent : TTGGameEvent {
     }
 }
 
+
+TTGGameEvent@ TTGGameEvent_ResultForMode(TicTacGoState@ ttg, TTGGameEventType type, ChallengeResultState@ cr, int moveNumber) {
+    if (ttg.IsSinglePlayer || ttg.IsStandard) {
+        return TTGGameEvent_StdResult(ttg, type, cr, moveNumber);
+    } else if (ttg.IsTeams) {
+        return TTGGameEvent_TeamsResult(ttg, type, cr, moveNumber);
+    } else if (ttg.IsBattleMode) {
+        return TTGGameEvent_BattleResult(ttg, type, cr, moveNumber);
+    }
+    throw("Unknown game mode. " + tostring(ttg.mode));
+    return null;
+}
+
+
 class TTGGameEvent_MapResult : TTGGameEvent {
     TicTacGoState@ ttg;
     TTGGameEventType Type;
@@ -1129,11 +1228,17 @@ class TTGGameEvent_MapResult : TTGGameEvent {
     Json::Value@ map;
     int trackId;
     int moveNumber;
-    protected string msg;
+    string msg;
+    string cName;
+    string dName;
+    ChallengeResultState@ cr;
+    uint turnCount;
 
     TTGGameEvent_MapResult(TicTacGoState@ ttg, TTGGameEventType type, ChallengeResultState@ cr, int moveNumber) {
         @this.ttg = ttg;
+        this.turnCount = turnCount;
         Type = type;
+        @this.cr = cr;
         Challenger = cr.challenger;
         Defender = cr.defender;
         xy = int2(cr.col, cr.row);
@@ -1142,11 +1247,10 @@ class TTGGameEvent_MapResult : TTGGameEvent {
         @map = ttg.GetMap(xy.x, xy.y);
         this.mapName = ColoredString(map['Name']);
         this.trackId = map['TrackID'];
-        // this.mapName = ttg.GetMap(xy.x, xy.y)['Name'];
         this.moveNumber = moveNumber;
-        string cName = ttg.GetLeadersName(Challenger);
-        string dName = ttg.GetLeadersName(Defender);
         msg = tostring(this.moveNumber) + ". ";
+        cName = ttg.GetLeadersName(Challenger);
+        dName = ttg.GetLeadersName(Defender);
         msg += cName;
         bool isChallenge = 4 & type > 0;
         // bool isClaim = !isChallenge;
@@ -1160,14 +1264,6 @@ class TTGGameEvent_MapResult : TTGGameEvent {
             msg += isWin ? " and " + HighlightWin("won") : (" but " + HighlightLoss("lost"));
         }
         msg += ".\n";
-        bool cWon = challengerTime < defenderTime;
-        string cTime = challengerTime < DNF_TEST ? HighlightWL(cWon, Time::Format(challengerTime)) : HighlightLoss("DNF");
-        string dTime = defenderTime < DNF_TEST ? HighlightWL(!cWon, Time::Format(defenderTime)) : HighlightLoss("DNF");
-        bool showDelta = challengerTime + defenderTime < DNF_TEST;
-        msg += "  " + cName + ": " + cTime + "\n";
-        msg += "  " + dName + ": " + dTime;
-        if (showDelta)
-            msg += "\n  Delta: " + Time::Format(Math::Abs(challengerTime - defenderTime));
     }
 
     const string get_SquareCoordStr() const {
@@ -1178,6 +1274,45 @@ class TTGGameEvent_MapResult : TTGGameEvent {
         UI::TextWrapped(this.msg);
     }
 }
+
+class TTGGameEvent_StdResult : TTGGameEvent_MapResult {
+    TTGGameEvent_StdResult(TicTacGoState@ ttg, TTGGameEventType type, ChallengeResultState@ cr, int moveNumber) {
+        super(ttg, type, cr, moveNumber);
+        bool cWon = challengerTime < defenderTime;
+        string cTime = challengerTime < DNF_TEST ? HighlightWL(cWon, Time::Format(challengerTime)) : HighlightLoss("DNF");
+        string dTime = defenderTime < DNF_TEST ? HighlightWL(!cWon, Time::Format(defenderTime)) : HighlightLoss("DNF");
+        bool showDelta = challengerTime + defenderTime < DNF_TEST;
+        msg += "  " + cName + ": " + cTime + "\n";
+        msg += "  " + dName + ": " + dTime;
+        if (showDelta)
+            msg += "\n  Delta: " + Time::Format(Math::Abs(challengerTime - defenderTime));
+    }
+}
+
+
+class TTGGameEvent_TeamsResult : TTGGameEvent_MapResult {
+    TTGGameEvent_TeamsResult(TicTacGoState@ ttg, TTGGameEventType type, ChallengeResultState@ cr, int moveNumber) {
+        super(ttg, type, cr, moveNumber);
+    }
+
+    void Draw() override {
+        UI::AlignTextToFramePadding();
+        UI::TextWrapped(this.msg);
+        if (TtgCollapsingHeader("Show Results##" + cr.id)) {
+            UITeamsScoreBoard(cr, true);
+        }
+    }
+}
+
+
+class TTGGameEvent_BattleResult : TTGGameEvent_MapResult {
+    TTGGameEvent_BattleResult(TicTacGoState@ ttg, TTGGameEventType type, ChallengeResultState@ cr, int moveNumber) {
+        super(ttg, type, cr, moveNumber);
+        msg += "battle mode";
+    }
+}
+
+
 
 
 string HighlightGray(const string &in msg) {
@@ -1198,4 +1333,101 @@ string HighlightWin(const string &in msg) {
 
 string HighlightLoss(const string &in msg) {
     return "\\$<\\$e71" + msg + "\\$>";
+}
+
+
+
+void UITeamsScoreBoard(ChallengeResultState@ cr, bool alwaysShowScores = false) {
+    auto score = cr.TeamsCurrentScore;
+    if (!alwaysShowScores && cr.IsResolved) {
+        auto winner = cr.Winner;
+        auto winScore = score[winner];
+        auto loseScore = score[-(winner - 1)];
+        auto winnerName = cr.teamNames[winner][0];
+        UI::Text("Winners: Team " + winnerName);
+        UI::Text("Points: " + winScore + " vs. " + loseScore);
+    } else {
+        if (UI::BeginTable("teams-score-list##"+cr.id, 3, UI::TableFlags::SizingStretchProp)) {
+            for (uint i = 0; i < cr.ranking.Length; i++) {
+                auto ur = cr.ranking[i];
+                bool didDNF = ur.time >= DNF_TEST;
+                string timeText = didDNF ? "DNF" : TimeFormat(ur.time, true, false);
+
+                UI::PushStyleColor(UI::Col::Text, GetLightColorForTeam(ur.team));
+                UI::TableNextRow();
+                UI::TableNextColumn();
+                UI::Text(ur.name);
+                UI::TableNextColumn();
+                UI::Text(timeText);
+                UI::TableNextColumn();
+                UI::Text(didDNF ? "" : "+" + (cr.totalUids - i));
+                UI::PopStyleColor();
+            }
+            UI::EndTable();
+        }
+    }
+}
+
+
+
+void RenderTeamsScoreBoard(ChallengeResultState@ cr) {
+    if (cr.ranking.Length == 0) return;
+    nvg::Reset();
+    vec2 screen = vec2(Draw::GetWidth(), Draw::GetHeight());
+    vec2 pos = screen / 2. - vec2(screen.y / 2. * 1.5, screen.y / 4.);
+    pos.x = Math::Max(pos.x, 0);
+    float elHeight = screen.y / 32.;
+    vec2 size = vec2(screen.y / 4., cr.ranking.Length * elHeight);
+    vec2 elSize = vec2(size.x, elHeight);
+    // background
+    nvg::BeginPath();
+    nvg::Rect(pos, size);
+    nvg::FillColor(vec4(0, 0, 0, .2));
+    nvg::Fill();
+    nvg::ClosePath();
+    // players
+    auto fs = elSize.y * 0.4;
+    nvg::FontFace(nvgFontMessage);
+    nvg::FontSize(fs);
+    nvg::TextAlign(nvg::Align::Top | nvg::Align::Left);
+    // nvg::FillColor(vec4(1, 1, 1, 1));
+    vec2 elPos;
+    for (uint i = 0; i < cr.ranking.Length; i++) {
+        auto ur = cr.ranking[i];
+        elPos = pos + vec2(0, elHeight * i);
+        DrawTeamsPlayerScoreEntry(ur, elPos, elSize, i, cr.totalUids);
+    }
+}
+
+void DrawTeamsPlayerScoreEntry(UidRank@ ur, vec2 elPos, vec2 elSize, int i, int nPlayers) {
+    vec4 bgCol = GetDarkColorForTeam(ur.team);
+    nvg::BeginPath();
+    nvg::Rect(elPos, elSize);
+    nvg::FillColor(bgCol);
+    nvg::Fill();
+    nvg::ClosePath();
+
+    // 5% padding
+    auto pad = elSize * vec2(0.05, 0.3);
+    auto timeOffs = elSize * vec2(.6, 0);
+    auto pointsOff = elSize * vec2(.86, 0);
+    nvg::FillColor(vec4(1, 1, 1, 1));
+    bool didDNF = ur.time >= DNF_TEST;
+    string timeText = didDNF ? "DNF" : TimeFormat(ur.time, true, false);
+    nvg::Text(elPos + pad, ur.name);
+    nvg::Text(elPos + pad + timeOffs, timeText);
+    nvg::Text(elPos + pad + pointsOff, didDNF ? "" : "+" + (nPlayers - i));
+}
+
+vec4 GetDarkColorForTeam(TTGSquareState team) {
+    if (team == TTGSquareState::Player1) return vec4(0, 0, .5, .75);
+    if (team == TTGSquareState::Player2) return vec4(.5, 0, 0, .75);
+    return vec4(0, .5, 0, .75);
+}
+
+vec4 GetLightColorForTeam(TTGSquareState team) {
+    // return GetDarkColorForTeam(team) + vec4(.5, .5, .5, .25);
+    if (team == TTGSquareState::Player1) return vec4(0.189f, 0.628f, 0.958f, 1.000f);
+    if (team == TTGSquareState::Player2) return vec4(0.942f, 0.413f, 0.400f, 1.000f);
+    return vec4(0.610f, 0.961f, 0.590f, 1.000f);
 }

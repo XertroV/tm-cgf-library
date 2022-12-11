@@ -10,6 +10,10 @@ const string MapUrl(Json::Value@ map) {
 }
 
 void LoadMapNow(const string &in url) {
+    if (!Permissions::PlayLocalMap()) {
+        NotifyError("Refusing to load map because you lack the necessary permissions. Standard or Club access required");
+        return;
+    }
     auto app = cast<CGameManiaPlanet>(GetApp());
     app.BackToMainMenu();
     while (!app.ManiaTitleControlScriptAPI.IsReady) yield();

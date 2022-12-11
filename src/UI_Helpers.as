@@ -70,3 +70,14 @@ bool DrawSubHeading1Button(const string &in heading, const string &in btnLabel) 
     UI::Separator();
     return ret;
 }
+
+
+
+bool TtgCollapsingHeader(const string &in label) {
+    UI::PushStyleColor(UI::Col::Header, vec4(0, 0, 0, 0));
+    UI::PushStyleColor(UI::Col::HeaderHovered, vec4(.3, .9, .6, .2));
+    UI::PushStyleColor(UI::Col::HeaderActive, vec4(.3, .9, .6, .1));
+    bool open = UI::CollapsingHeader(label);
+    UI::PopStyleColor(3);
+    return open;
+}

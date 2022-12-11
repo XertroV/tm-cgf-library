@@ -10,6 +10,7 @@ class RoomInfo {
   private uint _n_maps;
   private uint _min_secs;
   private uint _max_secs;
+  private string _max_difficulty;
   private float _game_start_time;
   private bool _started;
   // note: game_opts will always be a mapping of string => string
@@ -20,6 +21,7 @@ class RoomInfo {
     const string &in name, uint n_teams, uint n_players, uint player_limit,
     MaybeOfString@ join_code, bool is_public, uint ready_count,
     uint n_maps, uint min_secs, uint max_secs, float game_start_time, bool started,
+    const string &in max_difficulty,
     Json::Value@ game_opts
   ) {
     this._name = name;
@@ -32,6 +34,7 @@ class RoomInfo {
     this._n_maps = n_maps;
     this._min_secs = min_secs;
     this._max_secs = max_secs;
+    this._max_difficulty = max_difficulty;
     this._game_start_time = game_start_time;
     this._started = started;
     @this._game_opts = game_opts;
@@ -49,6 +52,7 @@ class RoomInfo {
     this._n_maps = uint(j["n_maps"]);
     this._min_secs = uint(j["min_secs"]);
     this._max_secs = uint(j["max_secs"]);
+    this._max_difficulty = string(j["max_difficulty"]);
     this._game_start_time = float(j["game_start_time"]);
     this._started = bool(j["started"]);
     @this._game_opts = j["game_opts"];
@@ -67,6 +71,7 @@ class RoomInfo {
     j["n_maps"] = _n_maps;
     j["min_secs"] = _min_secs;
     j["max_secs"] = _max_secs;
+    j["max_difficulty"] = _max_difficulty;
     j["game_opts"] = _game_opts;
     j["game_start_time"] = _game_start_time;
     j["started"] = _started;
@@ -123,6 +128,10 @@ class RoomInfo {
     return this._max_secs;
   }
 
+  const string get_max_difficulty() const {
+    return this._max_difficulty;
+  }
+
   float get_game_start_time() const {
     return this._game_start_time;
   }
@@ -156,24 +165,5 @@ class RoomInfo {
         'n_maps=' + n_maps, 'min_secs=' + min_secs, 'max_secs=' + max_secs
       }, ', ')
       + ')';
-  }
-
-  /* Methods // Mixin: Op Eq */
-  bool opEquals(const RoomInfo@ &in other) {
-    if (other is null) {
-      return false; // this obj can never be null.
-    }
-    return true
-      && _name == other.name
-      && _n_teams == other.n_teams
-      && _n_players == other.n_players
-      && _player_limit == other.player_limit
-      && _join_code == other.join_code
-      && _is_public == other.is_public
-      && _ready_count == other.ready_count
-      && _n_maps == other.n_maps
-      && _min_secs == other.min_secs
-      && _max_secs == other.max_secs
-      ;
   }
 }

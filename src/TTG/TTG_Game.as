@@ -328,6 +328,7 @@ class TtgGame {
     CGF::MaxDifficulty m_maxDifficulty = CGF::MaxDifficulty::Expert;
     // game stuff
     Json::Value@ gameOptions = DefaultTtgGameOptions();
+    int m_opt_finishesToWin = 1;
     // timeotu
     uint createRoomTimeout = 0;
     bool m_singlePlayer = false;
@@ -392,7 +393,7 @@ class TtgGame {
     void DrawMapsMaxDifficulty() {
         Indent();
         UI::AlignTextToFramePadding();
-        TextSameLine("Max Difficulty: ");
+        TextSameLine("Maximum Difficulty: ");
         if (UI::BeginCombo("##max-difficulty", tostring(m_maxDifficulty))) {
             DrawDifficultySelectable(CGF::MaxDifficulty::Beginner);
             DrawDifficultySelectable(CGF::MaxDifficulty::Intermediate);
@@ -408,15 +409,6 @@ class TtgGame {
         if (UI::Selectable(tostring(d), m_maxDifficulty == d)) {
             m_maxDifficulty = d;
         }
-    }
-
-    bool TtgCollapsingHeader(const string &in label) {
-        UI::PushStyleColor(UI::Col::Header, vec4(0, 0, 0, 0));
-        UI::PushStyleColor(UI::Col::HeaderHovered, vec4(.3, .9, .6, .2));
-        UI::PushStyleColor(UI::Col::HeaderActive, vec4(.3, .9, .6, .1));
-        bool open = UI::CollapsingHeader(label);
-        UI::PopStyleColor(3);
-        return open;
     }
 
     void DrawModeSelectable(TTGMode mode, TTGMode curr) {
@@ -469,6 +461,15 @@ class TtgGame {
                 m_playerLimit = UI::SliderInt("##-playerlimit", m_playerLimit, 3, 64);
             }
 
+            if (currMode == TTGMode::BattleMode) {
+                // draw room size dragger
+                UI::AlignTextToFramePadding();
+                Indent(2);
+                UI::Text("N Finishes to Win:");
+                UI::SameLine();
+                m_opt_finishesToWin = UI::SliderInt("##-finishes-to-win", m_opt_finishesToWin, 1, m_playerLimit / 2);
+            }
+
             Indent(2);
             JsonCheckbox("Enable records?", gameOptions, "enable_records", false);
             AddSimpleTooltip("Enable the records UI element when playing maps. (Default: disabled)");
@@ -511,9 +512,12 @@ class TtgGame {
 
     void CreateRoom() {
         auto pl = Json::Object();
-        bool singlePlayer = int(gameOptions['mode']) == 1;
-        bool isStd = int(gameOptions['mode']) == 2;
+        auto mode = TTGMode(int(gameOptions['mode']));
+        bool singlePlayer = int(mode) == 1;
+        bool isStd = int(mode) == 2;
+        bool isBattleMode = mode == TTGMode::BattleMode;
         gameOptions['auto_dnf'] = m_AutoDnfEnabled ? m_autoDnfSecs : -1;
+        if (isBattleMode) gameOptions['finishes_to_win'] = m_opt_finishesToWin;
 
         pl['name'] = m_roomName;
         pl['player_limit'] = m_playerLimit; // might be > 2 for teams or battle mode
@@ -568,7 +572,7 @@ class TtgGame {
         DrawJoinCode(joinCode);
 
 #if DEV
-        DrawGameOptsText();
+        DrawGameDetailsText();
 #endif
         DrawReadySection();
 
@@ -582,13 +586,15 @@ class TtgGame {
         if (UI::Button(teamsLocked ? Icons::Lock : Icons::Unlock)) {
             teamsLocked = !teamsLocked;
         }
-        AddSimpleTooltip("Disable the 'join team' buttons so you don't accidentally press them and change team.\nRecommended if you are a team leader.");
+        AddSimpleTooltip("Disable the 'join team' buttons so you don't accidentally press one and change team.\nRecommended if you are a team leader.");
         DrawTeamSelection(teamsLocked);
     }
 
-    void DrawGameOptsText() {
+    void DrawGameDetailsText() {
         auto roomInfo = client.roomInfo;
-        if (TtgCollapsingHeader("Game Options")) {
+        if (TtgCollapsingHeader("Game Details")) {
+            Indent(2);
+            UI::Text("Maps: between " + roomInfo.min_secs + " and " + roomInfo.max_secs + " s long, and a maximum difficulty of " + roomInfo.max_difficulty + ".");
             auto go = roomInfo.game_opts;
             auto currMode = TTGMode(Text::ParseInt(go['mode']));
             Indent(2);
@@ -753,5 +759,7 @@ Json::Value@ DefaultTtgGameOptions() {
     auto go = Json::Object();
     go['mode'] = int(TTGMode::Standard);
     go['enable_records'] = false;
+    go['auto_dnf'] = -1;
+
     return go;
 }
