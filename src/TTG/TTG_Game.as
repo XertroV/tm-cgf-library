@@ -547,15 +547,15 @@ class TtgGame {
 
     void RenderRoom() {
         isCreatingRoom = false;
-        if (BeginMainWindow()) {
-            if (client.roomInfo is null) {
-                DrawCenteredText("Waiting for room info...");
-            } else {
+        if (client.roomInfo is null) {
+            RenderLoadingScreen("Waiting for room info...");
+        } else {
+            if (BeginMainWindow()) {
                 DrawRoomMain();
             }
+            UI::End();
+            RenderLobbyChatWindow("Room");
         }
-        UI::End();
-        RenderLobbyChatWindow("Room");
     }
 
     bool teamsLocked = false;
@@ -571,7 +571,8 @@ class TtgGame {
         uint nTeams = roomInfo.n_teams;
         string joinCode = roomInfo.join_code.GetOr("???");
         UI::AlignTextToFramePadding();
-        UI::Text("Players: " + currNPlayers + " / " + pLimit);
+        string mapsStatus = roomInfo.maps_loaded ? "Loaded." : "Loading...";
+        UI::Text("Players: " + currNPlayers + " / " + pLimit + ".   Maps " + mapsStatus);
         // UI::AlignTextToFramePadding();
         // UI::Text("N Teams: " + nTeams);
 

@@ -101,6 +101,8 @@ namespace Game {
             AddMessageHandler("PLAYER_JOINED_TEAM", CGF::MessageHandler(MsgHandler_TeamsEvent));
             AddMessageHandler("PLAYER_READY", CGF::MessageHandler(MsgHandler_ReadyEvent));
             AddMessageHandler("LIST_READY_STATUS", CGF::MessageHandler(MsgHandler_ReadyEvent));
+            AddMessageHandler("MAPS_LOADED", CGF::MessageHandler(MsgHandler_MapsLoaded));
+
             AddMessageHandler("GAME_STARTING_AT", CGF::MessageHandler(MsgHandler_GameStartHandler));
             AddMessageHandler("GAME_START_ABORT", CGF::MessageHandler(MsgHandler_GameStartHandler));
             AddMessageHandler("GAME_REPLAY_START", CGF::MessageHandler(MsgHandler_GameReplayHandler));
@@ -755,6 +757,11 @@ namespace Game {
                     }
                 } else warn("LIST_TEAMS incorrect payload format: " + Json::Write(j));
             }
+            return true;
+        }
+
+        bool MsgHandler_MapsLoaded(Json::Value@ j) {
+            roomInfo.maps_loaded = true;
             return true;
         }
 

@@ -15,6 +15,7 @@ class RoomInfo {
   private bool _started;
   // note: game_opts will always be a mapping of string => string
   private const Json::Value@ _game_opts;
+  bool maps_loaded = false;
 
   /* Methods // Mixin: Default Constructor */
   RoomInfo(
@@ -55,6 +56,7 @@ class RoomInfo {
     this._max_difficulty = string(j["max_difficulty"]);
     this._game_start_time = float(j["game_start_time"]);
     this._started = bool(j["started"]);
+    this.maps_loaded = bool(j.Get("maps_loaded", false));
     @this._game_opts = j["game_opts"];
     if (_game_opts.GetType() != Json::Type::Object) throw("Invalid game_opts: not an obj");
   }
@@ -74,6 +76,7 @@ class RoomInfo {
     j["max_difficulty"] = _max_difficulty;
     j["game_opts"] = _game_opts;
     j["game_start_time"] = _game_start_time;
+    j["maps_loaded"] = this.maps_loaded;
     j["started"] = _started;
     return j;
   }
