@@ -13,11 +13,11 @@ GL HF
 
 todo:
 
-- teams scoring check
-- teams mode in general
 - battle mode scoring
 
-
+- chat msgs less than 1 char?
+- teams mode in general
+- teams scoring check
 - auto dnf notice
 - game resolved notice (timeout 3s)
 

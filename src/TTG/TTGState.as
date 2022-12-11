@@ -455,7 +455,7 @@ class TicTacGoState {
                 auto sqState = claimFailed ? TTGSquareState::Unclaimed : challengeResult.Winner;
                 SetSquareState(challengeResult.col, challengeResult.row, sqState);
 
-                @challengeResult = ChallengeResultState();
+                challengeResult.Reset();
                 challengeEndedAt = Time::Now;
 
                 state = TTGGameState::WaitingForMove;
@@ -471,6 +471,7 @@ class TicTacGoState {
             if (!moveIsChallenging && !moveIsClaiming) throw("impossible: not a valid move");
             auto sqState = GetSquareState(col, row);
             auto finishesToWin = IsBattleMode ? opt_FinishesToWin : 1;
+            @challengeResult = ChallengeResultState();
             if (moveIsChallenging) {
                 if (sqState.IsUnclaimed) throw('invalid, square claimed');
                 if (sqState.IsOwnedBy(ActiveLeader)) throw('invalid, cant challenge self');
@@ -573,13 +574,14 @@ class TicTacGoState {
         int duration;
         while (uiConfig is null || uiConfig.UISequence != CGamePlaygroundUIConfig::EUISequence::Finish) {
             duration = Time::Now - challengeStartTime;
-            auto oppTime = challengeResult.GetResultFor(TheirTeamLeader, DNF_TIME);
+            auto oppTime = challengeResult.ranking.Length > 0 ? challengeResult.ranking[0].time : DNF_TIME;
             auto timeLeft = oppTime + opt_AutoDNF_ms - duration;
             bool shouldDnf = opt_AutoDNF_ms > 0 && timeLeft <= 0;
             // if the challenge is resolved (e.g., via force ending) then we want to exit out
             // also if we already have a result
             shouldExitChallenge = challengeResult.IsResolved || challengeResult.HasResultFor(client.clientUid);
             if (shouldDnf || shouldExitChallenge || GetApp().PlaygroundScript is null || uiConfig is null) {
+                log_trace('should dnf, or exit, or player already did.');
                 if (shouldDnf) {
                     log_warn("shouldDnf. time left: " + timeLeft + "; oppTime: " + oppTime + ", duration=" + duration);
                 }
@@ -588,8 +590,9 @@ class TicTacGoState {
                     ReportChallengeResult(DNF_TIME); // more than 24 hrs, just
                 // if we are still in the map we want to let hte user know before we exit
                 if (shouldExitChallenge) {
-                    Await3SecondsOrMapLeft();
                     shouldExitChallengeTime = Time::Now + 3000;
+                    AwaitShouldExitTimeOrMapLeft();
+                    // sleep(3000);
                 }
                 // player quit (or auto DNF)
                 warn("Map left. Either: player quit, autodnf, or challenge resolved");
@@ -612,9 +615,9 @@ class TicTacGoState {
         EndChallenge();
     }
 
-    void Await3SecondsOrMapLeft() {
-        uint to = Time::Now + 3000;
-        while (to > Time::Now && CurrentlyInMap) yield();
+    // uses shouldExitChallengeTime
+    void AwaitShouldExitTimeOrMapLeft() {
+        while (shouldExitChallengeTime > Time::Now && CurrentlyInMap) yield();
     }
 
     void EndChallenge() {

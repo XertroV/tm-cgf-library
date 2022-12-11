@@ -141,7 +141,7 @@ class TicTacGo : Game::Engine {
         if (fr <= 0 || Time::Now - fr < forceEndWaitingTime) return;
         // only for admins/mods
         if (!client.IsPlayerAdminOrMod(client.clientUid)) return;
-        UI::SetNextWindowPos(30, 30, UI::Cond::Always);
+        UI::SetNextWindowPos(Draw::GetWidth() - 400, 50, UI::Cond::Appearing);
         UI::PushFont(mapUiFont);
         if (UI::Begin("Force End Round", UI::WindowFlags::NoCollapse | UI::WindowFlags::NoResize | UI::WindowFlags::NoMove | UI::WindowFlags::AlwaysAutoResize)) {
             UI::Text("Round gone on too long?");
@@ -190,21 +190,23 @@ class TicTacGo : Game::Engine {
             auto col = vec4(1, .5, 0, 1);
             string msg = oppTime > DNF_TEST ? stateObj.OpposingLeaderName + " DNF'd"
                 : stateObj.OpposingLeaderName + "'s Time: " + Time::Format(challengeResult.GetResultFor(stateObj.TheirTeamLeader));
-            NvgTextWShadow(textPos, offs.x, msg, col);
+            NvgTextWShadow(textPos, fs, msg, col);
             if (duration > oppTime) {
                 textPos += vec2(0, fs);
-                NvgTextWShadow(textPos, offs.x, "You lost.", col);
+                NvgTextWShadow(textPos, fs, "You lost.", col);
                 auto timeLeft = oppTime + stateObj.opt_AutoDNF_ms - duration;
                 textPos += vec2(0, fs);
-                RenderAutoDnfInner(textPos, offs, timeLeft, col);
+                RenderAutoDnfInner(textPos, fs, timeLeft, col);
             }
         }
     }
 
-    void RenderAutoDnfInner(vec2 textPos, vec2 shadowOffs, uint timeLeft, vec4 col) {
+    void RenderAutoDnfInner(vec2 textPos, float fs, uint timeLeft, vec4 col) {
         // if we should exit the challenge, don't show the autodnf msg
-        if (stateObj.opt_AutoDNF > 0 && !stateObj.shouldExitChallenge) {
-            NvgTextWShadow(textPos, shadowOffs.x, "Auto DNFing in " + Text::Format("%.1f", 0.001 * timeLeft), col);
+        if (stateObj.shouldExitChallenge) return;
+        if (stateObj.opt_AutoDNF > 0) {
+            NvgTextWShadow(textPos, fs * .03, "Auto DNFing in", col);
+            NvgTextWShadow(textPos + vec2(0, fs * 1.2), fs * .03, Text::Format("%.1f", 0.001 * float(timeLeft)), col);
         }
     }
 
@@ -223,18 +225,21 @@ class TicTacGo : Game::Engine {
         nvg::FontFace(nvgFontMessage);
         nvg::FontSize(fs);
         nvg::TextAlign(nvg::Align::Center | nvg::Align::Middle);
-        RenderAutoDnfInner(pos, vec2(fs, fs) * .05, timeLeft, vec4(1, .5, 0, 1));
+        RenderAutoDnfInner(pos, fs, timeLeft, vec4(1, .5, 0, 1));
     }
 
-    void RenderLeavingChallenge(vec4 col = vec4(.8, .4, .1, .75)) {
+    void RenderLeavingChallenge(vec4 col = vec4(1, 1, 1, 1)) {
         if (!stateObj.shouldExitChallenge || !CurrentlyInMap) return;
+        auto timeLeft = stateObj.shouldExitChallengeTime - Time::Now;
+        trace('render leaving. time left: ' + timeLeft);
         vec2 pos = vec2(Draw::GetWidth(), Draw::GetHeight()) / 2.;
-        float fs = Draw::GetHeight() * 0.05;
+        float fs = Draw::GetHeight() * 0.056;
         nvg::Reset();
         nvg::FontFace(nvgFontMessage);
         nvg::FontSize(fs);
         nvg::TextAlign(nvg::Align::Center | nvg::Align::Middle);
-        NvgTextWShadow(pos, 4, "Challenge Over. Exiting in " + Text::Format("%.1f", 0.001 * float(float(stateObj.shouldExitChallengeTime) - Time::Now)), col);
+        NvgTextWShadow(pos, fs * .05, "Challenge Over. Exiting in", col);
+        NvgTextWShadow(pos + vec2(0, fs * 1.2), fs * .05, Text::Format("%.1f", 0.001 * float(timeLeft)), col);
     }
 
     int chatWindowFlags = UI::WindowFlags::NoTitleBar
@@ -615,7 +620,7 @@ class TicTacGo : Game::Engine {
     }
 
     void SendChatMsg() {
-        if (m_chatMsg.Trim() != "")
+        if (m_chatMsg != "")
             client.SendChat(m_chatMsg, CGF::Visibility::global);
         m_chatMsg = "";
     }
