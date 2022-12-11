@@ -53,7 +53,7 @@ class RoomInfo {
     this._n_maps = uint(j["n_maps"]);
     this._min_secs = uint(j["min_secs"]);
     this._max_secs = uint(j["max_secs"]);
-    this._max_difficulty = string(j["max_difficulty"]);
+    this._max_difficulty = string(j.Get("max_difficulty", "Unknown (bug)"));
     this._game_start_time = float(j["game_start_time"]);
     this._started = bool(j["started"]);
     this.maps_loaded = bool(j.Get("maps_loaded", false));

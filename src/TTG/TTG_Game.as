@@ -447,9 +447,11 @@ class TtgGame {
                 if (DrawModeSelectable(TTGMode::Teams, currMode)) {
                     m_playerLimit = 6;
                 }
+#if DEV && FALSE
                 if (DrawModeSelectable(TTGMode::BattleMode, currMode)) {
                     m_playerLimit = 16;
                 }
+#endif
                 UI::EndCombo();
             }
             if (UI::IsItemHovered()) {
