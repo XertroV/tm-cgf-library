@@ -95,7 +95,6 @@ class TicTacGoState {
 
     void OnGameStart() {
         InitGameOnStart();
-        state = TTGGameState::WaitingForMove;
     }
 
     void OnGameEnd() {
@@ -117,6 +116,8 @@ class TicTacGoState {
 
         opt_FirstRoundForCenter = GetGameOptBool(game_opts, '1st_round_for_center', false);
         opt_CannotImmediatelyRepick = GetGameOptBool(game_opts, 'cannot_repick', false);
+
+        if (IsSinglePlayer) opt_FirstRoundForCenter = false;
     }
 
     int get_opt_AutoDNF_ms() {
@@ -217,6 +218,15 @@ class TicTacGoState {
         gameLog.InsertLast(TTGGameEvent_StartingPlayer(ActiveLeader, ActiveLeadersName));
         // call this to autogen the lists at game start, which is more convenient than on-demand
         auto tmp = TeamNames;
+
+        state = TTGGameState::WaitingForMove;
+        if (opt_FirstRoundForCenter) {
+            @gameLog[0] = TTGGameEvent_StartingForCenter();
+            state = TTGGameState::InClaim;
+            MarkSquareKnown(1, 1);
+            challengeResult.Activate(1, 1, TTGSquareState::Unclaimed, state, TeamUids, TeamNames, mode, opt_FinishesToWin);
+            startnew(CoroutineFunc(BeginChallengeSoon));
+        }
     }
 
 
@@ -461,6 +471,19 @@ class TicTacGoState {
             }
             if (challengeResult.IsResolved) {
                 bool challengerWon = challengeResult.Winner == challengeResult.challenger;
+                if (opt_FirstRoundForCenter && turnCounter == 0) {
+                    warn('setting winner: ' + tostring(challengeResult.Winner));
+                    challengerWon = challengeResult.Winner != TTGSquareState::Unclaimed;
+                    if (challengerWon) {
+                        challengeResult.challenger = challengeResult.Winner;
+                        ActiveLeader = challengeResult.challenger;
+                    } else {
+                        challengeResult.challenger = ActiveLeader;
+                    }
+                    challengeResult.defender = TTGSquareState(-(challengeResult.challenger - 1));
+                    print('challengeResult.challenger: ' + tostring(challengeResult.challenger));
+                    print('challengeResult.defender: ' + tostring(challengeResult.defender));
+                }
                 auto eType = TTGGameEventType((IsInChallenge ? 4 : 2) | (challengerWon ? 1 : 0));
                 gameLog.InsertLast(TTGGameEvent_ResultForMode(this, eType, challengeResult, turnCounter + 1));
 
@@ -477,7 +500,6 @@ class TicTacGoState {
 
                 state = TTGGameState::WaitingForMove;
                 AdvancePlayerTurns();
-
             }
         } else if (IsWaitingForMove) {
             if (col >= 3 || row >= 3) throw("impossible: col >= 3 || row >= 3");

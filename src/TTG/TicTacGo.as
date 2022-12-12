@@ -445,7 +445,10 @@ class TicTacGo : Game::Engine {
             UI::TableNextColumn();
             UI::TableNextColumn();
             UI::PushFont(hoverUiFont);
-            if (stateObj.IsMyTurn)
+            bool battleForCenter = stateObj.opt_FirstRoundForCenter && stateObj.turnCounter == 0;
+            if (battleForCenter)
+                UI::Text("Battle for the Center!");
+            else if (stateObj.IsMyTurn)
                 UI::Text(HighlightWin(stateObj.IAmALeader ? "Your Turn!" : "Your Leader's Turn!"));
             else
                 UI::Text(activeName + "'s Turn");
@@ -682,12 +685,12 @@ class TicTacGo : Game::Engine {
                 if (gotOwnMessage) waitingForOwnMove = false;
                 // auto fromPlayer = gotOwnMessage ? IAmPlayer : TheyArePlayer;
                 // lastFrom = fromPlayer;
-                try {
+                // try {
                     stateObj.ProcessMove(msg);
-                } catch {
-                    warn("Exception processing move: " + getExceptionInfo());
-                    warn("The move: " + Json::Write(msg));
-                }
+                // } catch {
+                    // warn("Exception processing move: " + getExceptionInfo());
+                    // warn("The move: " + Json::Write(msg));
+                // }
             }
             incomingEvents.RemoveRange(0, incomingEvents.Length);
         }
@@ -927,7 +930,8 @@ class ChallengeResultState {
         player2Time = -1;
         uidTimes.DeleteAll();
         this.challenger = challenger;
-        this.defender = challenger == TTGSquareState::Player1 ? TTGSquareState::Player2 : TTGSquareState::Player1;
+        this.defender = challenger == TTGSquareState::Unclaimed ? TTGSquareState::Unclaimed
+            : TTGSquareState(-(challenger - 1));
         challengeType = type;
         @this.teamNames = teamNames;
         @this.teamUids = teamUids;
@@ -1159,8 +1163,8 @@ class ChallengeResultState {
     }
 
     bool HasResultFor(TTGSquareState player) const {
+        if (player == TTGSquareState::Unclaimed) throw("should never pass unclaimed, here");
         if (mode == TTGMode::SinglePlayer) {
-            if (player == TTGSquareState::Unclaimed) throw("should never pass unclaimed, here");
             return (player == TTGSquareState::Player1 && HavePlayer1Res) || (player == TTGSquareState::Player2 && HavePlayer2Res);
         } else if (mode == TTGMode::Standard) {
             return HasResultFor(teamUids[player][0]);
@@ -1240,6 +1244,12 @@ class TTGGameEvent_StartingPlayer : TTGGameEvent {
 
     void Draw() {
         UI::TextWrapped(msg);
+    }
+}
+
+class TTGGameEvent_StartingForCenter : TTGGameEvent {
+    void Draw() {
+        UI::TextWrapped("Battle for the center square!");
     }
 }
 
