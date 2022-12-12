@@ -2,7 +2,7 @@
 name     = "CGF Support Library"
 author   = "XertroV"
 category = "CGF"
-version  = "0.1.7"
+version  = "0.1.8"
 siteid   = 285
 
 [script]
