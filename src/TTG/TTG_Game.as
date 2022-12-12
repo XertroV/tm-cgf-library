@@ -498,6 +498,24 @@ class TtgGame {
                 m_autoDnfSecs = UI::SliderInt("##-autodnfsecs", m_autoDnfSecs, 1, 60);
             }
 
+            Indent(2);
+            JsonCheckbox("1st round for center square?", gameOptions, "1st_round_for_center", false);
+            AddSimpleTooltip("Instead of a random player going first, the 1st round is for the center square.\nThe winner claims it always. The loser gets the next turn.");
+
+            Indent(2);
+            JsonCheckbox("Cannot pick last round's square?", gameOptions, "cannot_repick", false);
+            AddSimpleTooltip("When a square is successfully claimed/challenged,\nit cannot be immediately re-challenged.");
+
+            // todo, remember to add to draw function
+
+            // Indent(2);
+            // JsonCheckbox("Alternate turn sequence?", gameOptions, "alt_turn_sequence", false);
+            // AddSimpleTooltip("Each team takes 2 turns instead of 1. e.g., 1,1,2,2,...");
+
+            // Indent(2);
+            // JsonCheckbox("", gameOptions, "alt_turn_sequence", false);
+            // AddSimpleTooltip("Each team takes 2 turns instead of 1. e.g., 1,1,2,2,...");
+
             // hmm, think we need to add game-mode stuff for this.
             // Indent();
             // JsonCheckbox("Give-up = DNF?", gameOptions, "give_up_is_dnf", false);
@@ -612,11 +630,20 @@ class TtgGame {
                 Indent(4);
                 UI::Text("Finishes to Win: " + string(go['finishes_to_win']));
             }
+
             Indent(2);
             UI::Text("Records Enabled: " + string(go['enable_records']));
+
             Indent(2);
             auto auto_dnf = Text::ParseInt(go.Get('auto_dnf', '-1'));
             UI::Text("Auto DNF: " + (auto_dnf > 0 ? tostring(auto_dnf) + " seconds" : "Disabled"));
+
+            Indent(2);
+            UI::Text("1st round for center square: " + string(go['1st_round_for_center']));
+
+            Indent(2);
+            UI::Text("Cannot repick: " + string(go['cannot_repick']));
+
         }
     }
 

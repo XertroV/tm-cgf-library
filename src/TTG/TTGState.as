@@ -41,6 +41,7 @@ class TicTacGoState {
     TTGGameState state = TTGGameState::PreStart;
 
     SquareState[][] boardState;
+    int2 lastColRow = int2(-1, -1);
     // bool[][] boardMapKnown;
 
     TTGSquareState MyTeamLeader = TTGSquareState::Unclaimed;
@@ -60,6 +61,8 @@ class TicTacGoState {
     protected string[][] teamNames;
 
     bool opt_EnableRecords = false;
+    bool opt_FirstRoundForCenter = false;
+    bool opt_CannotImmediatelyRepick = false;
     int opt_AutoDNF = -1;
     // used during battle mode
     int opt_FinishesToWin = 1;
@@ -111,6 +114,9 @@ class TicTacGoState {
         warn("Set mode to: " + tostring(mode));
         // mode = GetGameOptMode(game_opts);
         if (IsBattleMode) opt_FinishesToWin = GetGameOptInt(game_opts, 'finishes_to_win', 1);
+
+        opt_FirstRoundForCenter = GetGameOptBool(game_opts, '1st_round_for_center', false);
+        opt_CannotImmediatelyRepick = GetGameOptBool(game_opts, 'cannot_repick', false);
     }
 
     int get_opt_AutoDNF_ms() {
@@ -294,11 +300,13 @@ class TicTacGoState {
     }
 
     bool SquareOwnedByMe(int col, int row) const {
-        return boardState[col][row].IsOwnedBy(MyTeamLeader);
+        auto team = !IsSinglePlayer ? MyTeamLeader : ActiveLeader;
+        return boardState[col][row].IsOwnedBy(team);
     }
 
     bool SquareOwnedByThem(int col, int row) const {
-        return boardState[col][row].IsOwnedBy(TheirTeamLeader);
+        auto team = !IsSinglePlayer ? TheirTeamLeader : InactiveLeader;
+        return boardState[col][row].IsOwnedBy(team);
     }
 
 
@@ -362,6 +370,10 @@ class TicTacGoState {
         return gameWon;
     }
 
+    bool WasPriorSquare(int col, int row) {
+        return lastColRow.x == col && lastColRow.y == row;
+    }
+
 
 
 
@@ -382,6 +394,7 @@ class TicTacGoState {
             if (col >= 3 || row >= 3) return false;
             if (!isFromLeader) return false;
             if (fromPlayer != ActiveLeader && !IsSinglePlayer) return false;
+            if (opt_CannotImmediatelyRepick && WasPriorSquare(col, row)) return false;
             bool moveIsClaiming = msgType == "G_TAKE_SQUARE";
             bool moveIsChallenging = msgType == "G_CHALLENGE_SQUARE";
             if (!moveIsChallenging && !moveIsClaiming) return false;
@@ -447,13 +460,17 @@ class TicTacGoState {
                 challengeResult.SetPlayersTime(lastFromUid, lastFromUsername, int(pl['time']), lastFromTeam);
             }
             if (challengeResult.IsResolved) {
-                bool challengerWon = challengeResult.Winner != challengeResult.challenger;
-                auto eType = TTGGameEventType((IsInChallenge ? 4 : 2) | (challengerWon ? 0 : 1));
+                bool challengerWon = challengeResult.Winner == challengeResult.challenger;
+                auto eType = TTGGameEventType((IsInChallenge ? 4 : 2) | (challengerWon ? 1 : 0));
                 gameLog.InsertLast(TTGGameEvent_ResultForMode(this, eType, challengeResult, turnCounter + 1));
 
-                bool claimFailed = IsInClaim && challengerWon;
+                bool claimFailed = IsInClaim && !challengerWon;
                 auto sqState = claimFailed ? TTGSquareState::Unclaimed : challengeResult.Winner;
-                SetSquareState(challengeResult.col, challengeResult.row, sqState);
+                int2 xy = int2(challengeResult.col, challengeResult.row);
+                SetSquareState(xy.x, xy.y, sqState);
+                if (opt_CannotImmediatelyRepick) {
+                    lastColRow = challengerWon ? xy : int2(-1, -1);
+                }
 
                 challengeResult.Reset();
                 challengeEndedAt = Time::Now;
@@ -466,6 +483,7 @@ class TicTacGoState {
             if (col >= 3 || row >= 3) throw("impossible: col >= 3 || row >= 3");
             if (col < 0 || row < 0) throw("impossible: col < 0 || row < 0");
             if (lastFromLeader != ActiveLeader && !IsSinglePlayer) throw("impossible: lastFrom != ActiveLeader");
+            if (opt_CannotImmediatelyRepick && WasPriorSquare(col, row)) throw("cannot repick");
             bool moveIsClaiming = msgType == "G_TAKE_SQUARE";
             bool moveIsChallenging = msgType == "G_CHALLENGE_SQUARE";
             if (!moveIsChallenging && !moveIsClaiming) throw("impossible: not a valid move");

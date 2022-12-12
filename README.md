@@ -15,6 +15,7 @@ todo:
 
 - alt turn order: 1,1,2,2,1,1,2,2,...
 - cannot claim last claimed
+- 1st round is for center square, winner claims
 
 
 - battle mode scoring
