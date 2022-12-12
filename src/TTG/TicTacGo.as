@@ -230,8 +230,8 @@ class TicTacGo : Game::Engine {
 
     void RenderLeavingChallenge(vec4 col = vec4(1, 1, 1, 1)) {
         if (!stateObj.shouldExitChallenge || !CurrentlyInMap) return;
-        auto timeLeft = stateObj.shouldExitChallengeTime - Time::Now;
-        trace('render leaving. time left: ' + timeLeft);
+        float timeLeft = float(stateObj.shouldExitChallengeTime) - Time::Now;
+        // log_trace('render leaving. time left: ' + timeLeft);
         vec2 pos = vec2(Draw::GetWidth(), Draw::GetHeight()) / 2.;
         float fs = Draw::GetHeight() * 0.056;
         nvg::Reset();
@@ -239,7 +239,7 @@ class TicTacGo : Game::Engine {
         nvg::FontSize(fs);
         nvg::TextAlign(nvg::Align::Center | nvg::Align::Middle);
         NvgTextWShadow(pos, fs * .05, "Challenge Over. Exiting in", col);
-        NvgTextWShadow(pos + vec2(0, fs * 1.2), fs * .05, Text::Format("%.1f", 0.001 * float(timeLeft)), col);
+        NvgTextWShadow(pos + vec2(0, fs * 1.2), fs * .05, Text::Format("%.1f", 0.001 * Math::Max(timeLeft, 0)), col);
     }
 
     int chatWindowFlags = UI::WindowFlags::NoTitleBar
@@ -843,10 +843,16 @@ class TicTacGo : Game::Engine {
             UI::Text("Starting in: " + Text::Format("%.1f", timeLeft));
         } else {
             UI::BeginDisabled(stateObj.disableLaunchMapBtn);
-            if (UI::Button("LAUNCH MAP")) {
+            if (UI::Button("LAUNCH MAP##" + challengeResult.id)) {
                 startnew(CoroutineFunc(stateObj.RunChallengeAndReportResult));
             }
             UI::EndDisabled();
+        }
+        if (!stateObj.IsSinglePlayer && !S_LocalDev) {
+            UI::SameLine();
+            UI::Dummy(vec2(8, 0));
+            UI::SameLine();
+            S_TTG_AutostartMap = UI::Checkbox("Auto?", S_TTG_AutostartMap);
         }
     }
 

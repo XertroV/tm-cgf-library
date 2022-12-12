@@ -426,6 +426,7 @@ class TicTacGoState {
         string msgType = msg['type'];
         auto pl = msg['payload'];
         int seq = pl['seq'];
+        bool isReplay = seq < client.GameReplayNbMsgs;
         // deserialize move
         uint col, row;
         try {
@@ -538,10 +539,14 @@ class TicTacGoState {
     string currTrackIdStr;
 
     int challengePreWaitPeriod = 3000;
+    string beginChallengeLatestNonce;
 
     void BeginChallengeSoon() {
         // this can happen when replaying game events
         if (!challengeResult.active) return;
+        if (!IsInClaimOrChallenge) return;
+        string myNonce = Crypto::RandomBase64(10);
+        beginChallengeLatestNonce = myNonce;
         auto col = challengeResult.col;
         auto row = challengeResult.row;
         auto map = GetMap(col, row);
@@ -550,9 +555,15 @@ class TicTacGoState {
         currTrackIdStr = tostring(currTrackId);
         challengeResult.startTime = Time::Now + challengePreWaitPeriod;
         // autostart if not
-        if (!IsSinglePlayer) {
-            sleep(challengePreWaitPeriod);
-            // load map immediately
+        if (!IsSinglePlayer && !S_LocalDev) {
+            // we sleep for slightly less to avoid race conditions with the launch map button
+            sleep(challengePreWaitPeriod - 30);
+            // load map immediately if the CR is the same one and the setting is enabled.
+            bool crChecks = beginChallengeLatestNonce == myNonce && !challengeResult.HasResultFor(client.clientUid);
+            if (crChecks && !challengeRunActive && S_TTG_AutostartMap && !CurrentlyInMap) {
+                print("Autostarting map for: " + MyName);
+                startnew(CoroutineFunc(RunChallengeAndReportResult));
+            }
         }
     }
 
