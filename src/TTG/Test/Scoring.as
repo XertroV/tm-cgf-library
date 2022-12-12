@@ -25,7 +25,7 @@ void Test_Teams_Scoring() {
     auto defender = TTGSquareState(-(challenger - 1));
     bool team1Advantage = RandomBool();
     int t1p1Time = team1Advantage ? 100 : 111;
-    cr.Activate(1, 1, challenger, TTGGameState::InClaim, teams, teams, TTGMode::Teams, 1);
+    cr.Activate(1, 1, challenger, TTGGameState::InClaim, teams, teams, TTGMode::Teams, 2);
     cr.SetPlayersTime(teams[0][0], teams[0][0], t1p1Time, TTGSquareState::Player1);
     cr.SetPlayersTime(teams[0][1], teams[0][1], 222, TTGSquareState::Player1);
     cr.SetPlayersTime(teams[0][2], teams[0][2], team1Advantage ? 999 : DNF_TIME, TTGSquareState::Player1);

@@ -447,11 +447,11 @@ class TtgGame {
                 if (DrawModeSelectable(TTGMode::Teams, currMode)) {
                     m_playerLimit = 6;
                 }
-#if DEV && FALSE
+// #if DEV && FALSE
                 if (DrawModeSelectable(TTGMode::BattleMode, currMode)) {
                     m_playerLimit = 16;
                 }
-#endif
+// #endif
                 UI::EndCombo();
             }
             if (UI::IsItemHovered()) {
@@ -476,6 +476,7 @@ class TtgGame {
                 UI::Text("N Finishes to Win:");
                 UI::SameLine();
                 m_opt_finishesToWin = UI::SliderInt("##-finishes-to-win", m_opt_finishesToWin, 1, m_playerLimit / 2);
+                m_opt_finishesToWin = Math::Min(m_playerLimit / 2, m_opt_finishesToWin);
             }
 
             Indent(2);
@@ -513,7 +514,7 @@ class TtgGame {
             case TTGMode::Teams:
                 return "2 teams, scored like in match making / ranked. For a total of N players, 1st place gets N points, 2nd place N-1 points, etc. The team with more points wins the round. The first player on each team is that team's leader. Each Leader is the only player to input tic-tac-toe moves, but all players race.";
             case TTGMode::BattleMode:
-                return "Up to 32 (eventually 64) players over 2 teams. The first team to N finishes wins the round. The first player on each team is that team's leader. Each Leader is the only player to input tic-tac-toe moves, but all players race. Auto-DNF turned on is recommended.";
+                return "Up to 32 (eventually 64) players over 2 teams. The first team to N finishes wins the round. The first player on each team is that team's leader. Each Leader is the only player to input tic-tac-toe moves, but all players race. If not enough players finish, the team with more points wins the round. If the score is equal, the defending team wins.";
         }
         return "Unknown mode. D:";
     }
@@ -607,6 +608,10 @@ class TtgGame {
             auto currMode = TTGMode(Text::ParseInt(go['mode']));
             Indent(2);
             UI::Text("Mode: " + tostring(currMode));
+            if (currMode == TTGMode::BattleMode) {
+                Indent(4);
+                UI::Text("Finishes to Win: " + string(go['finishes_to_win']));
+            }
             Indent(2);
             UI::Text("Records Enabled: " + string(go['enable_records']));
             Indent(2);

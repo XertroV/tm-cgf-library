@@ -562,7 +562,7 @@ class TicTacGoState {
         // re enable the launch map button here, is good enough and pretty close to the first time we can safely re-enable
         disableLaunchMapBtn = false;
         while (uiConfig.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
-        sleep(300); // we don't need to get the time immediately, so give some time for values to update
+        yield(); // we don't need to get the time immediately, so give some time for values to update
         while (player.StartTime < 0) yield();
         HideGameUI::opt_EnableRecords = opt_EnableRecords;
         startnew(HideGameUI::OnMapLoad);

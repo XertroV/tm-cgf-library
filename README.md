@@ -13,8 +13,11 @@ GL HF
 
 todo:
 
-- battle mode scoring
+- alt turn order: 1,1,2,2,1,1,2,2,...
+- cannot claim last claimed
 
+
+- battle mode scoring
 - chat msgs less than 1 char?
 - teams mode in general
 - teams scoring check
