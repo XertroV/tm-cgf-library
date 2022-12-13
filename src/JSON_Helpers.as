@@ -37,3 +37,24 @@ void JsonCheckbox(const string &in label, Json::Value@ jsonObj, const string &in
     tmp = UI::Checkbox(label, tmp);
     jsonObj[key] = tmp;
 }
+
+
+
+
+bool GetGameOptBool(const Json::Value@ opts, const string &in key, bool def) {
+    try {
+        return string(opts[key]).ToLower() == "true";
+    } catch {
+        return def;
+    }
+}
+
+
+
+int GetGameOptInt(const Json::Value@ opts, const string &in key, int def) {
+    try {
+        return Text::ParseInt(opts[key]);
+    } catch {
+        return def;
+    }
+}
