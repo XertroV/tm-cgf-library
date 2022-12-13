@@ -581,7 +581,9 @@ class TtgGame {
     bool teamsLocked = false;
 
     void DrawRoomMain() {
-        if (DrawHeading1Button(RoomNameText(client.roomInfo), "Leave##leave-room")) {
+        string heading = RoomNameText(client.roomInfo);
+        heading += "  \\$z (" + (client.roomInfo.is_public ? "Public" : "Private") + ")";
+        if (DrawHeading1Button(heading, "Leave##leave-room")) {
             client.SendLeave();
         }
 
