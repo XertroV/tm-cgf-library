@@ -14,6 +14,8 @@ const string get_LocalPlayersWSID() {
     return "";
 }
 
-bool get_CurrentlyInMap() {
-    return GetApp().CurrentPlayground !is null;
+bool CurrentlyInMap {
+    get {
+        return GetApp().RootMap !is null && GetApp().CurrentPlayground !is null;
+    }
 }

@@ -13,8 +13,18 @@ GL HF
 
 todo:
 
+- team chat `/t`
+
 - (mb, not sure) alt turn order: 1,1,2,2,1,1,2,2,...
 
+
+(auto cancel skin downloads)
+
+
+
+- admin, force game start
+- auto assign to teams
+- visibility of main window in-map
 
 - cannot claim last claimed
 - 1st round is for center square, winner claims

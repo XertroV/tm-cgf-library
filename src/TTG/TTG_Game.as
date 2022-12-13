@@ -78,7 +78,6 @@ class TtgGame {
     }
 
     void RenderInterface() {
-        if (CurrentlyInMap) return;
         UI::PushFont(hoverUiFont);
         if (!hasPerms) RenderNoPerms();
         else if (client is null || client.IsAuthenticating) RenderAuthenticating();
@@ -653,36 +652,70 @@ class TtgGame {
         auto pos = UI::GetCursorPos();
 
         if (client.roomInfo.HasStarted) {
-            UI::SetCursorPos(pos + vec2(UI::GetWindowContentRegionWidth() / 2. - 50., 0));
-            if (UI::Button("Game started. Rejoin!")) {
-                client.SendPayload("JOIN_GAME_NOW");
+            UI::SetCursorPos(pos + vec2(UI::GetWindowContentRegionWidth() / 2. - 100., 0));
+            if (client.roomInfo.maps_loaded) {
+                if (UI::Button("Game started. Rejoin!")) {
+                    client.SendPayload("JOIN_GAME_NOW");
+                }
+            } else {
+                UI::Text("Waiting for maps...");
             }
         } else {
-            UI::SetCursorPos(pos + vec2(UI::GetWindowContentRegionWidth() / 3. - 35., 0));
-            bool isInTeam = 0 <= client.PlayerIsOnTeam(client.clientUid);
-            bool isReady = client.GetReadyStatus(client.clientUid);
-            if (isInTeam || isReady) {
-                markReady = client.GetReadyStatus(client.clientUid);
-                bool newReady = UI::Checkbox("Ready?##room-to-game", markReady);
-                if (newReady != markReady)
-                    client.MarkReady(newReady);
-                markReady = newReady;
-            } else {
-                UI::AlignTextToFramePadding();
-                UI::Text("\\$fc3Join a Team");
-            }
+            bool isAdmin = client.IsPlayerAdminOrMod(client.clientUid);
+            auto nCols = isAdmin ? 4 : 3;
+            if (UI::BeginTable("ttg-ready,force,status", nCols, UI::TableFlags::SizingStretchSame)) {
+                UI::TableSetupColumn("l");
+                UI::TableSetupColumn("ready");
+                UI::TableSetupColumn("status");
+                if (isAdmin)
+                    UI::TableSetupColumn("admin-force-start");
+                // UI::TableSetupColumn("r");
 
-            UI::SetCursorPos(pos + vec2(UI::GetWindowContentRegionWidth() * 2. / 3. - 50., 0));
-            UI::AlignTextToFramePadding();
-            if (client.IsGameNotStarted) {
-                UI::Text("Players Ready: " + client.readyCount + " / " + client.roomInfo.n_players);
-            } else if (client.IsGameStartingSoon) {
-                UI::Text("Game Starting in " + Text::Format("%.1f", client.GameStartingIn) + " (s)");
-            } else if (client.IsGameStarted) {
-                UI::Text("Started");
-            } else {
-                UI::Text("Game State Unknown: " + tostring(client.CurrGameState));
+                UI::TableNextRow();
+                UI::TableNextColumn();
+                // ready button
+                UI::TableNextColumn();
+                bool isInTeam = 0 <= client.PlayerIsOnTeam(client.clientUid);
+                bool isReady = client.GetReadyStatus(client.clientUid);
+                if (isInTeam || isReady) {
+                    markReady = client.GetReadyStatus(client.clientUid);
+                    bool newReady = UI::Checkbox("Ready?##room-to-game", markReady);
+                    if (newReady != markReady)
+                        client.MarkReady(newReady);
+                    markReady = newReady;
+                } else {
+                    UI::AlignTextToFramePadding();
+                    UI::Text("\\$fc3Join a Team");
+                }
+
+                // ready status
+                UI::TableNextColumn();
+                UI::AlignTextToFramePadding();
+                if (client.IsGameNotStarted) {
+                    UI::Text("Players Ready: " + client.readyCount + " / " + client.roomInfo.n_players);
+                } else if (client.IsGameStartingSoon) {
+                    UI::Text("Game Starting in " + Text::Format("%.1f", client.GameStartingIn) + " (s)");
+                } else if (client.IsGameStarted) {
+                    UI::Text(client.roomInfo.maps_loaded ? "Started" : "Waiting for maps...");
+                } else {
+                    UI::Text("Game State Unknown: " + tostring(client.CurrGameState));
+                }
+
+                // admin
+                if (isAdmin) {
+                    UI::TableNextColumn();
+                    if (UI::Button("Force Start")) {
+                        client.SendPayload("FORCE_START");
+                    }
+                }
+
+                // UI::TableNextColumn();
+                UI::EndTable();
             }
+            // UI::SetCursorPos(pos + vec2(UI::GetWindowContentRegionWidth() / 3. - 35., 0));
+
+
+            // UI::SetCursorPos(pos + vec2(UI::GetWindowContentRegionWidth() * 2. / 3. - 50., 0));
         }
 
         PaddedSep();

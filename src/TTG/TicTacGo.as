@@ -93,6 +93,7 @@ class TicTacGo : Game::Engine {
 
     void OnGameStart() {
         trace("On game start!");
+        ReturnToMenu();
         MM::setMenuPage("/empty");
         ResetState();
         stateObj.OnGameStart();
@@ -156,6 +157,7 @@ class TicTacGo : Game::Engine {
                 UI::PushFont(hoverUiFont);
                 UI::AlignTextToFramePadding();
                 UI::Text(tostring(numDisconnected) + " players disconnected.");
+                DrawShowAllPlayers();
                 UI::PopFont();
             }
         }
@@ -277,6 +279,9 @@ class TicTacGo : Game::Engine {
     // we call this from render, so it will always show even if OP Interface hidden.
     // that's b/c there's no real reason to hide the game window when you're actively in a game, and it autohides in a map
     void RenderInterface() {
+        // we never want to render the TTG game interface in a map.
+        if (CurrentlyInMap) return;
+        // uninitialized
         if (stateObj.ActiveLeader == TTGSquareState::Unclaimed) return;
         UI::SetNextWindowSize(Draw::GetWidth() / 2, Draw::GetHeight() * 3 / 5, UI::Cond::FirstUseEver);
         UI::PushFont(hoverUiFont);
@@ -404,7 +409,9 @@ class TicTacGo : Game::Engine {
         auto playerNum = team + 1;
         bool isMe = player == stateObj.MyTeamLeader;
         UI::PushFont(hoverUiFont);
+        UI::PushStyleColor(UI::Col::Text, GetLightColorForTeam(player));
         UI::Text(IconForPlayer(player) + " -- Player " + playerNum + (isMe ? " (You)" : ""));
+        UI::PopStyleColor();
         auto nameCol = "\\$" + (stateObj.ActiveLeader == player ? "4b1" : "999");
         string name = stateObj.MyTeamLeader == player ? stateObj.MyLeadersName : stateObj.OpposingLeaderName;
         UI::Text(nameCol + name);
