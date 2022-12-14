@@ -143,7 +143,7 @@ class MurderChairsState {
         auto tmpMapNum = recentMapNumber;
         auto map = maps[tmpMapNum];
         auto nMaps = maps.Length;
-        while (!map.isActive || !map.nPlayers == 0) {
+        while (!map.isActive || map.nPlayers != 0) {
             tmpMapNum = (tmpMapNum + 1) % nMaps;
             if (tmpMapNum == recentMapNumber) {
                 // couldn't find a map to remove
@@ -158,6 +158,7 @@ class MurderChairsState {
 
     void OnMapRemoved(int mapNumber) {
         // todo: game log
+        AddGameEvent(MCEventMapRemoved(maps[mapNumber], mapNumber));
     }
 
     bool ShouldAdvanceTeamMate(MCPlayer@ finishingPlayer, MCPlayer@ otherPlayer) {
@@ -169,7 +170,7 @@ class MurderChairsState {
         // player.mapNumber == thisPlayersMap && player.enteredMapAt <= thisPlayer.enteredMapAt
         return finishingPlayer.mapNumber == otherPlayer.mapNumber
             && finishingPlayer.enteredMapAt >= otherPlayer.enteredMapAt
-            && (!IsTeams ^^ finishingPlayer.team != otherPlayer.team);
+            && (!IsTeams ^^ (finishingPlayer.team != otherPlayer.team));
     }
 
     void MarkPlayerKOdBy(MCPlayer@ playerOut, MCPlayer@ killer) {
@@ -180,7 +181,7 @@ class MurderChairsState {
 
     void OnPlayerKOd(MCPlayer@ playerOut, MCPlayer@ killer) {
         // todo: game log
-        AddGameEvent(MCEventKO(playerOut, killer))
+        AddGameEvent(MCEventKO(playerOut, killer));
     }
 
     void AdvanceMap(MCPlayer@ player, float msgTimestamp) {
@@ -228,6 +229,7 @@ class MurderChairsState {
  */
 class MCPlayer {
     string uid;
+    string name;
     bool isAlive = true;
     uint mapNumber = 0;
     float enteredMapAt;
@@ -243,6 +245,7 @@ class MCMap {
     int TrackID;
     uint nPlayers = 1;
     bool isActive = true;
+    string name;
 }
 
 float BaseFontHeight {
@@ -253,7 +256,7 @@ float BaseFontHeight {
 
 float EventLogSpacing {
     get {
-        BaseFontHeight / 4.;
+        return BaseFontHeight / 4.;
     }
 }
 
@@ -276,18 +279,21 @@ class MCGameEvent {
         nvg::FontSize(fs);
         nvg::FillColor(col * vec4(1, 1, 1, 0) + vec4(0, 0, 0, alpha));
         nvg::Text(pos, msg);
+        return false;
     }
 }
 
 
-class MCEventKO {
+class MCEventKO : MCGameEvent {
     MCEventKO(MCPlayer@ playerOut, MCPlayer@ killer) {
         // todo
+        msg = killer.name + " knocked out " + playerOut.name;
     }
 }
 
-class MCEventMapRemoved {
-    MCEventMapRemoved(MCMap@ map) {
+class MCEventMapRemoved : MCGameEvent {
+    MCEventMapRemoved(MCMap@ map, uint mapNumber) {
         // todo
+        msg = "Map #"+mapNumber+" removed. (" + map.name + ")";
     }
 }
