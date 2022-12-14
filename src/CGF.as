@@ -23,6 +23,7 @@ namespace Game {
         string g_accountID = "";
         string g_displayName = "";
         string g_secret = "";
+        uint tokenRequestTime = 0;
 
         string name;
         string fileName;
@@ -146,11 +147,14 @@ namespace Game {
         }
 
         void GetAuthToken() {
+            // set the request time at start of request, and at end too
+            tokenRequestTime = Time::Now;
             state = ClientState::Authenticating;
             @tokenTask = Auth::GetToken();
             while (!tokenTask.Finished()) yield();
             g_token = tokenTask.Token();
             trace_dev("Token: " + g_token);
+            tokenRequestTime = Time::Now;
 	    }
 
         void ReconnectIfPossible() {
@@ -212,6 +216,8 @@ namespace Game {
         void Reconnect(uint timeout = 5000) {
             if (!IsDisconnected && !IsTimedOut) return;
             warn("Attempting reconnect...");
+            if (Time::Now - tokenRequestTime > (60 * 1000))
+                GetAuthToken();
             Connect(timeout);
         }
 
