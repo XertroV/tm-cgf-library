@@ -8,6 +8,6 @@ siteid   = 285
 [script]
 #__DEFINES__
 # dependencies = ["MLHook", "MLFeedRaceData", "VehicleState", "Camera"]
-module = "CGF"
-exports = ["ExportCode.as"]
-shared_exports = ["ExportShared.as"]
+# module = "CGF"
+# exports = ["ExportCode.as"]
+# shared_exports = ["ExportShared.as"]
