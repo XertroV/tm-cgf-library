@@ -597,8 +597,9 @@ class TicTacGoState {
 
 
 
-    void ResetLaunchMapBtnIn3s() {
-        sleep(3000);
+    void ResetLaunchMapBtnSoon() {
+        // prevents softlock if map cannot load (occasionally happens)
+        sleep(5000);
         disableLaunchMapBtn = false;
     }
 
@@ -631,7 +632,7 @@ class TicTacGoState {
         // join map
         challengeRunActive = true;
         LoadMapNow(MapUrl(currMap));
-        startnew(CoroutineFunc(ResetLaunchMapBtnIn3s));
+        startnew(CoroutineFunc(ResetLaunchMapBtnSoon));
         while (!CurrentlyInMap) yield();
         sleep(50);
         // wait for UI sequence to be playing

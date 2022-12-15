@@ -557,14 +557,14 @@ class TicTacGo : Game::Engine {
         if (isHovered) {
             UI::BeginTooltip();
             UI::PushFont(hoverUiFont);
-
+            auto coordName = TTG_SquareName(col, row);
             if (ownedByMe) {
                 // button disabled so never hovers
-                UI::Text("Claimed by You");
+                UI::Text(coordName + " Claimed by You");
             } else if (ownedByThem) {
-                UI::Text("Challenge " + stateObj.OpposingLeaderName);
+                UI::Text(coordName + " Challenge " + stateObj.OpposingLeaderName);
             } else if (mapKnown) {
-                UI::Text("Win to claim!");
+                UI::Text(coordName + " Win to claim!");
             }
 
             if (ownedByMe || ownedByThem || mapKnown) {
@@ -1025,7 +1025,7 @@ class TTGGameEvent_MapResult : TTGGameEvent {
     }
 
     const string get_SquareCoordStr() const {
-        return Highlight("(" + (xy.x + 1) + ", " + (xy.y + 1) + ")");
+        return Highlight(TTG_SquareName(xy.x, xy.y));
     }
 
     void Draw() {
@@ -1274,4 +1274,17 @@ vec4 GetLightColorForTeam(TTGSquareState team) {
     if (team == TTGSquareState::Player1) return vec4(0.189f, 0.628f, 0.958f, 1.000f);
     if (team == TTGSquareState::Player2) return vec4(0.942f, 0.413f, 0.400f, 1.000f);
     return vec4(0.610f, 0.961f, 0.590f, 1.000f);
+}
+
+const string TTG_SquareName(int col, int row) {
+    auto rowStr = tostring(row + 1);
+    if (col == 0) {
+        return "A" + rowStr;
+    } else if (col == 1) {
+        return "B" + rowStr;
+    } else if (col == 2) {
+        return "C" + rowStr;
+    }
+    warn("unknown coord square name: " + col + ", " + row);
+    return "" + (col + 1) + "," + rowStr;
 }
