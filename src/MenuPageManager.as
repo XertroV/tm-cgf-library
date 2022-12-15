@@ -77,7 +77,6 @@ namespace MM {
 <script><!--
 
 main() {
-  yield;
   declare Integer Nonce;
   Nonce = """;
   mlCode += tostring(Time::Now);

@@ -94,6 +94,9 @@ class TicTacGo : Game::Engine {
     void OnGameStart() {
         trace("On game start!");
         ReturnToMenu();
+        yield();
+        MM::setMenuPage("/local");
+        yield();
         MM::setMenuPage("/empty");
         ResetState();
         stateObj.OnGameStart();
