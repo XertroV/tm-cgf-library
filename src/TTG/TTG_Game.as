@@ -629,21 +629,21 @@ class TtgGame {
             UI::Text("Mode: " + tostring(currMode));
             if (currMode == TTGMode::BattleMode) {
                 Indent(4);
-                UI::Text("Finishes to Win: " + string(go['finishes_to_win']));
+                UI::Text("Finishes to Win: " + string(go.Get('finishes_to_win', '1')));
             }
 
             Indent(2);
-            UI::Text("Records Enabled: " + string(go['enable_records']));
+            UI::Text("Records Enabled: " + string(go.Get('enable_records', 'False')));
 
             Indent(2);
             auto auto_dnf = Text::ParseInt(go.Get('auto_dnf', '-1'));
             UI::Text("Auto DNF: " + (auto_dnf > 0 ? tostring(auto_dnf) + " seconds" : "Disabled"));
 
             Indent(2);
-            UI::Text("1st round for center square: " + string(go['1st_round_for_center']));
+            UI::Text("1st round for center square: " + string(go.Get('1st_round_for_center', 'False')));
 
             Indent(2);
-            UI::Text("Cannot repick: " + string(go['cannot_repick']));
+            UI::Text("Cannot repick: " + string(go.Get('cannot_repick', 'False')));
 
         }
     }
@@ -835,6 +835,8 @@ Json::Value@ DefaultTtgGameOptions() {
     go['mode'] = int(TTGMode::Standard);
     go['enable_records'] = false;
     go['auto_dnf'] = -1;
+    go['1st_round_for_center'] = false;
+    go['cannot_repick'] = false;
 
     return go;
 }
