@@ -114,7 +114,10 @@ class TicTacGoState {
         mode = TTGMode(GetGameOptInt(game_opts, 'mode', int(TTGMode::Standard)));
         warn("Set mode to: " + tostring(mode));
         // mode = GetGameOptMode(game_opts);
-        if (IsBattleMode) opt_FinishesToWin = GetGameOptInt(game_opts, 'finishes_to_win', 1);
+        if (IsBattleMode) {
+            opt_FinishesToWin = GetGameOptInt(game_opts, 'finishes_to_win', 1);
+            opt_FinishesToWin = Math::Min(opt_FinishesToWin, Math::Min(TeamNames[0].Length, TeamNames[1].Length));
+        }
 
         opt_FirstRoundForCenter = GetGameOptBool(game_opts, '1st_round_for_center', false);
         opt_CannotImmediatelyRepick = GetGameOptBool(game_opts, 'cannot_repick', false);
@@ -579,8 +582,15 @@ class TicTacGoState {
 
     Json::Value@ GetMap(int col, int row) {
         int mapIx = row * 3 + col;
-        if (mapIx >= int(client.mapsList.Length)) throw('bad map index');
-        if (mapIx < 0) throw('negavive col/row?: ' + col + ", " + row);
+        if (mapIx >= int(client.mapsList.Length)) {
+            warn('bad map index'+ col + ", " + row);
+            // this issue seems rare, but better to return something than nothing
+            return client.mapsList[0];
+        }
+        if (mapIx < 0) {
+            warn('negavive col/row?: ' + col + ", " + row);
+            return client.mapsList[0];
+        }
         return client.mapsList[mapIx];
     }
 
