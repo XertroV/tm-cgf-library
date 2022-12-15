@@ -505,7 +505,11 @@ class TtgGame {
             JsonCheckbox("Cannot pick last round's square?", gameOptions, "cannot_repick", false);
             AddSimpleTooltip("When a square is successfully claimed/challenged,\nit cannot be immediately re-challenged.");
 
-            // todo, remember to add to draw function
+            Indent(2);
+            JsonCheckbox("Reveal maps?", gameOptions, "reveal_maps", false);
+            AddSimpleTooltip("Instead of maps being hidden, you can\nsee every map from the start of the game.");
+
+            // todo, remember to add to draw function & default opts
 
             // Indent(2);
             // JsonCheckbox("Alternate turn sequence?", gameOptions, "alt_turn_sequence", false);
@@ -644,6 +648,11 @@ class TtgGame {
 
             Indent(2);
             UI::Text("Cannot repick: " + string(go.Get('cannot_repick', 'False')));
+
+            Indent(2);
+            UI::Text("Reveal maps: " + string(go.Get('reveal_maps', 'False')));
+
+            // remember to add to default options, too
         }
     }
 
@@ -836,6 +845,7 @@ Json::Value@ DefaultTtgGameOptions() {
     go['auto_dnf'] = -1;
     go['1st_round_for_center'] = false;
     go['cannot_repick'] = false;
+    go['reveal_maps'] = false;
 
     return go;
 }

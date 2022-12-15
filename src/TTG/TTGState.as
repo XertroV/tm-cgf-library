@@ -63,6 +63,7 @@ class TicTacGoState {
     bool opt_EnableRecords = false;
     bool opt_FirstRoundForCenter = false;
     bool opt_CannotImmediatelyRepick = false;
+    bool opt_RevealMaps = false;
     int opt_AutoDNF = -1;
     // used during battle mode
     int opt_FinishesToWin = 1;
@@ -109,6 +110,7 @@ class TicTacGoState {
         }
         opt_EnableRecords = GetGameOptBool(game_opts, 'enable_records', false);
         opt_AutoDNF = GetGameOptInt(game_opts, 'auto_dnf', -1);
+        opt_RevealMaps = GetGameOptBool(game_opts, 'reveal_maps', false);
         mode = TTGMode(GetGameOptInt(game_opts, 'mode', int(TTGMode::Standard)));
         warn("Set mode to: " + tostring(mode));
         // mode = GetGameOptMode(game_opts);
@@ -218,6 +220,14 @@ class TicTacGoState {
         gameLog.InsertLast(TTGGameEvent_StartingPlayer(ActiveLeader, ActiveLeadersName));
         // call this to autogen the lists at game start, which is more convenient than on-demand
         auto tmp = TeamNames;
+
+        if (opt_RevealMaps) {
+            for (int col = 0; col < 3; col++) {
+                for (int row = 0; row < 3; row++) {
+                    MarkSquareKnown(col, row);
+                }
+            }
+        }
 
         state = TTGGameState::WaitingForMove;
         if (opt_FirstRoundForCenter) {
