@@ -91,6 +91,7 @@ for pluginSrc in ${pluginSources[@]}; do
     dev)
       sed -i 's/^\(name[ \t="]*\)\(.*\)"/\1\2 (Dev)"/' $_build_dest/info.toml
       sed -i 's/^#__DEFINES__/defines = ["DEV"]/' $_build_dest/info.toml
+      sed -i 's/^module = "CGF"/module = "CGFDev"/' $_build_dest/info.toml
       ;;
     prerelease)
       sed -i 's/^\(name[ \t="]*\)\(.*\)"/\1\2 (Prerelease)"/' $_build_dest/info.toml

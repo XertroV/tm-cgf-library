@@ -421,13 +421,14 @@ class TicTacGoState {
             bool moveIsClaiming = msgType == "G_TAKE_SQUARE";
             bool moveIsChallenging = msgType == "G_CHALLENGE_SQUARE";
             if (!moveIsChallenging && !moveIsClaiming) return false;
+            auto sqState = GetSquareState(col, row);
+            if (sqState.IsOwnedBy(ActiveLeader)) return false;
             if (moveIsChallenging) {
-                auto sqState = GetSquareState(col, row);
                 if (sqState.IsUnclaimed) return false;
                 return !sqState.IsOwnedBy(fromPlayer) || IsSinglePlayer;
             } else if (moveIsClaiming) {
                 print('test move claiming');
-                return GetSquareState(col, row).IsUnclaimed;
+                return sqState.IsUnclaimed;
             }
             return false;
         }
@@ -999,7 +1000,7 @@ class ChallengeResultState {
         } else if (mode == TTGMode::Standard) {
             return HasResultFor(teamUids[player][0]);
         }
-        throw("Don't call this from teams or battle mode");
+        warn("Don't call this from teams or battle mode");
         return false;
     }
 

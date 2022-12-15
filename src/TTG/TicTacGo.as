@@ -521,7 +521,7 @@ class TicTacGo : Game::Engine {
         UI::PopFont();
 
         if (clicked) log_trace('clicked');
-        if (clicked && (!ownedByMe || stateObj.IsSinglePlayer)) {
+        if (clicked && !ownedByMe) {
             if (squareOpen) {
                 TakeSquare(col, row);
             } else {
