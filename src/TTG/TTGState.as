@@ -586,6 +586,10 @@ class TicTacGoState {
 
 
 
+    void ResetLaunchMapBtnIn3s() {
+        sleep(3000);
+        disableLaunchMapBtn = false;
+    }
 
     // relative to Time::Now to avoid pause menu strats
     int challengeStartTime = -1;
@@ -610,6 +614,7 @@ class TicTacGoState {
         // join map
         challengeRunActive = true;
         LoadMapNow(MapUrl(currMap));
+        startnew(CoroutineFunc(ResetLaunchMapBtnIn3s));
         while (!CurrentlyInMap) yield();
         sleep(50);
         // wait for UI sequence to be playing
@@ -627,9 +632,18 @@ class TicTacGoState {
         while (player.StartTime < 0) yield();
         HideGameUI::opt_EnableRecords = opt_EnableRecords;
         startnew(HideGameUI::OnMapLoad);
-        // record start
+        yield();
+        yield();
+        // start of challenge
         currGameTime = GetApp().PlaygroundScript.Now;
+        // ! timer bugs sometimes on start hmm
         challengeStartTime = Time::Now + (player.StartTime - currGameTime);
+        if (challengeStartTime < Time::Now) {
+            warn("challengeStartTime is in the past; now - start = " + (int(Time::Now) - challengeStartTime) + ". setting to 1.5s in the future.");
+            // the timer should always start at -1.5s, so set it 1.5s in the future
+            challengeStartTime = Time::Now + 1500;
+        }
+
         log_info("Set challenge start time: " + challengeStartTime);
         // wait for finish timer
         int duration;
