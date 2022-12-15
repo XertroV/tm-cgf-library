@@ -622,7 +622,9 @@ class TicTacGoState {
         challengeStartTime = -1;
         currGameTime = -1;
         currPeriod = 15;
-        // set menu screen
+        // set menu screen to avoid map-loading issues.
+        MM::setMenuPage("/local");
+        yield();
         MM::setMenuPageEmpty();
         yield();
         yield();

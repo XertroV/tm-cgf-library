@@ -105,6 +105,8 @@ class TicTacGo : Game::Engine {
 
     void OnGameEnd() {
         stateObj.OnGameEnd();
+        MM::setMenuPage("/local");
+        yield();
         MM::setMenuPage("/home");
     }
 
