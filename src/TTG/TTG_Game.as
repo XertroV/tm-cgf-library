@@ -644,7 +644,6 @@ class TtgGame {
 
             Indent(2);
             UI::Text("Cannot repick: " + string(go.Get('cannot_repick', 'False')));
-
         }
     }
 
