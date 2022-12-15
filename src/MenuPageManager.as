@@ -21,6 +21,7 @@
 
 namespace MM {
     CGameUILayer@ _layer = null;
+    bool lastWasEmpty = false;
 
     CGameUILayer@ getControlLayer() {
         if (_layer is null) {
@@ -41,7 +42,12 @@ namespace MM {
      * - /solo
      */
     void setMenuPage(const string &in routeName) {
+        lastWasEmpty = routeName.EndsWith("empty");
         getControlLayer().ManialinkPage = genManialinkPushRoute(routeName);
+    }
+
+    void setMenuPageEmpty() {
+        setMenuPage("/empty");
     }
 
     void RenderMenuMain_PageControl() {

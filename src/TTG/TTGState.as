@@ -622,6 +622,10 @@ class TicTacGoState {
         challengeStartTime = -1;
         currGameTime = -1;
         currPeriod = 15;
+        // set menu screen
+        MM::setMenuPageEmpty();
+        yield();
+        yield();
         // join map
         challengeRunActive = true;
         LoadMapNow(MapUrl(currMap));

@@ -111,7 +111,7 @@ class TicTacGo : Game::Engine {
     void Render() {
         RenderForceEndMaybe();
         if (!CurrentlyInMap) {
-            if (stateObj.IsInAGame)
+            if (stateObj.IsInAGame || MM::lastWasEmpty)
                 RenderBackgroundGoneNotice();
             return;
         }
