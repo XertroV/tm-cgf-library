@@ -515,7 +515,7 @@ class TicTacGo : Game::Engine {
         bool ownedByMe = stateObj.SquareOwnedByMe(col, row);
         bool ownedByThem = stateObj.SquareOwnedByThem(col, row);
 
-        bool isDisabled = !stateObj.IsWaitingForMove || not stateObj.IsMyTurn || waitingForOwnMove || !stateObj.IAmALeader;
+        bool isDisabled = ownedByMe || !stateObj.IsWaitingForMove || not stateObj.IsMyTurn || waitingForOwnMove || !stateObj.IAmALeader;
         isDisabled = isDisabled || (stateObj.opt_CannotImmediatelyRepick && stateObj.WasPriorSquare(col, row));
 
         UI::PushFont(boardFont);
