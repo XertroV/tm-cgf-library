@@ -441,13 +441,21 @@ class TicTacGoState {
         auto pl = msg['payload'];
         int seq = pl['seq'];
         bool isReplay = seq < client.GameReplayNbMsgs;
-        // deserialize move
+
+        if (msgType.StartsWith("GM_")) {
+            ProcessGameMasterEvent(msgType, pl);
+            return;
+        }
+        if (!msgType.StartsWith("G_")) {
+            warn("Skipping non-game msg: " + msgType + "; " + Json::Write(msg));
+        }
+        // deserialize game move; all game moves have a col/row
         uint col, row;
         try {
             col = pl['col'];
             row = pl['row'];
         } catch {
-            warn("Exception processing move: " + getExceptionInfo());
+            warn("Exception processing move (col/row): " + getExceptionInfo());
             return;
         }
         auto lastFromUid = string(msg['from']['uid']);
@@ -544,6 +552,23 @@ class TicTacGoState {
         }
     }
 
+    void ProcessGameMasterEvent(const string &in type, Json::Value@ pl) {
+        if (type == "GM_PLAYER_LEFT") {
+            MovePlayerToBackOfTeam(pl['uid']);
+
+        } else if (type == "GM_PLAYER_JOINED") {
+            //
+        } else {
+            warn("Skipping GM event: " + type + "; " + Json::Write(pl));
+        }
+    }
+
+    void MovePlayerToBackOfTeam(const string &in uid) {
+        auto team = UidToTeam(uid);
+        // auto teamIx = teamUids[team].Find(uid);
+        // TeamUids[team]
+    }
+
 
     // challenges and maps
 
@@ -627,6 +652,7 @@ class TicTacGoState {
         MM::setMenuPage("/local");
         yield();
         MM::setMenuPageEmpty();
+        SetLoadingScreenText("TTG! - " + string(currMap.Get("Name", "???")));
         yield();
         yield();
         // join map

@@ -289,7 +289,8 @@ namespace Game {
                     else if (msg["type"].GetType() != Json::Type::String) warn("msg type not a string: " + Json::Write(msg));
                     else {
                         type = msg["type"];
-                        if (type.StartsWith("G_") && IsInGame) {
+                        bool gameMsg = type.StartsWith("G_") || type.StartsWith("GM_");
+                        if (gameMsg && IsInGame) {
                             gameEngine.MessageHandler(msg);
                         } else {
                             auto handlers = GetMessageHandlers(type);

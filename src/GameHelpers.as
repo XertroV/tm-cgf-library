@@ -19,3 +19,17 @@ bool CurrentlyInMap {
         return GetApp().RootMap !is null && GetApp().CurrentPlayground !is null;
     }
 }
+
+
+void SetLoadingScreenText(const string &in text) {
+    auto fm = GetApp().LoadProgress.FrameManialink;
+    if (fm is null) return;
+    if (fm.Childs.Length == 0) return;
+    auto c1 = cast<CControlFrame>(fm.Childs[0]);
+    if (c1 is null || c1.Childs.Length == 0) return;
+    auto c2 = cast<CControlFrame>(c1.Childs[0]);
+    if (c2 is null || c2.Childs.Length < 3) return;
+    auto label = cast<CControlLabel>(c2.Childs[2]);
+    if (label is null) return;
+    label.Label = text;
+}

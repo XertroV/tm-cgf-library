@@ -692,13 +692,15 @@ class TicTacGo : Game::Engine {
                 auto msg = incomingEvents[i];
                 // auto pl = msg['payload'];
                 auto fromUser = msg['from'];
-                // int seq = msg['seq'];
-                gotOwnMessage = client.clientUid == string(fromUser['uid']);
-                if (gotOwnMessage) waitingForOwnMove = false;
+                if (fromUser.GetType() == Json::Type::Object) {
+                    // int seq = msg['seq'];
+                    gotOwnMessage = client.clientUid == string(fromUser['uid']);
+                    if (gotOwnMessage) waitingForOwnMove = false;
+                }
                 // auto fromPlayer = gotOwnMessage ? IAmPlayer : TheyArePlayer;
                 // lastFrom = fromPlayer;
                 // try {
-                    stateObj.ProcessMove(msg);
+                stateObj.ProcessMove(msg);
                 // } catch {
                     // warn("Exception processing move: " + getExceptionInfo());
                     // warn("The move: " + Json::Write(msg));
