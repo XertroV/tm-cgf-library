@@ -58,7 +58,6 @@ class TicTacGoState {
     ChallengeResultState@ challengeResult = ChallengeResultState();
     TTGGameEvent@[] gameLog;
     uint turnCounter = 0;
-    protected string[][] teamNames;
 
     bool opt_EnableRecords = false;
     bool opt_FirstRoundForCenter = false;
@@ -79,7 +78,6 @@ class TicTacGoState {
         turnCounter = 0;
         gameLog.Resize(0);
         challengeResult.Reset();
-        teamNames.Resize(0);
         ActiveLeader = TTGSquareState::Unclaimed;
         MyTeamLeader = TTGSquareState::Unclaimed;
         TheirTeamLeader = TTGSquareState::Unclaimed;
@@ -159,29 +157,8 @@ class TicTacGoState {
     }
 
     const string[][]@ get_TeamNames() {
-        if (teamNames.Length == 0 && TeamUids.Length != 0) {
-            teamNames.Resize(TeamUids.Length);
-            for (uint i = 0; i < TeamUids.Length; i++) {
-                auto @team = TeamUids[i];
-                teamNames[i].Resize(team.Length);
-                for (uint p = 0; p < team.Length; p++) {
-                    auto u = GetGameInfoUser(team[p]);
-                    teamNames[i][p] = u is null ? "? Unk" : u.username;
-                }
-            }
-        }
-        return teamNames;
+        return GameInfo.TeamNames;
     }
-
-    const User@ GetGameInfoUser(const string &in uid) {
-        for (uint i = 0; i < GameInfo.players.Length; i++) {
-            User@ item = GameInfo.players[i];
-            if (uid == item.uid) return item;
-        }
-        return null;
-    }
-
-
 
     void InitGameOnStart() {
         while (GameInfo is null) {
@@ -221,8 +198,6 @@ class TicTacGoState {
             warn("Could not find opponents name.");
         }
         gameLog.InsertLast(TTGGameEvent_StartingPlayer(ActiveLeader, ActiveLeadersName));
-        // call this to autogen the lists at game start, which is more convenient than on-demand
-        auto tmp = TeamNames;
 
         if (opt_RevealMaps) {
             for (int col = 0; col < 3; col++) {
@@ -554,19 +529,15 @@ class TicTacGoState {
 
     void ProcessGameMasterEvent(const string &in type, Json::Value@ pl) {
         if (type == "GM_PLAYER_LEFT") {
-            MovePlayerToBackOfTeam(pl['uid']);
-
+            GameInfo.MovePlayerToBackOfTeam(pl['uid']);
+            MyLeadersName = TeamNames[MyTeamLeader][0];
+            OpposingLeaderName = TeamNames[TheirTeamLeader][0];
+            IAmALeader = GameInfo.teams[MyTeamLeader][0] == client.clientUid;
         } else if (type == "GM_PLAYER_JOINED") {
             //
         } else {
             warn("Skipping GM event: " + type + "; " + Json::Write(pl));
         }
-    }
-
-    void MovePlayerToBackOfTeam(const string &in uid) {
-        auto team = UidToTeam(uid);
-        // auto teamIx = teamUids[team].Find(uid);
-        // TeamUids[team]
     }
 
 
@@ -679,6 +650,10 @@ class TicTacGoState {
         yield();
         yield();
         // start of challenge
+        if (GetApp().PlaygroundScript is null) {
+            EndChallenge();
+            return;
+        }
         currGameTime = GetApp().PlaygroundScript.Now;
         // ! timer bugs sometimes on start hmm
         challengeStartTime = Time::Now + (player.StartTime - currGameTime);

@@ -3,6 +3,7 @@ class GameInfoFull {
   private array<User@> _players;
   private uint _n_game_msgs;
   private string[][] _teams;
+  private string[][] teamNames;
   private int[] _team_order;
   private array<int> _map_list;
   private string _room;
@@ -21,6 +22,7 @@ class GameInfoFull {
     this._room = room;
     this._lobby = lobby;
     @this._game_opts = game_opts;
+    InitTeamNames();
   }
 
   /* Methods // Mixin: ToFrom JSON Object */
@@ -50,6 +52,7 @@ class GameInfoFull {
     this._lobby = string(j["lobby"]);
     @this._game_opts = j["game_opts"];
     if (_game_opts.GetType() != Json::Type::Object) throw("Invalid game_opts: not an obj");
+    InitTeamNames();
   }
 
   /* Methods // Mixin: Getters */
@@ -83,6 +86,48 @@ class GameInfoFull {
 
   const Json::Value@ get_game_opts() const {
     return this._game_opts;
+  }
+
+  void MovePlayerToBackOfTeam(const string &in uid) {
+    for (uint i = 0; i < teams.Length; i++) {
+      auto ix = teams[i].Find(uid);
+      if (ix >= 0) {
+        auto pix = ix + (i == 0 ? i : teams[0].Length);
+        auto tmp = players[pix];
+        if (i == 0) _players.InsertAt(teams[0].Length, tmp);
+        else _players.InsertLast(tmp);
+        _players.RemoveAt(pix);
+        _teams[i].InsertLast(uid);
+        _teams[i].RemoveAt(ix);
+        teamNames[i].InsertLast(teamNames[i][ix]);
+        teamNames[i].RemoveAt(ix);
+        break;
+      }
+    }
+  }
+
+  protected void InitTeamNames() {
+    teamNames.Resize(teams.Length);
+    for (uint i = 0; i < teams.Length; i++) {
+      auto @team = teams[i];
+      teamNames[i].Resize(team.Length);
+      for (uint p = 0; p < team.Length; p++) {
+        auto u = GetGameInfoUser(team[p]);
+        teamNames[i][p] = u is null ? "? Unk" : u.username;
+      }
+    }
+  }
+
+  const string[][]@ get_TeamNames() {
+    return teamNames;
+  }
+
+  const User@ GetGameInfoUser(const string &in uid) {
+    for (uint i = 0; i < players.Length; i++) {
+      User@ item = players[i];
+      if (uid == item.uid) return item;
+    }
+    return null;
   }
 
   /* Methods // Mixin: ToString */
