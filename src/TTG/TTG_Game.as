@@ -628,7 +628,7 @@ class TtgGame {
         string myVersion = Meta::ExecutingPlugin().Version;
         if (hostVer != myVersion) {
             UI::AlignTextToFramePadding();
-            UI::TextWrapped("\\$fe1" + Icons::ExclamationTriangle + "  Game version mismatch. Your version: " + myVersion + " Room version: " + hostVer);
+            UI::TextWrapped("\\$fe1" + Icons::ExclamationTriangle + "  Game version mismatch. Your version: " + myVersion + ". Room version: " + hostVer + ".");
             AddSimpleTooltip("You are running a version of the game different from the person who created this room.\nYou might not be able to finish the game due to version mismatch.");
         }
         if (TtgCollapsingHeader("Game Details")) {

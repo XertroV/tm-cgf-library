@@ -623,7 +623,7 @@ class TicTacGoState {
         MM::setMenuPage("/local");
         yield();
         MM::setMenuPageEmpty();
-        SetLoadingScreenText("TTG! - " + string(currMap.Get("Name", "???")));
+        SetLoadingScreenText("TTG! - " + string(currMap.Get("Name", "???")), "Go Team " + MyLeadersName + "!");
         yield();
         yield();
         // join map

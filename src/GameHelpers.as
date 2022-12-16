@@ -21,7 +21,7 @@ bool CurrentlyInMap {
 }
 
 
-void SetLoadingScreenText(const string &in text) {
+void SetLoadingScreenText(const string &in text, const string &in secondaryText = "Initializing...") {
     auto fm = GetApp().LoadProgress.FrameManialink;
     if (fm is null) return;
     if (fm.Childs.Length == 0) return;
@@ -30,6 +30,9 @@ void SetLoadingScreenText(const string &in text) {
     auto c2 = cast<CControlFrame>(c1.Childs[0]);
     if (c2 is null || c2.Childs.Length < 3) return;
     auto label = cast<CControlLabel>(c2.Childs[2]);
+    auto secLabel = cast<CControlLabel>(c2.Childs[1]);
     if (label is null) return;
     label.Label = text;
+    if (secLabel is null) return;
+    secLabel.Label = secondaryText;
 }
