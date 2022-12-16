@@ -846,8 +846,13 @@ class ChallengeResultState {
 
     int[]@ get_TeamsCurrentScore() const {
         int[] score = {0, 0};
+        int[] count = {0, 0};
+        // if the teams aren't even, then we don't want to count more scores on the larger team
+        int maxPlayers = Math::Min(teamUids[0].Length, teamUids[1].Length);
         for (uint i = 0; i < ranking.Length; i++) {
             auto ur = ranking[i];
+            if (count[ur.team] >= maxPlayers) continue;
+            count[ur.team] += 1;
             auto points = totalUids - i;
             if (ur.time >= DNF_TEST || ur.time <= 0) continue;
             score[ur.team] += points;
@@ -855,14 +860,20 @@ class ChallengeResultState {
         return score;
     }
 
+    // if the teams are uneven, the smaller team gets the bias
     TTGSquareState get_WinnerTeams() const {
+        int teamDiff = int(teamUids[0].Length) - teamUids[1].Length;
+        bool evenTeams = teamDiff == 0;
+        TTGSquareState defaultWinner = evenTeams ? defender : (teamDiff < 0 ? TTGSquareState::Player1 : TTGSquareState::Player2);
         auto score = TeamsCurrentScore;
         if (score[0] > score[1]) {
             return TTGSquareState::Player1;
         } else if (score[1] > score[0]) {
             return TTGSquareState::Player2;
         }
-        return defender;
+        // if all players dnfd, return defenders
+        if (score[0] == 0) return defender;
+        return defaultWinner;
     }
 
     void OnNewTime(const string &in uid, const string &in name, int time, TTGSquareState team) {

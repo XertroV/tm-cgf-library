@@ -1113,10 +1113,14 @@ void UITeamsScoreBoard(ChallengeResultState@ cr, bool alwaysShowScores = false) 
         UI::Text("Points: " + winScore + " vs. " + loseScore);
     } else {
         if (UI::BeginTable("teams-score-list##"+cr.id, 3, UI::TableFlags::SizingStretchProp)) {
+            int[] count = {0, 0};
+            int maxPlayers = Math::Min(cr.teamUids[0].Length, cr.teamUids[1].Length);
             for (uint i = 0; i < cr.ranking.Length; i++) {
                 auto ur = cr.ranking[i];
+                count[ur.team]++;
                 bool didDNF = ur.time >= DNF_TEST;
                 string timeText = didDNF ? "DNF" : TimeFormat(ur.time, true, false);
+                string pointsText = didDNF ? "" : (count[ur.team] > maxPlayers ? "" : "+" + (cr.totalUids - i));
 
                 UI::PushStyleColor(UI::Col::Text, GetLightColorForTeam(ur.team));
                 UI::TableNextRow();
@@ -1125,7 +1129,7 @@ void UITeamsScoreBoard(ChallengeResultState@ cr, bool alwaysShowScores = false) 
                 UI::TableNextColumn();
                 UI::Text(timeText);
                 UI::TableNextColumn();
-                UI::Text(didDNF ? "" : "+" + (cr.totalUids - i));
+                UI::Text(pointsText);
                 UI::PopStyleColor();
             }
             UI::EndTable();
@@ -1236,14 +1240,17 @@ void RenderTeamsScoreBoard(ChallengeResultState@ cr) {
     nvg::TextAlign(nvg::Align::Top | nvg::Align::Left);
     // nvg::FillColor(vec4(1, 1, 1, 1));
     vec2 elPos;
+    int[] count = {0, 0};
+    int maxPlayers = Math::Min(cr.teamUids[0].Length, cr.teamUids[1].Length);
     for (uint i = 0; i < cr.ranking.Length; i++) {
         auto ur = cr.ranking[i];
+        count[ur.team]++;
         elPos = pos + vec2(0, elHeight * i);
-        DrawTeamsPlayerScoreEntry(ur, elPos, elSize, i, cr.totalUids);
+        DrawTeamsPlayerScoreEntry(ur, elPos, elSize, i, cr.totalUids, count[ur.team] > maxPlayers);
     }
 }
 
-void DrawTeamsPlayerScoreEntry(UidRank@ ur, vec2 elPos, vec2 elSize, int i, int nPlayers) {
+void DrawTeamsPlayerScoreEntry(UidRank@ ur, vec2 elPos, vec2 elSize, int i, int nPlayers, bool noPoints) {
     vec4 bgCol = GetDarkColorForTeam(ur.team);
     nvg::BeginPath();
     nvg::Rect(elPos, elSize);
@@ -1260,7 +1267,7 @@ void DrawTeamsPlayerScoreEntry(UidRank@ ur, vec2 elPos, vec2 elSize, int i, int 
     string timeText = didDNF ? "DNF" : TimeFormat(ur.time, true, false);
     nvg::Text(elPos + pad, ur.name);
     nvg::Text(elPos + pad + timeOffs, timeText);
-    nvg::Text(elPos + pad + pointsOff, didDNF ? "" : "+" + (nPlayers - i));
+    nvg::Text(elPos + pad + pointsOff, (didDNF || noPoints) ? "" : "+" + (nPlayers - i));
 }
 
 vec4 GetDarkColorForTeam(TTGSquareState team, float alpha = .75) {

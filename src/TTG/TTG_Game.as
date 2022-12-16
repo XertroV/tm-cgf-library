@@ -846,6 +846,7 @@ Json::Value@ DefaultTtgGameOptions() {
     go['1st_round_for_center'] = false;
     go['cannot_repick'] = false;
     go['reveal_maps'] = false;
+    go['game_version'] = Meta::ExecutingPlugin().Version;
 
     return go;
 }
