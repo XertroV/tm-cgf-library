@@ -33,4 +33,17 @@ namespace CGF {
         Lunatic = 4,
         Impossible = 5
     }
+
+    enum MapSelection {
+        RandomWithFilter, MapPack
+    }
+
+    const string MapSelectionStr(MapSelection ms) {
+        if (ms == MapSelection::RandomWithFilter) {
+            return "Random (filtered)";
+        } else if (ms == MapSelection::MapPack) {
+            return "Map Pack";
+        }
+        return "Unknown";
+    }
 }

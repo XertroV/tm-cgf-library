@@ -79,6 +79,7 @@ class TtgGame {
 
     void RenderInterface() {
         UI::PushFont(hoverUiFont);
+        UI::PushStyleColor(UI::Col::FrameBg, vec4(.2, .2, .2, 1));
         if (!hasPerms) RenderNoPerms();
         else if (client is null || client.IsAuthenticating) RenderAuthenticating();
         else if (!client.IsConnected) RenderConnecting();
@@ -93,6 +94,7 @@ class TtgGame {
         else {
             warn("Unknown client state!");
         }
+        UI::PopStyleColor();
         UI::PopFont();
     }
 
@@ -324,7 +326,9 @@ class TtgGame {
     bool m_isPublic = true;
     int m_mapMinSecs = 15;
     int m_mapMaxSecs = 45;
-    CGF::MaxDifficulty m_maxDifficulty = CGF::MaxDifficulty::Expert;
+    CGF::MaxDifficulty m_maxDifficulty = CGF::MaxDifficulty::Intermediate;
+    CGF::MapSelection m_mapsType = CGF::MapSelection::RandomWithFilter;
+    string m_mapPackID = "";
     // game stuff
     Json::Value@ gameOptions = DefaultTtgGameOptions();
     int m_opt_finishesToWin = 4;
@@ -350,8 +354,7 @@ class TtgGame {
             m_isPublic = false;
         }
 
-        DrawMapsNumMinMax();
-        DrawMapsMaxDifficulty();
+        DrawMapOptionsInput();
 
         // update modes and single player based on ticking the single player box
         if (m_singlePlayer) gameOptions['mode'] = 1;
@@ -366,11 +369,51 @@ class TtgGame {
         UI::EndDisabled();
     }
 
+    void DrawMapOptionsInput() {
+        UI::Separator();
+        UI::AlignTextToFramePadding();
+        UI::Text(Highlight(">>  Map Options:"));
+        DrawMapSelectionType();
+        if (m_mapsType == CGF::MapSelection::RandomWithFilter) {
+            DrawMapsNumMinMax();
+            DrawMapsMaxDifficulty();
+        } else if (m_mapsType == CGF::MapSelection::MapPack) {
+            DrawMapPackInput();
+        }
+    }
+
+    void DrawMapSelectionType() {
+        Indent(2);
+        UI::AlignTextToFramePadding();
+        UI::Text("Selection Type:");
+        UI::SameLine();
+        if (UI::BeginCombo("##map-selection-type", CGF::MapSelectionStr(m_mapsType))) {
+            DrawMapSelectionTypeSelectable(CGF::MapSelection::RandomWithFilter);
+            DrawMapSelectionTypeSelectable(CGF::MapSelection::MapPack);
+            UI::EndCombo();
+        }
+    }
+
+    void DrawMapSelectionTypeSelectable(CGF::MapSelection ms) {
+        if (UI::Selectable(CGF::MapSelectionStr(ms), m_mapsType == ms)) {
+            m_mapsType = ms;
+        }
+    }
+
+    void DrawMapPackInput() {
+        Indent(2);
+        UI::Text("Map Pack ID:");
+        UI::SameLine();
+        m_mapPackID = UI::InputText("##map-pack-input", m_mapPackID);
+        if (!IsIntStr(m_mapPackID)) {
+            Indent(2);
+            UI::Text("\\$fe1Invalid map pack ID (should be an integer).");
+        }
+    }
+
     void DrawMapsNumMinMax() {
         UI::AlignTextToFramePadding();
-        UI::Text("Map Constraints:");
-        UI::AlignTextToFramePadding();
-        Indent();
+        Indent(2);
         TextSameLine("Min Len (s): ");
         m_mapMinSecs = UI::InputInt("##min-len-s", m_mapMinSecs, 15);
         m_mapMinSecs = Math::Max(15, int(Math::Floor(m_mapMinSecs / 15.0)) * 15);
@@ -378,7 +421,7 @@ class TtgGame {
             m_mapMaxSecs = m_mapMinSecs;
         }
         UI::AlignTextToFramePadding();
-        Indent();
+        Indent(2);
         TextSameLine("Max Len (s): ");
         m_mapMaxSecs = UI::InputInt("##max-len-s", m_mapMaxSecs, 15);
         m_mapMaxSecs = int(Math::Ceil(m_mapMaxSecs / 15.0)) * 15;
@@ -433,97 +476,98 @@ class TtgGame {
     int m_autoDnfSecs = 30;
 
     void DrawSetGameOptions() {
+        UI::Separator();
         UI::AlignTextToFramePadding();
-        if (TtgCollapsingHeader("Game Options")) {
-            Indent(2);
-            auto currMode = TTGMode(int(gameOptions['mode']));
-            UI::AlignTextToFramePadding();
-            UI::Text("Mode:");
-            UI::SameLine();
-            if (UI::BeginCombo("##go-mode", tostring(currMode))) {
-                DrawModeSelectable(TTGMode::SinglePlayer, currMode);
-                DrawModeSelectable(TTGMode::Standard, currMode);
-                if (DrawModeSelectable(TTGMode::Teams, currMode)) {
-                    m_playerLimit = 6;
-                }
+        UI::Text(Highlight(">>  Game Options"));
+
+        Indent(2);
+        auto currMode = TTGMode(int(gameOptions['mode']));
+        UI::AlignTextToFramePadding();
+        UI::Text("Mode:");
+        UI::SameLine();
+        if (UI::BeginCombo("##go-mode", tostring(currMode))) {
+            DrawModeSelectable(TTGMode::SinglePlayer, currMode);
+            DrawModeSelectable(TTGMode::Standard, currMode);
+            if (DrawModeSelectable(TTGMode::Teams, currMode)) {
+                m_playerLimit = 6;
+            }
 // #if DEV && FALSE
-                if (DrawModeSelectable(TTGMode::BattleMode, currMode)) {
-                    m_playerLimit = 16;
-                }
+            if (DrawModeSelectable(TTGMode::BattleMode, currMode)) {
+                m_playerLimit = 16;
+            }
 // #endif
-                UI::EndCombo();
-            }
-            if (UI::IsItemHovered()) {
-                DrawModeTooltip(currMode);
-            }
-
-            if (int(currMode) > 2) {
-                // draw room size dragger
-                UI::AlignTextToFramePadding();
-                Indent(2);
-                UI::Text("Player Limit:");
-                UI::SameLine();
-                // can bump this up to 64 but lets be conservative for the moment
-                uint upperLimit = 32;
-                m_playerLimit = UI::SliderInt("##-playerlimit", m_playerLimit, 3, upperLimit);
-            }
-
-            if (currMode == TTGMode::BattleMode) {
-                // draw room size dragger
-                UI::AlignTextToFramePadding();
-                Indent(2);
-                UI::Text("N Finishes to Win:");
-                UI::SameLine();
-                m_opt_finishesToWin = UI::SliderInt("##-finishes-to-win", m_opt_finishesToWin, 1, m_playerLimit / 2);
-                m_opt_finishesToWin = Math::Min(m_playerLimit / 2, m_opt_finishesToWin);
-            }
-
-            Indent(2);
-            JsonCheckbox("Enable records?", gameOptions, "enable_records", false);
-            AddSimpleTooltip("Enable the records UI element when playing maps. (Default: disabled)");
-
-            // Indent();
-            // JsonCheckbox("Allow stealing maps?", gameOptions, "can_steal", true);
-            // AddSimpleTooltip("Even after a map is claimed, it's not safe.\nYour opponent can challenge you for any of your claimed maps, and vice versa.");
-
-            Indent(2);
-            m_AutoDnfEnabled = UI::Checkbox("Auto DNF?", m_AutoDnfEnabled);
-            AddSimpleTooltip("Players will automatically DNF after X seconds.");
-
-            if (m_AutoDnfEnabled) {
-                Indent(2);
-                UI::Text("Auto DNF Seconds: ");
-                UI::SameLine();
-                m_autoDnfSecs = UI::SliderInt("##-autodnfsecs", m_autoDnfSecs, 1, 60);
-            }
-
-            Indent(2);
-            JsonCheckbox("1st round for center square?", gameOptions, "1st_round_for_center", false);
-            AddSimpleTooltip("Instead of a random player going first, the 1st round is for the center square.\nThe winner claims it always. The loser gets the next turn.");
-
-            Indent(2);
-            JsonCheckbox("Cannot pick last round's square?", gameOptions, "cannot_repick", false);
-            AddSimpleTooltip("When a square is successfully claimed/challenged,\nit cannot be immediately re-challenged.");
-
-            Indent(2);
-            JsonCheckbox("Reveal maps?", gameOptions, "reveal_maps", false);
-            AddSimpleTooltip("Instead of maps being hidden, you can\nsee every map from the start of the game.");
-
-            // todo, remember to add to draw function & default opts
-
-            // Indent(2);
-            // JsonCheckbox("Alternate turn sequence?", gameOptions, "alt_turn_sequence", false);
-            // AddSimpleTooltip("Each team takes 2 turns instead of 1. e.g., 1,1,2,2,...");
-
-            // Indent(2);
-            // JsonCheckbox("", gameOptions, "alt_turn_sequence", false);
-            // AddSimpleTooltip("Each team takes 2 turns instead of 1. e.g., 1,1,2,2,...");
-
-            // hmm, think we need to add game-mode stuff for this.
-            // Indent();
-            // JsonCheckbox("Give-up = DNF?", gameOptions, "give_up_is_dnf", false);
-            // AddSimpleTooltip("");
+            UI::EndCombo();
         }
+        if (UI::IsItemHovered()) {
+            DrawModeTooltip(currMode);
+        }
+
+        if (int(currMode) > 2) {
+            // draw room size dragger
+            UI::AlignTextToFramePadding();
+            Indent(2);
+            UI::Text("Player Limit:");
+            UI::SameLine();
+            // can bump this up to 64 but lets be conservative for the moment
+            uint upperLimit = 32;
+            m_playerLimit = UI::SliderInt("##-playerlimit", m_playerLimit, 3, upperLimit);
+        }
+
+        if (currMode == TTGMode::BattleMode) {
+            // draw room size dragger
+            UI::AlignTextToFramePadding();
+            Indent(2);
+            UI::Text("N Finishes to Win:");
+            UI::SameLine();
+            m_opt_finishesToWin = UI::SliderInt("##-finishes-to-win", m_opt_finishesToWin, 1, m_playerLimit / 2);
+            m_opt_finishesToWin = Math::Min(m_playerLimit / 2, m_opt_finishesToWin);
+        }
+
+        Indent(2);
+        JsonCheckbox("Enable records?", gameOptions, "enable_records", false);
+        AddSimpleTooltip("Enable the records UI element when playing maps. (Default: disabled)");
+
+        // Indent();
+        // JsonCheckbox("Allow stealing maps?", gameOptions, "can_steal", true);
+        // AddSimpleTooltip("Even after a map is claimed, it's not safe.\nYour opponent can challenge you for any of your claimed maps, and vice versa.");
+
+        Indent(2);
+        m_AutoDnfEnabled = UI::Checkbox("Auto DNF?", m_AutoDnfEnabled);
+        AddSimpleTooltip("Players will automatically DNF after X seconds.");
+
+        if (m_AutoDnfEnabled) {
+            Indent(2);
+            UI::Text("Auto DNF Seconds: ");
+            UI::SameLine();
+            m_autoDnfSecs = UI::SliderInt("##-autodnfsecs", m_autoDnfSecs, 1, 60);
+        }
+
+        Indent(2);
+        JsonCheckbox("1st round for center square?", gameOptions, "1st_round_for_center", false);
+        AddSimpleTooltip("Instead of a random player going first, the 1st round is for the center square.\nThe winner claims it always. The loser gets the next turn.");
+
+        Indent(2);
+        JsonCheckbox("Cannot pick last round's square?", gameOptions, "cannot_repick", false);
+        AddSimpleTooltip("When a square is successfully claimed/challenged,\nit cannot be immediately re-challenged.");
+
+        Indent(2);
+        JsonCheckbox("Reveal maps?", gameOptions, "reveal_maps", false);
+        AddSimpleTooltip("Instead of maps being hidden, you can\nsee every map from the start of the game.");
+
+        // todo, remember to add to draw function & default opts
+
+        // Indent(2);
+        // JsonCheckbox("Alternate turn sequence?", gameOptions, "alt_turn_sequence", false);
+        // AddSimpleTooltip("Each team takes 2 turns instead of 1. e.g., 1,1,2,2,...");
+
+        // Indent(2);
+        // JsonCheckbox("", gameOptions, "alt_turn_sequence", false);
+        // AddSimpleTooltip("Each team takes 2 turns instead of 1. e.g., 1,1,2,2,...");
+
+        // hmm, think we need to add game-mode stuff for this.
+        // Indent();
+        // JsonCheckbox("Give-up = DNF?", gameOptions, "give_up_is_dnf", false);
+        // AddSimpleTooltip("");
     }
 
     const string ModeDescription(TTGMode mode) {
@@ -558,6 +602,14 @@ class TtgGame {
         pl['max_difficulty'] = int(m_maxDifficulty);
         pl['game_opts'] = gameOptions;
         auto vis = (m_isPublic && !singlePlayer) ? CGF::Visibility::global : CGF::Visibility::none;
+
+
+        if (m_mapsType == CGF::MapSelection::MapPack) {
+            pl['map_pack'] = Text::ParseInt(m_mapPackID);
+        } else if (pl.HasKey('map_pack')) {
+            pl.Remove('map_pack');
+        }
+
 
         if (singlePlayer) {
             pl['n_teams'] = 1;
@@ -633,7 +685,11 @@ class TtgGame {
         }
         if (TtgCollapsingHeader("Game Details")) {
             Indent(2);
-            UI::Text("Maps: between " + roomInfo.min_secs + " and " + roomInfo.max_secs + " s long, and a maximum difficulty of " + roomInfo.max_difficulty + ".");
+            if (roomInfo.map_pack < 0) {
+                UI::Text("Maps: between " + roomInfo.min_secs + " and " + roomInfo.max_secs + " s long, and a maximum difficulty of " + roomInfo.max_difficulty + ".");
+            } else {
+                UI::Text("Maps: from Map Pack #" + roomInfo.map_pack);
+            }
             auto go = roomInfo.game_opts;
             auto currMode = TTGMode(Text::ParseInt(go['mode']));
             Indent(2);

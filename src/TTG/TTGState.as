@@ -531,7 +531,7 @@ class TicTacGoState {
         if (type == "GM_PLAYER_LEFT") {
             GameInfo.MovePlayerToBackOfTeam(pl['uid']);
             MyLeadersName = TeamNames[MyTeamLeader][0];
-            OpposingLeaderName = TeamNames[TheirTeamLeader][0];
+            OpposingLeaderName = IsSinglePlayer ? MyLeadersName : TeamNames[TheirTeamLeader][0];
             IAmALeader = GameInfo.teams[MyTeamLeader][0] == client.clientUid;
         } else if (type == "GM_PLAYER_JOINED") {
             //
@@ -657,7 +657,7 @@ class TicTacGoState {
         currGameTime = GetApp().PlaygroundScript.Now;
         // ! timer bugs sometimes on start hmm
         challengeStartTime = Time::Now + (player.StartTime - currGameTime);
-        if (challengeStartTime < Time::Now) {
+        if (challengeStartTime < int(Time::Now)) {
             warn("challengeStartTime is in the past; now - start = " + (int(Time::Now) - challengeStartTime) + ". setting to 1.5s in the future.");
             // the timer should always start at -1.5s, so set it 1.5s in the future
             challengeStartTime = Time::Now + 1500;

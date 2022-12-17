@@ -13,6 +13,7 @@ namespace Game {
         None, NotStarted, StartingSoon, Started
     }
 
+
     class Client : CGF::Client {
         Net::Socket@ socket = Net::Socket();
         string host;
@@ -147,6 +148,7 @@ namespace Game {
         }
 
         void GetAuthToken() {
+            dev_logcall("GetAuthToken", "getting new token...");
             // set the request time at start of request, and at end too
             tokenRequestTime = Time::Now;
             state = ClientState::Authenticating;
@@ -216,7 +218,7 @@ namespace Game {
         void Reconnect(uint timeout = 5000) {
             if (!IsDisconnected && !IsTimedOut) return;
             warn("Attempting reconnect...");
-            if (Time::Now - tokenRequestTime > (60 * 1000))
+            if (!(S_LocalDev || S_LegacyAuth) && Time::Now - tokenRequestTime > (60 * 1000))
                 GetAuthToken();
             Connect(timeout);
         }

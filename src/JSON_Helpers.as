@@ -58,3 +58,8 @@ int GetGameOptInt(const Json::Value@ opts, const string &in key, int def) {
         return def;
     }
 }
+
+
+bool IsIntStr(const string &in text) {
+    return Regex::IsMatch(text, "^[0-9]+$");
+}

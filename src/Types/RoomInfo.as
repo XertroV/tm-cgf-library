@@ -12,6 +12,7 @@ class RoomInfo {
   private uint _max_secs;
   private string _max_difficulty;
   private float _game_start_time;
+  private int _map_pack;
   private bool _started;
   // note: game_opts will always be a mapping of string => string
   private const Json::Value@ _game_opts;
@@ -23,7 +24,8 @@ class RoomInfo {
     MaybeOfString@ join_code, bool is_public, uint ready_count,
     uint n_maps, uint min_secs, uint max_secs, float game_start_time, bool started,
     const string &in max_difficulty,
-    Json::Value@ game_opts
+    Json::Value@ game_opts,
+    int map_pack = -1
   ) {
     this._name = name;
     this._n_teams = n_teams;
@@ -36,6 +38,7 @@ class RoomInfo {
     this._min_secs = min_secs;
     this._max_secs = max_secs;
     this._max_difficulty = max_difficulty;
+    this._map_pack = map_pack;
     this._game_start_time = game_start_time;
     this._started = started;
     @this._game_opts = game_opts;
@@ -54,6 +57,8 @@ class RoomInfo {
     this._min_secs = uint(j["min_secs"]);
     this._max_secs = uint(j["max_secs"]);
     this._max_difficulty = string(j.Get("max_difficulty", "Unknown (bug)"));
+    auto tmpMapPack = j['map_pack'];
+    this._map_pack = tmpMapPack.GetType() == Json::Type::Null ? -1 : int(tmpMapPack);
     this._game_start_time = float(j["game_start_time"]);
     this._started = bool(j["started"]);
     this.maps_loaded = bool(j.Get("maps_loaded", false));
@@ -74,6 +79,7 @@ class RoomInfo {
     j["min_secs"] = _min_secs;
     j["max_secs"] = _max_secs;
     j["max_difficulty"] = _max_difficulty;
+    j["map_pack"] = _map_pack >= 0 ? Json::Value(_map_pack) : Json::Value();
     j["game_opts"] = _game_opts;
     j["game_start_time"] = _game_start_time;
     j["maps_loaded"] = this.maps_loaded;
@@ -141,6 +147,10 @@ class RoomInfo {
 
   bool get_started() const {
     return this._started;
+  }
+
+  int get_map_pack() const {
+    return this._map_pack;
   }
 
   /**
