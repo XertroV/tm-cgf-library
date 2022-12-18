@@ -361,12 +361,16 @@ class TtgGame {
         DrawSetGameOptions();
         if (m_singlePlayer && int(gameOptions['mode']) != 1) m_singlePlayer = false;
 
+        UI::Separator();
+
+        UI::PushFont(mapUiFont);
         UI::BeginDisabled(Time::Now < createRoomTimeout);
         if (UI::Button("Create Room")) {
             createRoomTimeout = Time::Now + ROOM_TIMEOUT_MS;
             CreateRoom();
         }
         UI::EndDisabled();
+        UI::PopFont();
     }
 
     void DrawMapOptionsInput() {
@@ -431,7 +435,7 @@ class TtgGame {
     }
 
     void DrawMapsMaxDifficulty() {
-        Indent();
+        Indent(2);
         UI::AlignTextToFramePadding();
         TextSameLine("Maximum Difficulty: ");
         if (UI::BeginCombo("##max-difficulty", tostring(m_maxDifficulty))) {
