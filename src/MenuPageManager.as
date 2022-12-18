@@ -1,26 +1,6 @@
-
-// void TestFunc() {
-//     auto mm = cast<CTrackMania>(GetApp()).MenuManager;
-//     // auto scriptHandler = mm.ManialinkScriptHandlerMenus;
-//     auto layer = mm.MenuCustom_CurrentManiaApp.UILayerCreate();
-//     yield();
-//     layer.AttachId = "ChangeMenuScreen";
-//     layer.ManialinkPage = """
-// <manialink name="CGF_AvoidHomePage" version="3">
-// <script><!--
-
-// main() {
-//   yield;
-//   SendCustomEvent("Router_Push", ["/local", "{}", "{}"]);
-// }
-
-// --></script>
-// </manialink>
-//     """;
-// }
-
 namespace MM {
     CGameUILayer@ _layer = null;
+    // CGameUILayer@ menuBackground = null;q
     bool lastWasEmpty = false;
 
     CGameUILayer@ getControlLayer() {
@@ -31,6 +11,40 @@ namespace MM {
         }
         return _layer;
     }
+
+    // CGameUILayer@ getMenuPageNamed(const string &in name) {
+    //     try {
+    //         auto mc = cast<CGameManiaPlanet>(GetApp()).MenuManager.MenuCustom_CurrentManiaApp;
+    //         for (uint i = 0; i < mc.UILayers.Length; i++) {
+    //             auto item = mc.UILayers[i];
+    //             if (item.ManialinkPage.SubStr(0, 100).Contains('name="' + name + '"')) {
+    //                 return item;
+    //             }
+    //         }
+    //     } catch {}
+    //     return null;
+    // }
+
+    // CGameUILayer@ getMenuBackgroundLayer() {
+    //     if (menuBackground is null) {
+    //         @menuBackground = getMenuPageNamed('Overlay_MenuBackground');
+    //     }
+    //     return menuBackground;
+    // }
+
+    // void hideMenu3dScene() {
+    //     auto l = getMenuBackgroundLayer();
+    //     auto frame = l.LocalPage.GetFirstChild("HomeBackground_frame-global");
+    //     if (frame is null) return;
+    //     auto control = cast<CControlFrame>(frame.Control);
+    //     if (control is null) return;
+    //     if (control.Childs.Length < 3) return;
+    //     auto cf1 = cast<CControlFrame>(control.Childs[2]);
+    //     if (cf1 is null || cf1.Childs.Length < 4) return;
+    //     auto controlCamera = cast<CControlCamera>(cf1.Childs[3]);
+    //     if (controlCamera is null) return;
+    //     controlCamera.
+    // }
 
     /**
      * Set the menu page. Setting a nonexistant route will result in an empty screen (with only the BG showing), but otherwise works fine.

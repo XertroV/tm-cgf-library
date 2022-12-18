@@ -578,6 +578,7 @@ class TicTacGoState {
     }
 
     Json::Value@ GetMap(int col, int row) {
+        // todo: still an issue with getting maps early?
         int mapIx = row * 3 + col;
         if (mapIx >= int(client.mapsList.Length)) {
             warn('bad map index'+ col + ", " + row);

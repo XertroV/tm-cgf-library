@@ -543,11 +543,11 @@ class TtgGame {
         }
 
         Indent(2);
-        JsonCheckbox("1st round for center square?", gameOptions, "1st_round_for_center", false);
+        JsonCheckbox("1st round for center square?", gameOptions, "1st_round_for_center", true);
         AddSimpleTooltip("Instead of a random player going first, the 1st round is for the center square.\nThe winner claims it always. The loser gets the next turn.");
 
         Indent(2);
-        JsonCheckbox("Cannot pick last round's square?", gameOptions, "cannot_repick", false);
+        JsonCheckbox("Cannot pick last round's square?", gameOptions, "cannot_repick", true);
         AddSimpleTooltip("When a square is successfully claimed/challenged,\nit cannot be immediately re-challenged.");
 
         Indent(2);
@@ -906,8 +906,8 @@ Json::Value@ DefaultTtgGameOptions() {
     go['mode'] = int(TTGMode::Standard);
     go['enable_records'] = false;
     go['auto_dnf'] = -1;
-    go['1st_round_for_center'] = false;
-    go['cannot_repick'] = false;
+    go['1st_round_for_center'] = true;
+    go['cannot_repick'] = true;
     go['reveal_maps'] = false;
     go['game_version'] = Meta::ExecutingPlugin().Version;
 

@@ -7,7 +7,11 @@ void Main() {
     // startnew(Debug::Main);
     sleep(100);
     OnSettingsChanged();
+    // while (MM::getMenuBackgroundLayer() is null) {
+    //     sleep(50);
+    // }
 #if DEV || UNIT_TEST
+    sleep(50);
     startnew(TestScoring);
 #endif
 }
