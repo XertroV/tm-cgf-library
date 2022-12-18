@@ -667,46 +667,53 @@ class TicTacGoState {
         log_info("Set challenge start time: " + challengeStartTime);
         // wait for finish timer
         int duration;
-        while (uiConfig is null || uiConfig.UISequence != CGamePlaygroundUIConfig::EUISequence::Finish) {
-            duration = Time::Now - challengeStartTime;
-            auto oppTime = challengeResult.ranking.Length > 0 ? challengeResult.ranking[0].time : DNF_TIME;
-            auto timeLeft = oppTime + opt_AutoDNF_ms - duration;
-            bool shouldDnf = opt_AutoDNF_ms > 0 && timeLeft <= 0;
+        bool hasFinished = false;
+        while (true) {
+            if (!hasFinished && uiConfig.UISequence == CGamePlaygroundUIConfig::EUISequence::Finish) {
+                hasFinished = true;
+                // we over measure if we set the end time here, and under measure if we use what was set earlier.
+                // so use last time plus the period. add to end time so GUI updates
+                // ! note: we could use better methods for calculating duration (MLFeed is an example), but the goal here is something simple, reasonably robust, and *light*. Dependancies can be added per-plugin based on that game's requirements. We don't really need that sort of accuracy here.
+                challengeEndTime += currPeriod;
+                duration = challengeEndTime - challengeStartTime;
+                // report result
+                ReportChallengeResult(duration);
+            }
+            int oppTime = 0;
+            int timeLeft = DNF_TEST;
+            bool shouldDnf = false;
+            if (!hasFinished) {
+                duration = Time::Now - challengeStartTime;
+                oppTime = challengeResult.ranking.Length > 0 ? challengeResult.ranking[0].time : DNF_TIME;
+                timeLeft = oppTime + opt_AutoDNF_ms - duration;
+                shouldDnf = opt_AutoDNF_ms > 0 && timeLeft <= 0;
+            }
             // if the challenge is resolved (e.g., via force ending) then we want to exit out
-            // also if we already have a result
-            shouldExitChallenge = challengeResult.IsResolved || challengeResult.HasResultFor(client.clientUid);
+            // ~~also if we already have a result~~ leave players in the map while other ppl haven't finished yet
+            shouldExitChallenge = challengeResult.IsResolved;
             if (shouldDnf || shouldExitChallenge || GetApp().PlaygroundScript is null || uiConfig is null) {
                 log_trace('should dnf, or exit, or player already did.');
                 if (shouldDnf) {
                     log_warn("shouldDnf. time left: " + timeLeft + "; oppTime: " + oppTime + ", duration=" + duration);
                 }
                 // don't report a time if the challenge is resolved b/c it's an invalid move
-                if (!shouldExitChallenge)
+                if (!shouldExitChallenge && !hasFinished)
                     ReportChallengeResult(DNF_TIME); // more than 24 hrs, just
                 // if we are still in the map we want to let hte user know before we exit
                 if (shouldExitChallenge) {
                     shouldExitChallengeTime = Time::Now + 3000;
                     AwaitShouldExitTimeOrMapLeft();
-                    // sleep(3000);
                 }
                 // player quit (or auto DNF)
                 warn("Map left. Either: player quit, autodnf, or challenge resolved");
-                EndChallenge();
-                return;
+                break;
             }
             currGameTime = GetApp().PlaygroundScript.Now;
-            challengeEndTime = Time::Now;
+            if (!hasFinished)
+                challengeEndTime = Time::Now;
             currPeriod = GetApp().PlaygroundScript.Period;
             yield();
         }
-        // we over measure if we set the end time here, and under measure if we use what was set earlier.
-        // so use last time plus the period. add to end time so GUI updates
-        // ! note: we could use better methods for calculating duration (MLFeed is an example), but the goal here is something simple, reasonably robust, and *light*. Dependancies can be added per-plugin based on that game's requirements. We don't really need that sort of accuracy here.
-        challengeEndTime += currPeriod;
-        duration = challengeEndTime - challengeStartTime;
-        // report result
-        ReportChallengeResult(duration);
-        sleep(3000);
         EndChallenge();
     }
 
