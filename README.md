@@ -6,7 +6,7 @@ Authors: XertroV
 
 Suggestions/feedback: @XertroV on Openplanet discord
 
-Code/issues: [https://github.com/XertroV/tm-cotd-buffer-time](https://github.com/XertroV/tm-cotd-buffer-time)
+Code/issues: [https://github.com/XertroV/tm-cgf-library](https://github.com/XertroV/tm-cgf-library)
 
 GL HF
 

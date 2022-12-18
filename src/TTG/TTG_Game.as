@@ -33,7 +33,8 @@ class TtgGame {
         while (!IsShutdown && !client.IsLoggedIn) yield();
         yield();
         yield();
-        if (!IsShutdown && client.IsMainLobby) {
+        if (IsShutdown) return;
+        if (client.IsMainLobby) {
             client.JoinLobby("TicTacGo");
             startnew(CoroutineFunc(CheckLobbySoon));
         }

@@ -20,7 +20,10 @@ void Main() {
 void OnDestroyed() { _Unload(); }
 void OnDisabled() { _Unload(); }
 void _Unload() {
-    // if (c1 !is null) c1.socket.Close();
+    // if the last page was the empty page, then go back to a known good page.
+    if (MM::lastWasEmpty) {
+        MM::setMenuPage("/local");
+    }
 }
 
 void Render() {
@@ -78,7 +81,7 @@ void NotifyError(const string &in msg) {
 
 void NotifyWarning(const string &in msg) {
     warn(msg);
-    UI::ShowNotification(Meta::ExecutingPlugin().Name + ": Error", msg, vec4(.9, .6, .2, .3), 15000);
+    UI::ShowNotification(Meta::ExecutingPlugin().Name + ": Warning", msg, vec4(.9, .6, .2, .3), 15000);
 }
 
 void NotifyInfo(const string &in msg) {
