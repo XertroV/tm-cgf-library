@@ -1,3 +1,5 @@
 MinimalCrash.as
 *.bak
 *.zip
+.*.md
+*.json

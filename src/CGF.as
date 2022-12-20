@@ -52,6 +52,7 @@ namespace Game {
         RoomInfo@ roomInfo;
         GameInfoFull@ gameInfoFull;
         Json::Value@ mapsList;
+        string LastRoomPreparationStatus;
 
         Scope currScope = Scope::MainLobby;
         Scope priorScope = Scope::MainLobby;
@@ -104,6 +105,9 @@ namespace Game {
             AddMessageHandler("PLAYER_READY", CGF::MessageHandler(MsgHandler_ReadyEvent));
             AddMessageHandler("LIST_READY_STATUS", CGF::MessageHandler(MsgHandler_ReadyEvent));
             AddMessageHandler("MAPS_LOADED", CGF::MessageHandler(MsgHandler_MapsLoaded));
+            AddMessageHandler("PREPARATION_STATUS", CGF::MessageHandler(MsgHandler_PreparationStatus));
+            AddMessageHandler("SERVER_JOIN_LINK", CGF::MessageHandler(MsgHandler_ServerJoinLink));
+            AddMessageHandler("ENSURE_MAPS_NADEO", CGF::MessageHandler(MsgHandler_EnsureMapsNadeo));
 
             AddMessageHandler("GAME_STARTING_AT", CGF::MessageHandler(MsgHandler_GameStartHandler));
             AddMessageHandler("GAME_START_ABORT", CGF::MessageHandler(MsgHandler_GameStartHandler));
@@ -135,10 +139,16 @@ namespace Game {
         void Initialize() {
             if (!S_LocalDev)
                 GetAuthToken();
+            int reconnectCounter = 0;
             Connect();
             while (!IsConnected) {
-                warn("Attempting reconnect during init in 1s");
+                reconnectCounter++;
+                warn("Attempting reconnect during init in 1s (" + reconnectCounter + ")");
                 sleep(1000);
+                if (IsDoNotReconnect || IsShutdown || reconnectCounter > 10) {
+                    warn("Exiting reconnect loop due to: IsDoNotReconnect || IsShutdown || reconnectCounter > 10");
+                    return;
+                }
                 Connect();
             }
             if (IsConnected) {
@@ -774,6 +784,25 @@ namespace Game {
             return true;
         }
 
+        bool MsgHandler_PreparationStatus(Json::Value@ j) {
+            if (j['payload'].Get('error', false)) {
+                LastRoomPreparationStatus = "\\$fe1" + Icons::ExclamationTriangle + "  " + string(j['payload']['msg']);
+            } else {
+                LastRoomPreparationStatus = j['payload']['msg'];
+            }
+            return true;
+        }
+
+        bool MsgHandler_ServerJoinLink(Json::Value@ j) {
+            roomInfo.join_link = j['payload']['join_link'];
+            return true;
+        }
+
+        bool MsgHandler_EnsureMapsNadeo(Json::Value@ j) {
+            EnsureMapsHelper(j['payload']['map_tids_uids']);
+            return true;
+        }
+
         bool MsgHandler_ReadyEvent(Json::Value@ j) {
             string type = j['type'];
             if (type == "LIST_READY_STATUS") {
@@ -1074,8 +1103,7 @@ namespace Game {
 
         CGF_Texture@ DownloadThumbnail(const string &in url) {
             logcall("DownloadThumbnail", "Starting Download: " + url);
-            auto r = Net::HttpGet(url);
-            r.Headers['User-Agent'] = "TM_Plugin:CommunityGameFramework/contact:@XertroV";
+            auto r = PluginGetRequest(url);
             r.Start();
             while (!r.Finished()) yield();
             if (r.ResponseCode() >= 300) {

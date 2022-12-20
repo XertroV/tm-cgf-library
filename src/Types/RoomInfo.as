@@ -14,6 +14,8 @@ class RoomInfo {
   private float _game_start_time;
   private int _map_pack;
   private bool _started;
+  private bool _use_club_room;
+  private string _join_link;
   // note: game_opts will always be a mapping of string => string
   private const Json::Value@ _game_opts;
   bool maps_loaded = false;
@@ -25,7 +27,8 @@ class RoomInfo {
     uint n_maps, uint min_secs, uint max_secs, float game_start_time, bool started,
     const string &in max_difficulty,
     Json::Value@ game_opts,
-    int map_pack = -1
+    int map_pack = -1, bool use_club_room = false,
+    const string &in join_link = ""
   ) {
     this._name = name;
     this._n_teams = n_teams;
@@ -41,6 +44,8 @@ class RoomInfo {
     this._map_pack = map_pack;
     this._game_start_time = game_start_time;
     this._started = started;
+    this._use_club_room = use_club_room;
+    this._join_link = join_link;
     @this._game_opts = game_opts;
   }
 
@@ -62,35 +67,37 @@ class RoomInfo {
     this._game_start_time = float(j["game_start_time"]);
     this._started = bool(j["started"]);
     this.maps_loaded = bool(j.Get("maps_loaded", false));
+    this._use_club_room = bool(j.Get("use_club_room", false));
+    this._join_link = string(j.Get("cr_join_link", ""));
     @this._game_opts = j["game_opts"];
     if (_game_opts.GetType() != Json::Type::Object) throw("Invalid game_opts: not an obj");
   }
 
-  Json::Value@ ToJson() {
-    Json::Value@ j = Json::Object();
-    j["name"] = _name;
-    j["n_teams"] = _n_teams;
-    j["n_players"] = _n_players;
-    j["player_limit"] = _player_limit;
-    j["join_code"] = _join_code.ToJson();
-    j["is_public"] = _is_public;
-    j["ready_count"] = _ready_count;
-    j["n_maps"] = _n_maps;
-    j["min_secs"] = _min_secs;
-    j["max_secs"] = _max_secs;
-    j["max_difficulty"] = _max_difficulty;
-    j["map_pack"] = _map_pack >= 0 ? Json::Value(_map_pack) : Json::Value();
-    j["game_opts"] = _game_opts;
-    j["game_start_time"] = _game_start_time;
-    j["maps_loaded"] = this.maps_loaded;
-    j["started"] = _started;
-    return j;
-  }
+  // Json::Value@ ToJson() {
+  //   Json::Value@ j = Json::Object();
+  //   j["name"] = _name;
+  //   j["n_teams"] = _n_teams;
+  //   j["n_players"] = _n_players;
+  //   j["player_limit"] = _player_limit;
+  //   j["join_code"] = _join_code.ToJson();
+  //   j["is_public"] = _is_public;
+  //   j["ready_count"] = _ready_count;
+  //   j["n_maps"] = _n_maps;
+  //   j["min_secs"] = _min_secs;
+  //   j["max_secs"] = _max_secs;
+  //   j["max_difficulty"] = _max_difficulty;
+  //   j["map_pack"] = _map_pack >= 0 ? Json::Value(_map_pack) : Json::Value();
+  //   j["game_opts"] = _game_opts;
+  //   j["game_start_time"] = _game_start_time;
+  //   j["maps_loaded"] = this.maps_loaded;
+  //   j["started"] = _started;
+  //   return j;
+  // }
 
-  void OnFromJsonError(const Json::Value@ j) const {
-    warn('Parsing json failed: ' + Json::Write(j));
-    throw('Failed to parse JSON: ' + getExceptionInfo());
-  }
+  // void OnFromJsonError(const Json::Value@ j) const {
+  //   warn('Parsing json failed: ' + Json::Write(j));
+  //   throw('Failed to parse JSON: ' + getExceptionInfo());
+  // }
 
   /* Methods // Mixin: Getters */
   const string get_name() const {
@@ -151,6 +158,18 @@ class RoomInfo {
 
   int get_map_pack() const {
     return this._map_pack;
+  }
+
+  bool get_use_club_room() const {
+    return this._use_club_room;
+  }
+
+  const string get_join_link() const {
+    return this._join_link;
+  }
+
+  void set_join_link(const string &in value) {
+    this._join_link = value;
   }
 
   /**

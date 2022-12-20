@@ -27,25 +27,25 @@ class LobbyInfo {
     }
   }
 
-  Json::Value@ ToJson() {
-    Json::Value@ j = Json::Object();
-    j["name"] = _name;
-    j["n_clients"] = _n_clients;
-    j["n_rooms"] = _n_rooms;
-    j["n_public_rooms"] = _n_public_rooms;
-    Json::Value@ _tmp_rooms = Json::Array();
-    for (uint i = 0; i < _rooms.Length; i++) {
-      auto v = _rooms[i];
-      _tmp_rooms.Add(v.ToJson());
-    }
-    j["rooms"] = _tmp_rooms;
-    return j;
-  }
+  // Json::Value@ ToJson() {
+  //   Json::Value@ j = Json::Object();
+  //   j["name"] = _name;
+  //   j["n_clients"] = _n_clients;
+  //   j["n_rooms"] = _n_rooms;
+  //   j["n_public_rooms"] = _n_public_rooms;
+  //   Json::Value@ _tmp_rooms = Json::Array();
+  //   for (uint i = 0; i < _rooms.Length; i++) {
+  //     auto v = _rooms[i];
+  //     _tmp_rooms.Add(v.ToJson());
+  //   }
+  //   j["rooms"] = _tmp_rooms;
+  //   return j;
+  // }
 
-  void OnFromJsonError(const Json::Value@ j) const {
-    warn('Parsing json failed: ' + Json::Write(j));
-    throw('Failed to parse JSON: ' + getExceptionInfo());
-  }
+  // void OnFromJsonError(const Json::Value@ j) const {
+  //   warn('Parsing json failed: ' + Json::Write(j));
+  //   throw('Failed to parse JSON: ' + getExceptionInfo());
+  // }
 
   /* Methods // Mixin: Getters */
   const string get_name() const {

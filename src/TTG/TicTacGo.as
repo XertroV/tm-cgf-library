@@ -1282,7 +1282,7 @@ void RenderTeamsScoreBoard(ChallengeResultState@ cr) {
     int[] count = {0, 0};
     int maxPlayers = Math::Min(cr.teamUids[0].Length, cr.teamUids[1].Length);
     int nRanked = cr.ranking.Length;
-    for (uint i = 0; i < nRanked; i++) {
+    for (int i = 0; i < nRanked; i++) {
         auto ur = cr.ranking[i];
         count[ur.team]++;
         DrawTeamsPlayerScoreEntry(ur.team, ur.name, ur.time, elPos, elSize, i, cr.totalUids, count[ur.team] > maxPlayers);

@@ -13,6 +13,7 @@ void Main() {
 #if DEV || UNIT_TEST
     sleep(50);
     startnew(TestScoring);
+    startnew(MapUploadTest);
 #endif
 }
 
