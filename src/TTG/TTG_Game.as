@@ -83,6 +83,7 @@ class TtgGame {
         UI::PushStyleColor(UI::Col::FrameBg, vec4(.2, .2, .2, 1));
         if (!hasPerms) RenderNoPerms();
         else if (client is null || client.IsAuthenticating) RenderAuthenticating();
+        else if (client.IsAuthError) RenderAuthError();
         else if (!client.IsConnected) RenderConnecting();
         else if (!client.IsLoggedIn) RenderLoggingIn();
         else if (client.IsMainLobby) RenderJoiningGameLobby();
@@ -132,16 +133,20 @@ class TtgGame {
         UI::End();
     }
 
-    void RenderLoadingScreen(const string &in loadingMsg) {
+    void RenderLoadingScreen(const string &in loadingMsg, bool flatline = false) {
         if (BeginMainWindow()) {
             DrawCenteredText(loadingMsg);
         }
         UI::End();
-        RenderHeartbeatPulse(lobbyWindowPos + lobbyWindowSize / 2., lobbyWindowSize / 2.);
+        RenderHeartbeatPulse(lobbyWindowPos + lobbyWindowSize / 2., lobbyWindowSize / 2. * vec2(1, flatline ? 0.0001 : 1.));
     }
 
     void RenderAuthenticating() {
         RenderLoadingScreen(Icons::Heartbeat + "  Authenticating... (~3s)");
+    }
+
+    void RenderAuthError() {
+        RenderLoadingScreen(Icons::Heartbeat + "  Authentication Error.\nTry restarting the plugin.", true);
     }
 
     void RenderConnecting() {

@@ -6,7 +6,7 @@ namespace Game {
     }
 
     enum ClientState {
-        Uninitialized, Authenticating, Connecting, Connected, Disconnected, DoNotReconnect, TimedOut, Shutdown
+        Uninitialized, Authenticating, Connecting, Connected, Disconnected, DoNotReconnect, TimedOut, Shutdown, AuthError
     }
 
     enum GameState {
@@ -170,6 +170,11 @@ namespace Game {
             @tokenTask = Auth::GetToken();
             while (!tokenTask.Finished()) yield();
             g_token = tokenTask.Token();
+            if (g_token.Length == 0) {
+                NotifyError("Could not authenticate with Openplanet. Try restarting the plugin.");
+                state = ClientState::AuthError;
+                throw("Exception getting auth token.");
+            }
             trace_dev("Token: " + g_token);
             tokenRequestTime = Time::Now;
 	    }
@@ -229,6 +234,7 @@ namespace Game {
         bool get_IsDoNotReconnect() { return state == ClientState::DoNotReconnect; }
         bool get_IsShutdown() { return state == ClientState::Shutdown; }
         bool get_IsReconnectable() { return IsDisconnected || IsTimedOut; }
+        bool get_IsAuthError() { return state == ClientState::AuthError; }
 
         void Reconnect(uint timeout = 5000) {
             if (!IsDisconnected && !IsTimedOut) return;
