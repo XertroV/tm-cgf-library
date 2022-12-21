@@ -765,18 +765,16 @@ class TicTacGoState {
         startnew(HideGameUI::OnMapLoad);
 
         auto player = FindLocalPlayersInPlaygroundPlayers();
-        while (cmap.UILayers.Length < 19) yield();
-        while (cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
-        yield();
-        yield();
-        yield();
+        while (cmap.UILayers.Length < 20) yield();
+        while (cmap !is null && cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
+        sleep(100);
+        while (cmap !is null && cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
         while (IsInWarmUp()) yield();
-        yield();
-        yield();
-        yield();
-        while (cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
+        sleep(100);
+        while (cmap !is null && cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
+        if (cmap is null) return;
         hideChallengeWindowInServer = true;
-        sleep(1000);
+        sleep(750);
         // if (GetApp().CurrentPlayground is null) {
         //     EndChallenge();
         //     return;
@@ -849,7 +847,8 @@ class TicTacGoState {
 
     CGameUILayer@ FindWarmUpUILayer() {
         auto cmap = GetApp().Network.ClientManiaAppPlayground;
-        auto layer = cmap.UILayers.Length < 19 ? null : cmap.UILayers[18];
+        if (cmap is null) return null;
+        auto layer = cmap.UILayers.Length < 20 ? null : cmap.UILayers[18];
         if (layer is null || !layer.ManialinkPageUtf8.StartsWith('\n<manialink name="UIModule_Race_WarmUp"')) {
             for (uint i = 0; i < cmap.UILayers.Length; i++) {
                 auto item = cmap.UILayers[i];

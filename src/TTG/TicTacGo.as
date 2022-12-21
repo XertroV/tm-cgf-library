@@ -743,7 +743,7 @@ class TicTacGo : Game::Engine {
         while (client.IsInGame) {
             yield();
             if (app.CurrentPlayground is null) continue;
-            app.CurrentPlayground.GameTerminals_IsBlackOut = !stateObj.IsInClaimOrChallenge;
+            app.CurrentPlayground.GameTerminals_IsBlackOut = !stateObj.IsInClaimOrChallenge && !stateObj.IsGameFinished;
         }
         if (app.CurrentPlayground !is null) {
             app.CurrentPlayground.GameTerminals_IsBlackOut = false;
