@@ -630,6 +630,7 @@ class TicTacGoState {
     bool showForceEndPrompt = false;
     bool shouldExitChallenge = false;
     uint shouldExitChallengeTime = DNF_TIME;
+    bool serverChallengeInExpectedMap = false;
 
     void ResetChallengeState() {
         showForceEndPrompt = false;
@@ -638,6 +639,7 @@ class TicTacGoState {
         challengeStartTime = -1;
         currGameTime = -1;
         currPeriod = 15;
+        serverChallengeInExpectedMap = false;
     }
 
     void RunChallengeAndReportResult() {
@@ -740,6 +742,18 @@ class TicTacGoState {
         EndChallenge();
     }
 
+    // black out client UI when in a server when we don't want ppl to see the map
+    bool ShouldBlackout() {
+        if (!IsInServer) return false;
+        if (IsInClaimOrChallenge) {
+            return !serverChallengeInExpectedMap;
+        }
+        if (IsWaitingForMove && turnCounter == 0) {
+            return false;
+        }
+        return !IsInClaimOrChallenge && !IsGameFinished && !challengeRunActive;
+    }
+
     void InServerRunChallenge() {
         if (!IsInServer) {
             warn("InServerRunChallenge called when not in a server");
@@ -759,17 +773,25 @@ class TicTacGoState {
         auto currUid = cp.Map.MapInfo.MapUid;
         string expectedUid = currMap.Get('TrackUID', '??');
         if (expectedUid.Length < 5) warn("Expected uid is bad! " + expectedUid);
-        if (expectedUid != currUid) {
+        serverChallengeInExpectedMap = expectedUid == currUid;
+        if (!serverChallengeInExpectedMap) {
             auto net = app.Network;
             net.PlaygroundClientScriptAPI.RequestGotoMap(expectedUid);
             startnew(CoroutineFunc(SpamVoteYesForABit));
             // todo: monitor vote?
             // wait for start
             while (app.RootMap is null || app.RootMap.MapInfo.MapUid != expectedUid) yield();
+            while (app.Network.ClientManiaAppPlayground is null) yield();
+            while (app.CurrentPlayground is null) yield();
+            sleep(100);
         } else {
+            // we might be rejoining an ongoing map
+            if (challengeResult.IsEmpty)
             app.Network.PlaygroundClientScriptAPI.RequestRestartMap();
+            startnew(CoroutineFunc(SpamVoteYesForABit));
             while (cmap.UI.UISequence == CGamePlaygroundUIConfig::EUISequence::Playing) yield();
         }
+        serverChallengeInExpectedMap = true;
         while (cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Intro) yield();
         while (cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
         // Now that we're playing, we need to figure out if we're in a warmup or not.
@@ -806,15 +828,15 @@ class TicTacGoState {
         int duration;
         bool hasFinished = false;
         while (true) {
-            if (cmap is null) break;
+            if (cmap is null || app.Network.PlaygroundClientScriptAPI is null) break;
+            if (app.Network.PlaygroundClientScriptAPI.Request_IsInProgress && challengeResult.IsEmpty) {
+                // if there's a vote, and there are no scores yet, vote no a few times
+                // this can happen if a player rejoins
+                startnew(CoroutineFunc(SpamVoteNoForABit));
+            }
             if (!hasFinished && cmap.UI.UISequence == CGamePlaygroundUIConfig::EUISequence::Finish) {
                 hasFinished = true;
-                // we over measure if we set the end time here, and under measure if we use what was set earlier.
-                // so use last time plus the period. add to end time so GUI updates
-                // ! note: we could use better methods for calculating duration (MLFeed is an example), but the goal here is something simple, reasonably robust, and *light*. Dependancies can be added per-plugin based on that game's requirements. We don't really need that sort of accuracy here.
-                // challengeEndTime += currPeriod;
                 duration = challengeEndTime - challengeStartTime;
-                // report result
                 ReportChallengeResult(duration);
             }
             int oppTime = 0;
@@ -838,6 +860,8 @@ class TicTacGoState {
                 if (!shouldExitChallenge && !hasFinished)
                     ReportChallengeResult(DNF_TIME);
                 while (!challengeResult.IsResolved) yield();
+                shouldExitChallengeTime = Time::Now + 3000;
+                AwaitShouldExitTimeOrMapLeft();
                 break;
             }
             currGameTime = cmap.Playground.GameTime;
@@ -853,10 +877,23 @@ class TicTacGoState {
         auto app = cast<CGameManiaPlanet>(GetApp());
         auto net = app.Network;
         for (uint i = 0; i < 8; i++) {
-            sleep(500);
             if (net.PlaygroundClientScriptAPI !is null) {
+                if (!net.PlaygroundClientScriptAPI.Request_IsInProgress) break;
                 net.PlaygroundClientScriptAPI.Vote_Cast(true);
             }
+            sleep(500);
+        }
+    }
+
+    void SpamVoteNoForABit() {
+        auto app = cast<CGameManiaPlanet>(GetApp());
+        auto net = app.Network;
+        for (uint i = 0; i < 8; i++) {
+            if (net.PlaygroundClientScriptAPI !is null) {
+                if (!net.PlaygroundClientScriptAPI.Request_IsInProgress) break;
+                net.PlaygroundClientScriptAPI.Vote_Cast(false);
+            }
+            sleep(500);
         }
     }
 
@@ -898,7 +935,7 @@ class TicTacGoState {
 
     // uses shouldExitChallengeTime
     void AwaitShouldExitTimeOrMapLeft() {
-        while (!IsInServer && shouldExitChallengeTime > Time::Now && CurrentlyInMap) yield();
+        while (shouldExitChallengeTime > Time::Now && CurrentlyInMap) yield();
     }
 
     void EndChallenge() {

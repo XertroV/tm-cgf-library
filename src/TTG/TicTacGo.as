@@ -267,6 +267,7 @@ class TicTacGo : Game::Engine {
 
     void RenderLeavingChallenge(vec4 col = vec4(1, 1, 1, 1)) {
         if (!stateObj.shouldExitChallenge || !CurrentlyInMap) return;
+        if (stateObj.IsGameFinished) return;
         float timeLeft = float(stateObj.shouldExitChallengeTime) - Time::Now;
         // log_trace('render leaving. time left: ' + timeLeft);
         vec2 pos = vec2(Draw::GetWidth(), Draw::GetHeight()) / 2.;
@@ -275,7 +276,7 @@ class TicTacGo : Game::Engine {
         nvg::FontFace(nvgFontMessage);
         nvg::FontSize(fs);
         nvg::TextAlign(nvg::Align::Center | nvg::Align::Middle);
-        NvgTextWShadow(pos, fs * .05, "Challenge Over. Exiting in", col);
+        NvgTextWShadow(pos, fs * .05, stateObj.IsInServer ? "Challenge Over. Blackout in" : "Challenge Over. Exiting in", col);
         NvgTextWShadow(pos + vec2(0, fs * 1.2), fs * .05, Text::Format("%.1f", 0.001 * Math::Max(timeLeft, 0)), col);
     }
 
@@ -346,9 +347,8 @@ class TicTacGo : Game::Engine {
         if (stateObj.ActiveLeader == TTGSquareState::Unclaimed) return;
 
         if (CurrentlyInMap && client.roomInfo.use_club_room) {
-            // if we are in a map and using a club room, don't show the interface when we're in a claim or challenge
-            if (stateObj.IsInClaimOrChallenge) {
-                DrawChallengeWindow();
+            // if we are in a map and using a club room, don't show the interface when we're in a claim or challenge and about to race
+            if (stateObj.IsInClaimOrChallenge && stateObj.hideChallengeWindowInServer) {
                 return;
             }
         }
@@ -778,7 +778,7 @@ class TicTacGo : Game::Engine {
         while (client.IsInGame) {
             yield();
             if (app.CurrentPlayground is null) continue;
-            app.CurrentPlayground.GameTerminals_IsBlackOut = !stateObj.IsInClaimOrChallenge && !stateObj.IsGameFinished;
+            app.CurrentPlayground.GameTerminals_IsBlackOut = stateObj.ShouldBlackout();
         }
         if (app.CurrentPlayground !is null) {
             app.CurrentPlayground.GameTerminals_IsBlackOut = false;
