@@ -720,6 +720,10 @@ class TicTacGo : Game::Engine {
         // wait for us to join the server
         while (client.IsInGame && !CurrentlyInMap) yield();
         auto app = cast<CGameManiaPlanet>(GetApp());
+        while (app.Network.ClientManiaAppPlayground is null || app.Network.ClientManiaAppPlayground.UILayers.Length < 19) yield();
+        yield();
+        HideGameUI::opt_EnableRecords = stateObj.opt_EnableRecords;
+        startnew(HideGameUI::OnMapLoad);
         // this is true when we're in the room and between maps
         while (app.Switcher.ModuleStack.Length == 0 || cast<CSmArenaClient>(app.Switcher.ModuleStack[0]) !is null) yield();
         // something else is active, prbs the menu
@@ -740,6 +744,9 @@ class TicTacGo : Game::Engine {
             yield();
             if (app.CurrentPlayground is null) continue;
             app.CurrentPlayground.GameTerminals_IsBlackOut = !stateObj.IsInClaimOrChallenge;
+        }
+        if (app.CurrentPlayground !is null) {
+            app.CurrentPlayground.GameTerminals_IsBlackOut = false;
         }
     }
 
@@ -797,9 +804,10 @@ class TicTacGo : Game::Engine {
     void DrawChallengeWindow() {
         if (!stateObj.IsInClaimOrChallenge && stateObj.challengeEndedAt + 6000 < Time::Now) return;
         if (CurrentlyInMap && !client.roomInfo.use_club_room) return;
+        // trace('DrawChallengeWindow');
         if (stateObj.currMap is null) return;
         // don't draw it after the challenge starts
-        if (client.roomInfo.use_club_room && stateObj.challengeStartTime + 3000 < Time::Now) return;
+        if (stateObj.hideChallengeWindowInServer && (stateObj.IsSinglePlayer || !stateObj.challengeResult.HasResultFor(client.clientUid))) return;
         if (BeginChallengeWindow()) {
             UI::PushFont(mapUiFont);
             if (stateObj.IsSinglePlayer || stateObj.IsStandard)

@@ -613,6 +613,7 @@ class TicTacGoState {
     int currPeriod = 15;  // frame time
     bool challengeRunActive = false;
     bool disableLaunchMapBtn = false;
+    bool hideChallengeWindowInServer = false;
     uint challengeEndedAt;
     bool showForceEndPrompt = false;
     bool shouldExitChallenge = false;
@@ -621,7 +622,7 @@ class TicTacGoState {
     void ResetChallengeState() {
         showForceEndPrompt = false;
         shouldExitChallenge = false;
-        disableLaunchMapBtn = true;
+        hideChallengeWindowInServer = false;
         challengeStartTime = -1;
         currGameTime = -1;
         currPeriod = 15;
@@ -629,6 +630,7 @@ class TicTacGoState {
 
     void RunChallengeAndReportResult() {
         ResetChallengeState();
+        disableLaunchMapBtn = true;
         // set menu screen to avoid map-loading issues.
         MM::setMenuPage("/local");
         yield();
@@ -732,6 +734,7 @@ class TicTacGoState {
             return;
         }
         ResetChallengeState();
+        SetLoadingScreenText("TTG! - " + string(currMap.Get("Name", "???")), "Go Team " + MyLeadersName + "!");
         auto app = cast<CGameManiaPlanet>(GetApp());
         // wait for us to join the server if we haven't yet
         while (!CurrentlyInMap) yield();
@@ -763,11 +766,17 @@ class TicTacGoState {
 
         auto player = FindLocalPlayersInPlaygroundPlayers();
         while (cmap.UILayers.Length < 19) yield();
-        while (IsInWarmUp()) yield();
         while (cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
         yield();
         yield();
         yield();
+        while (IsInWarmUp()) yield();
+        yield();
+        yield();
+        yield();
+        while (cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
+        hideChallengeWindowInServer = true;
+        sleep(1000);
         // if (GetApp().CurrentPlayground is null) {
         //     EndChallenge();
         //     return;
@@ -778,7 +787,7 @@ class TicTacGoState {
         if (challengeStartTime < int(Time::Now)) {
             warn("challengeStartTime is in the past; now - start = " + (int(Time::Now) - challengeStartTime) + ". setting to 1.5s in the future.");
             // the timer should always start at -1.5s, so set it 1.5s in the future
-            challengeStartTime = Time::Now + 1500;
+            // challengeStartTime = Time::Now + 1500;
         }
 
         log_info("Set challenge start time: " + challengeStartTime);
@@ -786,12 +795,13 @@ class TicTacGoState {
         int duration;
         bool hasFinished = false;
         while (true) {
+            if (cmap is null) break;
             if (!hasFinished && cmap.UI.UISequence == CGamePlaygroundUIConfig::EUISequence::Finish) {
                 hasFinished = true;
                 // we over measure if we set the end time here, and under measure if we use what was set earlier.
                 // so use last time plus the period. add to end time so GUI updates
                 // ! note: we could use better methods for calculating duration (MLFeed is an example), but the goal here is something simple, reasonably robust, and *light*. Dependancies can be added per-plugin based on that game's requirements. We don't really need that sort of accuracy here.
-                challengeEndTime += currPeriod;
+                // challengeEndTime += currPeriod;
                 duration = challengeEndTime - challengeStartTime;
                 // report result
                 ReportChallengeResult(duration);
