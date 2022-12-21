@@ -90,9 +90,11 @@ class TtgGame {
         else if (client.IsInRoom) RenderRoom();
         else if (client.IsInGame) {
             if (ttg.GameInfo is null) RenderWaitingForGameInfo();
+            if (client.roomInfo.use_club_room && !CurrentlyInMap && !ttg.stateObj.IsInClaimOrChallenge) RenderJoiningServer();
             else ttg.RenderInterface();
         }
         else {
+            UI::Text("Unknown client state!");
             warn("Unknown client state!");
         }
         UI::PopStyleColor();
@@ -156,6 +158,10 @@ class TtgGame {
 
     void RenderWaitingForGameInfo() {
         RenderLoadingScreen(Icons::Hashtag + "  Waiting for game info...");
+    }
+
+    void RenderJoiningServer() {
+        RenderLoadingScreen(Icons::Hashtag + "  Joining Server...");
     }
 
     bool isCreatingRoom = false;
@@ -336,6 +342,7 @@ class TtgGame {
     // timeotu
     uint createRoomTimeout = 0;
     bool m_singlePlayer = false;
+    bool m_useClubRoom = false;
 
     void DrawRoomCreation() {
 
@@ -354,6 +361,8 @@ class TtgGame {
         if (m_singlePlayer) {
             m_isPublic = false;
         }
+
+        m_useClubRoom = UI::Checkbox("Play on a server instead of locally. (\\$fe1" + Icons::ExclamationTriangle + " Experimental\\$z)", m_useClubRoom);
 
         DrawMapOptionsInput();
 
@@ -606,15 +615,14 @@ class TtgGame {
         pl['max_secs'] = m_mapMaxSecs;
         pl['max_difficulty'] = int(m_maxDifficulty);
         pl['game_opts'] = gameOptions;
+        pl['use_club_room'] = m_useClubRoom;
         auto vis = (m_isPublic && !singlePlayer) ? CGF::Visibility::global : CGF::Visibility::none;
-
 
         if (m_mapsType == CGF::MapSelection::MapPack) {
             pl['map_pack'] = Text::ParseInt(m_mapPackID);
         } else if (pl.HasKey('map_pack')) {
             pl.Remove('map_pack');
         }
-
 
         if (singlePlayer) {
             pl['n_teams'] = 1;
@@ -656,6 +664,9 @@ class TtgGame {
         UI::AlignTextToFramePadding();
         string mapsStatus = roomInfo.maps_loaded ? "Loaded." : "Loading...";
         UI::Text("Players: " + currNPlayers + " / " + pLimit + ".   Maps " + mapsStatus);
+        if (client.LastRoomPreparationStatus.Length > 0) {
+            UI::TextWrapped("\\$999Room Setup Status: \\$z" + client.LastRoomPreparationStatus);
+        }
         // UI::AlignTextToFramePadding();
         // UI::Text("N Teams: " + nTeams);
 
@@ -689,6 +700,10 @@ class TtgGame {
             AddSimpleTooltip("You are running a version of the game different from the person who created this room.\nYou might not be able to finish the game due to version mismatch.");
         }
         if (TtgCollapsingHeader("Game Details")) {
+            if (roomInfo.use_club_room) {
+                Indent(2);
+                UI::Text("Play on a Server: True (" + (roomInfo.join_link.Length > 0 ? "Got Join Link" : "Awaiting Join Link") + ")");
+            }
             Indent(2);
             if (roomInfo.map_pack < 0) {
                 UI::Text("Maps: between " + roomInfo.min_secs + " and " + roomInfo.max_secs + " s long, and a maximum difficulty of " + roomInfo.max_difficulty + ".");

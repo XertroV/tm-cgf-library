@@ -55,6 +55,8 @@ class TicTacGoState {
     string MyLeadersName;
     string OpposingLeaderName;
 
+    bool IsInServer = false;
+
     ChallengeResultState@ challengeResult = ChallengeResultState();
     TTGGameEvent@[] gameLog;
     uint turnCounter = 0;
@@ -102,6 +104,7 @@ class TicTacGoState {
 
     void LoadFromGameOpts(const Json::Value@ game_opts) {
         Reset();
+        IsInServer = client.roomInfo.use_club_room;
         if (game_opts.GetType() != Json::Type::Object) {
             log_warn("LoadFromGameOpts: game_opts is not a json object");
             return;
@@ -534,7 +537,7 @@ class TicTacGoState {
             OpposingLeaderName = IsSinglePlayer ? MyLeadersName : TeamNames[TheirTeamLeader][0];
             IAmALeader = GameInfo.teams[MyTeamLeader][0] == client.clientUid;
         } else if (type == "GM_PLAYER_JOINED") {
-            //
+            // todo
         } else {
             warn("Skipping GM event: " + type + "; " + Json::Write(pl));
         }
@@ -565,7 +568,7 @@ class TicTacGoState {
         currTrackIdStr = tostring(currTrackId);
         challengeResult.startTime = Time::Now + challengePreWaitPeriod;
         // autostart if not
-        if (!IsSinglePlayer && !S_LocalDev) {
+        if (!IsInServer && !IsSinglePlayer && !S_LocalDev) {
             // we sleep for slightly less to avoid race conditions with the launch map button
             sleep(challengePreWaitPeriod - 30);
             // load map immediately if the CR is the same one and the setting is enabled.
@@ -574,6 +577,8 @@ class TicTacGoState {
                 print("Autostarting map for: " + MyName);
                 startnew(CoroutineFunc(RunChallengeAndReportResult));
             }
+        } else if (IsInServer) {
+            startnew(CoroutineFunc(InServerRunChallenge));
         }
     }
 
@@ -613,13 +618,17 @@ class TicTacGoState {
     bool shouldExitChallenge = false;
     uint shouldExitChallengeTime = DNF_TIME;
 
-    void RunChallengeAndReportResult() {
+    void ResetChallengeState() {
         showForceEndPrompt = false;
         shouldExitChallenge = false;
         disableLaunchMapBtn = true;
         challengeStartTime = -1;
         currGameTime = -1;
         currPeriod = 15;
+    }
+
+    void RunChallengeAndReportResult() {
+        ResetChallengeState();
         // set menu screen to avoid map-loading issues.
         MM::setMenuPage("/local");
         yield();
@@ -717,14 +726,152 @@ class TicTacGoState {
         EndChallenge();
     }
 
+    void InServerRunChallenge() {
+        if (!IsInServer) {
+            warn("InServerRunChallenge called when not in a server");
+            return;
+        }
+        ResetChallengeState();
+        auto app = cast<CGameManiaPlanet>(GetApp());
+        // wait for us to join the server if we haven't yet
+        while (!CurrentlyInMap) yield();
+        auto cp = cast<CSmArenaClient>(app.CurrentPlayground);
+        while (cp.Map is null) yield();
+        while (app.Network.ClientManiaAppPlayground is null) yield();
+
+        challengeRunActive = true;
+        auto cmap = app.Network.ClientManiaAppPlayground;
+        auto currUid = cp.Map.MapInfo.MapUid;
+        string expectedUid = currMap.Get('TrackUID', '??');
+        if (expectedUid.Length < 5) warn("Expected uid is bad! " + expectedUid);
+        if (expectedUid != currUid) {
+            auto net = app.Network;
+            net.PlaygroundClientScriptAPI.RequestGotoMap(expectedUid);
+            // todo: monitor vote?
+            // wait for start
+            while (app.RootMap is null || app.RootMap.MapInfo.MapUid != expectedUid) yield();
+        } else {
+            app.Network.PlaygroundClientScriptAPI.RequestRestartMap();
+            while (cmap.UI.UISequence == CGamePlaygroundUIConfig::EUISequence::Playing) yield();
+        }
+        while (cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Intro) yield();
+        while (cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
+        // Now that we're playing, we need to figure out if we're in a warmup or not.
+
+        HideGameUI::opt_EnableRecords = opt_EnableRecords;
+        startnew(HideGameUI::OnMapLoad);
+
+        auto player = FindLocalPlayersInPlaygroundPlayers();
+        while (cmap.UILayers.Length < 19) yield();
+        while (IsInWarmUp()) yield();
+        while (cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
+        yield();
+        yield();
+        yield();
+        // if (GetApp().CurrentPlayground is null) {
+        //     EndChallenge();
+        //     return;
+        // }
+        currGameTime = cmap.Playground.GameTime;
+        challengeStartTime = Time::Now + (player.StartTime - currGameTime);
+        // while (player.CurrentRaceTime > 0) yield(); // wait for current race time to go negative
+        if (challengeStartTime < int(Time::Now)) {
+            warn("challengeStartTime is in the past; now - start = " + (int(Time::Now) - challengeStartTime) + ". setting to 1.5s in the future.");
+            // the timer should always start at -1.5s, so set it 1.5s in the future
+            challengeStartTime = Time::Now + 1500;
+        }
+
+        log_info("Set challenge start time: " + challengeStartTime);
+        // wait for finish timer
+        int duration;
+        bool hasFinished = false;
+        while (true) {
+            if (!hasFinished && cmap.UI.UISequence == CGamePlaygroundUIConfig::EUISequence::Finish) {
+                hasFinished = true;
+                // we over measure if we set the end time here, and under measure if we use what was set earlier.
+                // so use last time plus the period. add to end time so GUI updates
+                // ! note: we could use better methods for calculating duration (MLFeed is an example), but the goal here is something simple, reasonably robust, and *light*. Dependancies can be added per-plugin based on that game's requirements. We don't really need that sort of accuracy here.
+                challengeEndTime += currPeriod;
+                duration = challengeEndTime - challengeStartTime;
+                // report result
+                ReportChallengeResult(duration);
+            }
+            int oppTime = 0;
+            int timeLeft = DNF_TEST;
+            bool shouldDnf = false;
+            if (!hasFinished) {
+                duration = Time::Now - challengeStartTime;
+                oppTime = challengeResult.ranking.Length > 0 ? challengeResult.ranking[0].time : DNF_TIME;
+                timeLeft = oppTime + opt_AutoDNF_ms - duration;
+                shouldDnf = opt_AutoDNF_ms > 0 && timeLeft <= 0;
+            }
+            // if the challenge is resolved (e.g., via force ending) then we want to exit out
+            // ~~also if we already have a result~~ leave players in the map while other ppl haven't finished yet
+            shouldExitChallenge = challengeResult.IsResolved;
+            if (shouldDnf || shouldExitChallenge || GetApp().CurrentPlayground is null) {
+                log_trace('should dnf, or exit, or player already did.');
+                if (shouldDnf) {
+                    log_warn("shouldDnf. time left: " + timeLeft + "; oppTime: " + oppTime + ", duration=" + duration);
+                }
+                // don't report a time if the challenge is resolved b/c it's an invalid move
+                if (!shouldExitChallenge && !hasFinished)
+                    ReportChallengeResult(DNF_TIME);
+                while (!challengeResult.IsResolved) yield();
+                break;
+            }
+            currGameTime = cmap.Playground.GameTime;
+            if (!hasFinished)
+                challengeEndTime = Time::Now;
+            currPeriod = app.Network.PlaygroundInterfaceScriptHandler.Period;
+            yield();
+        }
+        EndChallenge();
+    }
+
+    bool IsInWarmUp() {
+        auto layer = FindWarmUpUILayer();
+        if (layer is null) return false;
+        auto frame = layer.LocalPage.GetFirstChild("frame-warm-up");
+        if (frame is null) return false;
+        // this is visible only when we're in the warmup
+        return frame.Visible;
+    }
+
+    CGameUILayer@ FindWarmUpUILayer() {
+        auto cmap = GetApp().Network.ClientManiaAppPlayground;
+        auto layer = cmap.UILayers.Length < 19 ? null : cmap.UILayers[18];
+        if (layer is null || !layer.ManialinkPageUtf8.StartsWith('\n<manialink name="UIModule_Race_WarmUp"')) {
+            for (uint i = 0; i < cmap.UILayers.Length; i++) {
+                auto item = cmap.UILayers[i];
+                if (item.ManialinkPageUtf8.StartsWith('\n<manialink name="UIModule_Race_WarmUp"')) {
+                    @layer = item;
+                    break;
+                }
+            }
+        }
+        return layer;
+    }
+
+    CSmScriptPlayer@ FindLocalPlayersInPlaygroundPlayers() {
+        auto cp = cast<CGameManiaPlanet>(GetApp()).CurrentPlayground;
+        for (uint i = 0; i < cp.Players.Length; i++) {
+            auto item = cast<CSmPlayer>(cp.Players[i]);
+            if (item !is null && item.User.Name == LocalPlayersName) {
+                return cast<CSmScriptPlayer>(item.ScriptAPI);
+            }
+        }
+        return null;
+    }
+
     // uses shouldExitChallengeTime
     void AwaitShouldExitTimeOrMapLeft() {
-        while (shouldExitChallengeTime > Time::Now && CurrentlyInMap) yield();
+        while (!IsInServer && shouldExitChallengeTime > Time::Now && CurrentlyInMap) yield();
     }
 
     void EndChallenge() {
         challengeRunActive = false;
-        ReturnToMenu();
+        if (!IsInServer)
+            ReturnToMenu();
     }
 
     void ReportChallengeResult(int duration) {

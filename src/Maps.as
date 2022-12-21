@@ -20,9 +20,9 @@ void LoadMapNow(const string &in url) {
         NotifyError("Refusing to load map because you lack the necessary permissions. Standard or Club access required");
         return;
     }
+    ReturnToMenu();
+    AwaitManialinkTitleReady();
     auto app = cast<CGameManiaPlanet>(GetApp());
-    app.BackToMainMenu();
-    while (!app.ManiaTitleControlScriptAPI.IsReady) yield();
     app.ManiaTitleControlScriptAPI.PlayMap(url, "", "");
 }
 
@@ -31,6 +31,22 @@ void ReturnToMenu() {
     app.BackToMainMenu();
 }
 
+void AwaitManialinkTitleReady() {
+    auto app = cast<CGameManiaPlanet>(GetApp());
+    while (!app.ManiaTitleControlScriptAPI.IsReady) yield();
+}
+
+void LoadJoinLink(const string &in joinLink) {
+    if (!Permissions::PlayPublicClubRoom()) {
+        NotifyError("Refusing to load join link because you lack the permission: PlayPublicClubRoom.");
+        return;
+    }
+    ReturnToMenu();
+    AwaitManialinkTitleReady();
+    cast<CTrackMania>(GetApp()).ManiaPlanetScriptAPI.OpenLink(joinLink.Replace("#join", "#qjoin"), CGameManiaPlanetScriptAPI::ELinkType::ManialinkBrowser);
+}
+
+
 void EnsureMapsHelper(Json::Value@ map_tids_uids) {
     string[] uids;
     MwFastBuffer<wstring> mapUidList = MwFastBuffer<wstring>();
@@ -38,6 +54,7 @@ void EnsureMapsHelper(Json::Value@ map_tids_uids) {
     for (uint i = 0; i < map_tids_uids.Length; i++) {
         tids.InsertLast(int(map_tids_uids[i][0]));
         mapUidList.Add(string(map_tids_uids[i][1]));
+        uids.InsertLast(string(map_tids_uids[i][1]));
     }
     auto app = cast<CGameManiaPlanet>(GetApp());
     auto cma = app.MenuManager.MenuCustom_CurrentManiaApp;
@@ -86,7 +103,6 @@ void DownloadMapAndUpload(ref@ data) {
         warn("DownloadMapAndUpload got a null payload!");
         return;
     }
-    // todo
     if (!IsMapUploadedToNadeo(pl.uid)) {
         DownloadTmxMapToLocal(pl.tid);
         UploadMapFromLocal(pl.uid);

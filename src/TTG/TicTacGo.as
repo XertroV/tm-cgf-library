@@ -101,6 +101,8 @@ class TicTacGo : Game::Engine {
         ResetState();
         stateObj.OnGameStart();
         startnew(CoroutineFunc(GameLoop));
+        startnew(CoroutineFunc(JoinClubRoom));
+        startnew(CoroutineFunc(BlackoutLoop));
     }
 
     void OnGameEnd() {
@@ -121,7 +123,8 @@ class TicTacGo : Game::Engine {
         if (stateObj.challengeStartTime < 0) return;
         if (stateObj.currGameTime < 0) return;
         if (!stateObj.challengeRunActive) return;
-        RenderChatWindow();
+        if (!stateObj.IsInServer)
+            RenderChatWindow();
         RenderTimer();
         RenderLeavingChallenge();
         if (stateObj.IsSinglePlayer || stateObj.IsStandard)
@@ -303,10 +306,19 @@ class TicTacGo : Game::Engine {
     // we call this from render, so it will always show even if OP Interface hidden.
     // that's b/c there's no real reason to hide the game window when you're actively in a game, and it autohides in a map
     void RenderInterface() {
-        // we never want to render the TTG game interface in a map.
-        if (CurrentlyInMap) return;
+        // we never want to render the TTG game interface in a local map.
+        if (CurrentlyInMap && !client.roomInfo.use_club_room) return;
         // uninitialized
         if (stateObj.ActiveLeader == TTGSquareState::Unclaimed) return;
+
+        if (CurrentlyInMap && client.roomInfo.use_club_room) {
+            // if we are in a map and using a club room, don't show the interface when we're in a claim or challenge
+            if (stateObj.IsInClaimOrChallenge) {
+                DrawChallengeWindow();
+                return;
+            }
+        }
+
         UI::SetNextWindowSize(Draw::GetWidth() / 2, Draw::GetHeight() * 3 / 5, UI::Cond::FirstUseEver);
         UI::PushFont(hoverUiFont);
         if (UI::Begin("Tic Tac GO! ("+stateObj.MyName+")##" + idNonce)) {
@@ -393,6 +405,8 @@ class TicTacGo : Game::Engine {
             UI::Text("Game Log");
             UI::TableNextColumn();
             if (UI::Button("Leave Game")) {
+                if (stateObj.IsInServer)
+                    ReturnToMenu();
                 if (stateObj.IsGameFinished)
                     client.SendLeave();
                 client.SendLeave();
@@ -695,10 +709,42 @@ class TicTacGo : Game::Engine {
 
     bool waitingForOwnMove = false;
 
+    void JoinClubRoom() {
+        if (!client.roomInfo.use_club_room) return;
+        while (client.IsConnected && client.roomInfo.join_link.Length == 0) yield();
+        if (!client.roomInfo.join_link.StartsWith("#")) {
+            NotifyWarning("Tried to join club room but join link empty or invalid.");
+            return;
+        }
+        LoadJoinLink(client.roomInfo.join_link);
+        // wait for us to join the server
+        while (client.IsInGame && !CurrentlyInMap) yield();
+        auto app = cast<CGameManiaPlanet>(GetApp());
+        // this is true when we're in the room and between maps
+        while (app.Switcher.ModuleStack.Length == 0 || cast<CSmArenaClient>(app.Switcher.ModuleStack[0]) !is null) yield();
+        // something else is active, prbs the menu
+        // if we're in a game currently, then we should leave the game UI so that we can rejoin and thus rejoin the server
+        if (client.IsInGame) {
+            yield();
+            sleep(1000);
+            yield();
+            if (client.IsInGame) {
+                client.SendLeave();
+            }
+        }
+    }
+
+    void BlackoutLoop() {
+        auto app = cast<CGameManiaPlanet>(GetApp());
+        while (client.IsInGame) {
+            yield();
+            if (app.CurrentPlayground is null) continue;
+            app.CurrentPlayground.GameTerminals_IsBlackOut = !stateObj.IsInClaimOrChallenge;
+        }
+    }
+
     void GameLoop() {
         while (stateObj.IsPreStart) yield();
-        // while (ActivePlayer == TTGSquareState::Unclaimed) yield();
-        // state = TTGGameState::WaitingForMove;
         while (not stateObj.IsGameFinished && client.IsConnected) {
             yield();
             ProcessAvailableMsgs();
@@ -749,9 +795,11 @@ class TicTacGo : Game::Engine {
     vec4 challengeWindowBgCol = btnChallengeCol * vec4(.3, .3, .3, 1);
 
     void DrawChallengeWindow() {
-        if (!(stateObj.IsInChallenge || stateObj.IsInClaim) && stateObj.challengeEndedAt + 6000 < Time::Now) return;
-        if (CurrentlyInMap) return;
+        if (!stateObj.IsInClaimOrChallenge && stateObj.challengeEndedAt + 6000 < Time::Now) return;
+        if (CurrentlyInMap && !client.roomInfo.use_club_room) return;
         if (stateObj.currMap is null) return;
+        // don't draw it after the challenge starts
+        if (client.roomInfo.use_club_room && stateObj.challengeStartTime + 3000 < Time::Now) return;
         if (BeginChallengeWindow()) {
             UI::PushFont(mapUiFont);
             if (stateObj.IsSinglePlayer || stateObj.IsStandard)
@@ -869,6 +917,10 @@ class TicTacGo : Game::Engine {
     }
 
     void DrawChallengePlayMapButton() {
+        if (client.roomInfo.use_club_room) {
+            // no play button, just auto voting / server mgmt
+            return;
+        }
         auto challengeResult = stateObj.challengeResult;
         if (challengeResult.startTime > int(Time::Now)) {
             auto timeLeft = float(challengeResult.startTime - Time::Now) / 1000.;

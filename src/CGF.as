@@ -598,6 +598,7 @@ namespace Game {
             }
             if (IsInRoom) {
                 cachedThumbnails.DeleteAll();
+                LastRoomPreparationStatus = "";
             }
         }
 
@@ -785,7 +786,7 @@ namespace Game {
         }
 
         bool MsgHandler_PreparationStatus(Json::Value@ j) {
-            if (j['payload'].Get('error', false)) {
+            if (bool(j['payload'].Get('error', false))) {
                 LastRoomPreparationStatus = "\\$fe1" + Icons::ExclamationTriangle + "  " + string(j['payload']['msg']);
             } else {
                 LastRoomPreparationStatus = j['payload']['msg'];
