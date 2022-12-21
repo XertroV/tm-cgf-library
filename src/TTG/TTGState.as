@@ -775,10 +775,10 @@ class TicTacGoState {
         if (cmap is null) return;
         hideChallengeWindowInServer = true;
         sleep(750);
-        // if (GetApp().CurrentPlayground is null) {
-        //     EndChallenge();
-        //     return;
-        // }
+        if (cmap is null || cmap.Playground is null) {
+            EndChallenge();
+            return;
+        }
         currGameTime = cmap.Playground.GameTime;
         challengeStartTime = Time::Now + (player.StartTime - currGameTime);
         // while (player.CurrentRaceTime > 0) yield(); // wait for current race time to go negative

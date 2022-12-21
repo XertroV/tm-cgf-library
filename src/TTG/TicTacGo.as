@@ -125,6 +125,8 @@ class TicTacGo : Game::Engine {
         if (!stateObj.challengeRunActive) return;
         if (!stateObj.IsInServer)
             RenderChatWindow();
+        else
+            RenderDNFButton();
         RenderTimer();
         RenderLeavingChallenge();
         if (stateObj.IsSinglePlayer || stateObj.IsStandard)
@@ -269,6 +271,32 @@ class TicTacGo : Game::Engine {
         nvg::TextAlign(nvg::Align::Center | nvg::Align::Middle);
         NvgTextWShadow(pos, fs * .05, "Challenge Over. Exiting in", col);
         NvgTextWShadow(pos + vec2(0, fs * 1.2), fs * .05, Text::Format("%.1f", 0.001 * Math::Max(timeLeft, 0)), col);
+    }
+
+    int dnfBtnWindowFlags = UI::WindowFlags::NoTitleBar
+        | UI::WindowFlags::AlwaysAutoResize;
+
+    void RenderDNFButton() {
+        // don't render if we've submitted a result already
+        if (!stateObj.IsSinglePlayer && stateObj.challengeResult.HasResultFor(client.clientUid))
+            return;
+        vec2 size = vec2(200, 140);
+        auto btnSize = size / 2;
+        UI::SetNextWindowSize(int(size.x), int(size.y), UI::Cond::Always);
+        UI::SetNextWindowPos(Draw::GetWidth() - int(size.x) - 50, (Draw::GetHeight() - int(size.y)) / 2, UI::Cond::FirstUseEver);
+        UI::PushFont(mapUiFont);
+        if (UI::Begin("dnf window in server", dnfBtnWindowFlags)) {
+            if (UI::BeginChild("dnf window inner", UI::GetContentRegionAvail())) {
+                auto region = UI::GetContentRegionAvail();
+                UI::SetCursorPos((region - btnSize) / 2);
+                if (UI::Button("DNF##dnf-btn"+idNonce, btnSize)) {
+                    stateObj.ReportChallengeResult(DNF_TIME);
+                }
+            }
+            UI::EndChild();
+        }
+        UI::End();
+        UI::PopFont();
     }
 
     int chatWindowFlags = UI::WindowFlags::NoTitleBar
