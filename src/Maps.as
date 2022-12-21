@@ -36,9 +36,13 @@ void AwaitManialinkTitleReady() {
     while (!app.ManiaTitleControlScriptAPI.IsReady) yield();
 }
 
+bool HasJoinLinkPermissions() {
+    return Permissions::PlayPublicClubRoom() && Permissions::PlayPrivateActivity();
+}
+
 void LoadJoinLink(const string &in joinLink) {
-    if (!Permissions::PlayPublicClubRoom()) {
-        NotifyError("Refusing to load join link because you lack the permission: PlayPublicClubRoom.");
+    if (!HasJoinLinkPermissions()) {
+        NotifyError("Refusing to load join link because you lack 1 or more of the permission: PlayPublicClubRoom, PlayPrivateActivity.");
         return;
     }
     ReturnToMenu();
@@ -83,7 +87,14 @@ void EnsureMapsHelper(Json::Value@ map_tids_uids) {
     }
     // uids and tids are now only unknown maps
     if (uids.IsEmpty()) return;
+
+    if (!Permissions::CreateAndUploadMap()) {
+        NotifyError("Refusing to upload maps because you are missing the CreateAndUploadMap permissions.");
+        return;
+    }
+
     ReturnToMenu();
+
     warn("Getting maps that aren't uploaded to nadeo services: " + string::Join(uids, ", "));
     // request all the maps
     Meta::PluginCoroutine@[] coros;
@@ -151,6 +162,10 @@ void DownloadTmxMapToLocal(int TrackID) {
 // }
 
 void UploadMapFromLocal(const string &in uid) {
+    if (!Permissions::CreateAndUploadMap()) {
+        NotifyError("Refusing to upload maps because you are missing the CreateAndUploadMap permissions.");
+        return;
+    }
     trace('UploadMapFromLocal: ' + uid);
     auto app = cast<CGameManiaPlanet>(GetApp());
     auto cma = app.MenuManager.MenuCustom_CurrentManiaApp;
@@ -196,6 +211,7 @@ bool IsMapUploadedToNadeo(const string &in uid) {
     return false;
 }
 
+#if DEV
 // seems to work!
 void MapUploadTest() {
     // string testUid = "m9hkGQKexEG1wB9IzpdvaIt3wu4";
@@ -210,3 +226,4 @@ void MapUploadTest() {
     //     // RemoveTmxMapFromLocal(72318);
     // }
 }
+#endif

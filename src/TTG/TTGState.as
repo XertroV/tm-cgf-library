@@ -168,7 +168,7 @@ class TicTacGoState {
             log_trace("InitGameOnStart found null game info, yielding");
             yield();
         }
-        while (client.mapsList is null || client.mapsList.Length == ) {
+        while (client.mapsList is null || client.mapsList.Length == 0) {
             log_trace("InitGameOnStart found empty map list, yielding");
             yield();
         }

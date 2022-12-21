@@ -362,7 +362,11 @@ class TtgGame {
             m_isPublic = false;
         }
 
-        m_useClubRoom = UI::Checkbox("Play on a server instead of locally. (\\$fe1" + Icons::ExclamationTriangle + " Experimental\\$z)", m_useClubRoom);
+        // don't show the checkbox here if the user isn't able to create an activity in a club,
+        // since we're sort of doing that on their behalf.
+        if (Permissions::CreateActivity()) {
+            m_useClubRoom = UI::Checkbox("Play on a server instead of locally. (\\$fe1" + Icons::ExclamationTriangle + " Experimental\\$z)", m_useClubRoom);
+        }
 
         DrawMapOptionsInput();
 
@@ -671,6 +675,10 @@ class TtgGame {
         if (client.LastRoomPreparationStatus.Length > 0) {
             UI::AlignTextToFramePadding();
             UI::TextWrapped("\\$999Room Setup Status: \\$z" + client.LastRoomPreparationStatus);
+        }
+        if (roomInfo.use_club_room && !HasJoinLinkPermissions()) {
+            UI::AlignTextToFramePadding();
+            UI::TextWrapped("\\$fe1 " + Icons::ExclamationTriangle + " Permissions Error!\\$z You need the permissions PlayPublicClubRoom and PlayPrivateActivity to play TTG on a server.");
         }
         // UI::AlignTextToFramePadding();
         // UI::Text("N Teams: " + nTeams);
