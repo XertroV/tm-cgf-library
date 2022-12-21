@@ -756,7 +756,7 @@ class TicTacGoState {
         if (expectedUid != currUid) {
             auto net = app.Network;
             net.PlaygroundClientScriptAPI.RequestGotoMap(expectedUid);
-            net.PlaygroundClientScriptAPI.Vote_Cast(true);
+            startnew(CoroutineFunc(SpamVoteYesForABit));
             // todo: monitor vote?
             // wait for start
             while (app.RootMap is null || app.RootMap.MapInfo.MapUid != expectedUid) yield();
@@ -841,6 +841,17 @@ class TicTacGoState {
             yield();
         }
         EndChallenge();
+    }
+
+    void SpamVoteYesForABit() {
+        auto app = cast<CGameManiaPlanet>(GetApp());
+        auto net = app.Network;
+        for (uint i = 0; i < 8; i++) {
+            sleep(500);
+            if (net.PlaygroundClientScriptAPI !is null) {
+                net.PlaygroundClientScriptAPI.Vote_Cast(true);
+            }
+        }
     }
 
     bool IsInWarmUp() {
