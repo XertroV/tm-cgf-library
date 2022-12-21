@@ -664,7 +664,12 @@ class TtgGame {
         UI::AlignTextToFramePadding();
         string mapsStatus = roomInfo.maps_loaded ? "Loaded." : "Loading...";
         UI::Text("Players: " + currNPlayers + " / " + pLimit + ".   Maps " + mapsStatus);
+        if (client.HasLoadError) {
+            UI::AlignTextToFramePadding();
+            UI::TextWrapped("\\$fe1 " + Icons::ExclamationTriangle + " Load Error! Code: " + client.LoadErrorStatusCode + " | \\$z " + client.LoadErrorMessage);
+        }
         if (client.LastRoomPreparationStatus.Length > 0) {
+            UI::AlignTextToFramePadding();
             UI::TextWrapped("\\$999Room Setup Status: \\$z" + client.LastRoomPreparationStatus);
         }
         // UI::AlignTextToFramePadding();

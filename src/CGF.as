@@ -52,7 +52,11 @@ namespace Game {
         RoomInfo@ roomInfo;
         GameInfoFull@ gameInfoFull;
         Json::Value@ mapsList;
+
         string LastRoomPreparationStatus;
+        bool HasLoadError = false;
+        string LoadErrorMessage;
+        int LoadErrorStatusCode = -1;
 
         Scope currScope = Scope::MainLobby;
         Scope priorScope = Scope::MainLobby;
@@ -105,6 +109,7 @@ namespace Game {
             AddMessageHandler("PLAYER_READY", CGF::MessageHandler(MsgHandler_ReadyEvent));
             AddMessageHandler("LIST_READY_STATUS", CGF::MessageHandler(MsgHandler_ReadyEvent));
             AddMessageHandler("MAPS_LOADED", CGF::MessageHandler(MsgHandler_MapsLoaded));
+            AddMessageHandler("MAP_LOAD_ERROR", CGF::MessageHandler(MsgHandler_LoadError));
             AddMessageHandler("PREPARATION_STATUS", CGF::MessageHandler(MsgHandler_PreparationStatus));
             AddMessageHandler("SERVER_JOIN_LINK", CGF::MessageHandler(MsgHandler_ServerJoinLink));
             AddMessageHandler("ENSURE_MAPS_NADEO", CGF::MessageHandler(MsgHandler_EnsureMapsNadeo));
@@ -587,7 +592,11 @@ namespace Game {
             @mainChat[chatNextIx == 0 ? (mainChat.Length - 1) : (chatNextIx - 1)] = null;
             @mainChat[chatNextIx] = null;
             @mainChat[(chatNextIx + 1) % mainChat.Length] = null;
-            //
+            // reset load error stuff
+            HasLoadError = false;
+            LoadErrorMessage = "";
+            LoadErrorStatusCode = -1;
+            // stuff for specific scopes
             if (IsInGame) {
                 @gameInfoFull = null;
                 startnew(CoroutineFunc(gameEngine.OnGameStart));
@@ -791,6 +800,13 @@ namespace Game {
             } else {
                 LastRoomPreparationStatus = j['payload']['msg'];
             }
+            return true;
+        }
+
+        bool MsgHandler_LoadError(Json::Value@ j) {
+            HasLoadError = true;
+            LoadErrorMessage = j['payload'].Get('msg', 'Unknown');
+            LoadErrorStatusCode = j['payload'].Get('status_code', -1);
             return true;
         }
 

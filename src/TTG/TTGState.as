@@ -168,6 +168,10 @@ class TicTacGoState {
             log_trace("InitGameOnStart found null game info, yielding");
             yield();
         }
+        while (client.mapsList is null || client.mapsList.Length == ) {
+            log_trace("InitGameOnStart found empty map list, yielding");
+            yield();
+        }
         LoadFromGameOpts(GameInfo.game_opts);
         ActiveLeader = TTGSquareState(GameInfo.team_order[0]);
         string myUid = client.clientUid;
@@ -589,9 +593,11 @@ class TicTacGoState {
     }
 
     Json::Value@ GetMap(int col, int row) {
+        if (client.mapsList.Length == 0) return null;
         // todo: still an issue with getting maps early?
         int mapIx = row * 3 + col;
         if (mapIx >= int(client.mapsList.Length)) {
+            // RESTART MAP
             warn('bad map index'+ col + ", " + row);
             // this issue seems rare, but better to return something than nothing
             return client.mapsList[0];
