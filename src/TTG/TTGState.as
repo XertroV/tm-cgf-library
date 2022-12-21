@@ -828,7 +828,7 @@ class TicTacGoState {
         int duration;
         bool hasFinished = false;
         while (true) {
-            if (cmap is null || app.Network.PlaygroundClientScriptAPI is null) break;
+            if (cmap is null || cmap.UI is null || app.Network.PlaygroundClientScriptAPI is null) break;
             if (app.Network.PlaygroundClientScriptAPI.Request_IsInProgress && challengeResult.IsEmpty) {
                 // if there's a vote, and there are no scores yet, vote no a few times
                 // this can happen if a player rejoins
