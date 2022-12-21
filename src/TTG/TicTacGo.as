@@ -151,11 +151,17 @@ class TicTacGo : Game::Engine {
         if (stateObj.IsPreStart || stateObj.IsWaitingForMove || stateObj.IsGameFinished) return;
         // if a challenge is active
         if (!stateObj.challengeResult.active) return;
-        // wait 30 s
-        auto fr = stateObj.challengeResult.firstResultAt;
-        if (fr <= 0 || Time::Now - fr < int(forceEndWaitingTime)) return;
         // only for admins/mods
         if (!client.IsPlayerAdminOrMod(client.clientUid)) return;
+        // if we're resolved and it's been more than 15s since the last force end, send a force end automatically
+        if (stateObj.challengeResult.IsResolved && lastForceEndSent + 15000 < Time::Now) {
+            warn("Auto-sending force end");
+            stateObj.SendForceEnd();
+            lastForceEndSent = Time::Now;
+        }
+        // wait 30 s before showing the main UI
+        auto fr = stateObj.challengeResult.firstResultAt;
+        if (fr <= 0 || Time::Now - fr < int(forceEndWaitingTime)) return;
         UI::SetNextWindowPos(Draw::GetWidth() - 400, 50, UI::Cond::Appearing);
         UI::PushFont(mapUiFont);
         if (UI::Begin("Force End Round", UI::WindowFlags::NoCollapse | UI::WindowFlags::NoResize | UI::WindowFlags::NoMove | UI::WindowFlags::AlwaysAutoResize)) {
@@ -767,6 +773,7 @@ class TicTacGo : Game::Engine {
     }
 
     void BlackoutLoop() {
+        if (!stateObj.IsInServer) return;
         auto app = cast<CGameManiaPlanet>(GetApp());
         while (client.IsInGame) {
             yield();

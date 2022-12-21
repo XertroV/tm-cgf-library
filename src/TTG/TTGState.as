@@ -532,10 +532,16 @@ class TicTacGoState {
 
     void ProcessGameMasterEvent(const string &in type, Json::Value@ pl) {
         if (type == "GM_PLAYER_LEFT") {
-            GameInfo.MovePlayerToBackOfTeam(pl['uid']);
+            string uid = pl['uid'];
+            string name = pl['username'];
+            GameInfo.MovePlayerToBackOfTeam(uid);
             MyLeadersName = TeamNames[MyTeamLeader][0];
             OpposingLeaderName = IsSinglePlayer ? MyLeadersName : TeamNames[TheirTeamLeader][0];
             IAmALeader = GameInfo.teams[MyTeamLeader][0] == client.clientUid;
+            // if someone DCs, dnf them
+            if (!IsSinglePlayer && challengeResult.active && !challengeResult.HasResultFor(uid)) {
+                challengeResult.SetPlayersTime(uid, name, DNF_TIME, UidToTeam(uid));
+            }
         } else if (type == "GM_PLAYER_JOINED") {
             // todo
         } else {
