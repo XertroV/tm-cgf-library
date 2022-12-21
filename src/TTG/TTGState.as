@@ -756,6 +756,7 @@ class TicTacGoState {
         if (expectedUid != currUid) {
             auto net = app.Network;
             net.PlaygroundClientScriptAPI.RequestGotoMap(expectedUid);
+            net.PlaygroundClientScriptAPI.Vote_Cast(true);
             // todo: monitor vote?
             // wait for start
             while (app.RootMap is null || app.RootMap.MapInfo.MapUid != expectedUid) yield();
