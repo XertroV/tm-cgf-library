@@ -1382,8 +1382,14 @@ void RenderTeamsScoreBoard(ChallengeResultState@ cr) {
     // nvg::FillColor(vec4(1, 1, 1, 1));
     vec2 elPos = pos;
     int[] count = {0, 0};
+    if (cr is null || cr.teamUids is null) return;
     int maxPlayers = Math::Min(cr.teamUids[0].Length, cr.teamUids[1].Length);
     int nRanked = cr.ranking.Length;
+
+    auto score = cr.TeamsCurrentScore;
+    DrawTeamsScoreOverview(elPos, elSize, score[0], score[1]);
+    elPos.y += elHeight;
+
     for (int i = 0; i < nRanked; i++) {
         auto ur = cr.ranking[i];
         count[ur.team]++;
@@ -1418,6 +1424,44 @@ void DrawTeamsPlayerScoreEntry(TTGSquareState team, const string &in name, int t
     nvg::Text(elPos + pad, name);
     nvg::Text(elPos + pad + timeOffs, timeText);
     nvg::Text(elPos + pad + pointsOff, (didDNF || noPoints) ? "" : "+" + (nPlayers - i));
+}
+
+void DrawTeamsScoreOverview(vec2 elPos, vec2 elSize, int pointsLeft, int pointsRight) {
+    float leftWidth = elSize.x * 0.475;
+    if ((pointsLeft + pointsRight) != 0) {
+        leftWidth = 0.95 * (float(pointsLeft) / float(pointsLeft + pointsRight));
+        leftWidth = Math::Min(0.8, Math::Max(leftWidth, 0.2));
+        leftWidth *= elSize.x;
+    }
+    float rightWidth = elSize.x * 0.95 - leftWidth;
+    vec2 leftSize = vec2(leftWidth, elSize.y);
+    vec2 rightPos = vec2(elPos.x + (elSize.x - rightWidth), elPos.y);
+    vec2 rightSize = vec2(rightWidth, elSize.y);
+    auto leftCol = GetDarkColorForTeam(TTGSquareState::Player1);
+    auto rightCol = GetDarkColorForTeam(TTGSquareState::Player2);
+
+    nvg::BeginPath();
+    nvg::Rect(elPos, leftSize);
+    nvg::FillColor(leftCol);
+    nvg::Fill();
+    nvg::ClosePath();
+
+    nvg::BeginPath();
+    nvg::Rect(rightPos, rightSize);
+    nvg::FillColor(rightCol);
+    nvg::Fill();
+    nvg::ClosePath();
+
+    auto pad = elSize * vec2(0.05, 0.3);
+    // auto timeOffs = elSize * vec2(.6, 0);
+    // auto pointsOff = elSize * vec2(.86, 0);
+
+    nvg::FillColor(vec4(1, 1, 1, 1));
+    nvg::Text(elPos + pad, tostring(pointsLeft));
+
+    string pointsText = tostring(pointsRight);
+    auto textWidth = nvg::TextBounds(pointsText);
+    nvg::Text(rightPos + vec2(rightSize.x - textWidth.x - pad.x, pad.y), pointsText);
 }
 
 vec4 GetDarkColorForTeam(TTGSquareState team, float alpha = .75) {
