@@ -15,6 +15,8 @@ todo:
 
 - team chat `/t`
 
+- notification sound or visual indicator when it's your turn
+
 - (mb, not sure) alt turn order: 1,1,2,2,1,1,2,2,...
 
 

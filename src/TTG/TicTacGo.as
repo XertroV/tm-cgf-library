@@ -516,24 +516,31 @@ class TicTacGo : Game::Engine {
         float xPad = size.x > size.y ? (size.x - side) / 2. : framePadding.x;
         float yPad = size.x < size.y ? (size.y - side) / 2. : 0.;
         auto activeName = stateObj.ActiveLeadersName;
-        if (UI::BeginTable("ttg-table-status", 3, UI::TableFlags::SizingStretchSame)) {
-            UI::TableSetupColumn("l", UI::TableColumnFlags::WidthStretch);
-            UI::TableSetupColumn("m", UI::TableColumnFlags::WidthFixed);
-            UI::TableSetupColumn("r", UI::TableColumnFlags::WidthStretch);
-            UI::TableNextRow();
-            UI::TableNextColumn();
-            UI::TableNextColumn();
-            UI::PushFont(hoverUiFont);
-            bool battleForCenter = stateObj.opt_FirstRoundForCenter && stateObj.turnCounter == 0;
-            if (battleForCenter)
-                UI::Text("Battle for the Center!");
-            else if (stateObj.IsMyTurn)
-                UI::Text(HighlightWin(stateObj.IAmALeader ? "Your Turn!" : "Your Leader's Turn!"));
-            else
-                UI::Text(activeName + "'s Turn");
-            UI::PopFont();
-            UI::EndTable();
+        bool playerHasInitiative = stateObj.IsMyTurn && stateObj.IAmALeader;
+        if (playerHasInitiative)
+            UI::PushStyleColor(UI::Col::ChildBg, vec4(.3, 1, 0, Math::Sin(float(Time::Now) / 350.) * .3 + .3));
+        if (UI::BeginChild("ttg-child-status", vec2(size.x, UI::GetTextLineHeightWithSpacing()))) {
+            if (UI::BeginTable("ttg-table-status", 3, UI::TableFlags::SizingStretchSame)) {
+                UI::TableSetupColumn("l", UI::TableColumnFlags::WidthStretch);
+                UI::TableSetupColumn("m", UI::TableColumnFlags::WidthFixed);
+                UI::TableSetupColumn("r", UI::TableColumnFlags::WidthStretch);
+                UI::TableNextRow();
+                UI::TableNextColumn();
+                UI::TableNextColumn();
+                UI::PushFont(hoverUiFont);
+                bool battleForCenter = stateObj.opt_FirstRoundForCenter && stateObj.turnCounter == 0;
+                if (battleForCenter)
+                    UI::Text("Battle for the Center!");
+                else if (stateObj.IsMyTurn)
+                    UI::Text(HighlightWin(stateObj.IAmALeader ? "Your Turn!" : "Your Leader's Turn!"));
+                else
+                    UI::Text(activeName + "'s Turn");
+                UI::PopFont();
+                UI::EndTable();
+            }
         }
+        UI::EndChild();
+        UI::PopStyleColor(playerHasInitiative ? 1 : 0);
         UI::Dummy(vec2(0, yPad));
         UI::Dummy(vec2(xPad, 0));
         UI::SameLine();
