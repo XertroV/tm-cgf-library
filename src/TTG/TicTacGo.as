@@ -516,7 +516,7 @@ class TicTacGo : Game::Engine {
         float xPad = size.x > size.y ? (size.x - side) / 2. : framePadding.x;
         float yPad = size.x < size.y ? (size.y - side) / 2. : 0.;
         auto activeName = stateObj.ActiveLeadersName;
-        bool playerHasInitiative = stateObj.IsMyTurn && stateObj.IAmALeader;
+        bool playerHasInitiative = stateObj.IsMyTurn && stateObj.IAmALeader && stateObj.IsWaitingForMove;
         if (playerHasInitiative)
             UI::PushStyleColor(UI::Col::ChildBg, vec4(.3, 1, 0, Math::Sin(float(Time::Now) / 350.) * .3 + .3));
         if (UI::BeginChild("ttg-child-status", vec2(size.x, UI::GetTextLineHeightWithSpacing()))) {
