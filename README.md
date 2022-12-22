@@ -17,6 +17,8 @@ todo:
 
 - notification sound or visual indicator when it's your turn
 
+- team score totals so you can tell who's winning easily
+
 - (mb, not sure) alt turn order: 1,1,2,2,1,1,2,2,...
 
 
