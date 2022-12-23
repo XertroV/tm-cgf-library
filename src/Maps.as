@@ -45,9 +45,20 @@ void LoadJoinLink(const string &in joinLink) {
         NotifyError("Refusing to load join link because you lack 1 or more of the permission: PlayPublicClubRoom, PlayPrivateActivity.");
         return;
     }
-    ReturnToMenu();
-    AwaitManialinkTitleReady();
-    cast<CTrackMania>(GetApp()).ManiaPlanetScriptAPI.OpenLink(joinLink.Replace("#join", "#qjoin"), CGameManiaPlanetScriptAPI::ELinkType::ManialinkBrowser);
+    auto app = cast<CTrackMania>(GetApp());
+    // app.Network.ServerInfo
+    string serverLogin = cast<CTrackManiaNetworkServerInfo>(app.Network.ServerInfo).ServerLogin;
+    bool alreadyInServer = app.CurrentPlayground !is null && serverLogin != "" && joinLink.Contains("join=" + serverLogin);
+    if (!alreadyInServer) {
+        ReturnToMenu();
+        yield();
+        AwaitManialinkTitleReady();
+        yield();
+        app.ManiaPlanetScriptAPI.OpenLink(joinLink.Replace("#join", "#qjoin"), CGameManiaPlanetScriptAPI::ELinkType::ManialinkBrowser);
+        yield();
+    } else {
+        trace("LoadJoinLink: already in that server.");
+    }
 }
 
 

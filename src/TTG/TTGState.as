@@ -42,6 +42,8 @@ class TicTacGoState {
 
     SquareState[][] boardState;
     int2 lastColRow = int2(-1, -1);
+    // the next expected sequence number of a game event
+    int expectedSeq = 0;
     // bool[][] boardMapKnown;
 
     TTGSquareState MyTeamLeader = TTGSquareState::Unclaimed;
@@ -57,7 +59,7 @@ class TicTacGoState {
 
     bool IsInServer = false;
 
-    ChallengeResultState@ challengeResult = ChallengeResultState();
+    ChallengeResultState@ challengeResult = null;
     TTGGameEvent@[] gameLog;
     uint turnCounter = 0;
 
@@ -70,6 +72,7 @@ class TicTacGoState {
     int opt_FinishesToWin = 1;
 
     TicTacGoState(Game::Client@ client) {
+        @challengeResult = ChallengeResultState();
         @this.client = client;
         Reset();
     }
@@ -79,11 +82,12 @@ class TicTacGoState {
         state = TTGGameState::PreStart;
         turnCounter = 0;
         gameLog.Resize(0);
-        challengeResult.Reset();
+        @challengeResult = ChallengeResultState();
         ActiveLeader = TTGSquareState::Unclaimed;
         MyTeamLeader = TTGSquareState::Unclaimed;
         TheirTeamLeader = TTGSquareState::Unclaimed;
         WinningLeader = TTGSquareState::Unclaimed;
+        lastColRow = int2(-1, -1);
 
         boardState.Resize(3);
         for (uint i = 0; i < 3; i++) {
@@ -95,7 +99,8 @@ class TicTacGoState {
     }
 
     void OnGameStart() {
-        InitGameOnStart();
+        Reset();
+        startnew(CoroutineFunc(InitGameOnStart));
     }
 
     void OnGameEnd() {
@@ -103,7 +108,6 @@ class TicTacGoState {
     }
 
     void LoadFromGameOpts(const Json::Value@ game_opts) {
-        Reset();
         IsInServer = client.roomInfo.use_club_room;
         if (game_opts.GetType() != Json::Type::Object) {
             log_warn("LoadFromGameOpts: game_opts is not a json object");
@@ -380,49 +384,64 @@ class TicTacGoState {
     }
 
 
-
-
-    bool IsValidMove(const string &in msgType, uint col, uint row, TTGSquareState fromPlayer, bool isFromLeader, const string &in lastFromUid) const {
-        if (fromPlayer == TTGSquareState::Unclaimed) return false;
-        if (IsGameFinished) return false;
-        if (IsInChallenge || IsInClaim) {
-            bool moveIsChallengeRes = msgType == "G_CHALLENGE_RESULT";
-            bool moveIsForceEnd = msgType == "G_CHALLENGE_FORCE_END";
-            if (!moveIsChallengeRes && !moveIsForceEnd) return false;
-            if (moveIsForceEnd) {
-                return client.IsPlayerAdminOrMod(lastFromUid);
-            }
-            if (IsSinglePlayer && challengeResult.HasResultFor(fromPlayer)) return false;
-            if (!IsSinglePlayer && challengeResult.HasResultFor(lastFromUid)) return false;
-            return true;
-        } else if (IsWaitingForMove) {
-            if (col >= 3 || row >= 3) return false;
-            if (!isFromLeader) return false;
-            if (fromPlayer != ActiveLeader && !IsSinglePlayer) return false;
-            if (opt_CannotImmediatelyRepick && WasPriorSquare(col, row)) return false;
-            bool moveIsClaiming = msgType == "G_TAKE_SQUARE";
-            bool moveIsChallenging = msgType == "G_CHALLENGE_SQUARE";
-            if (!moveIsChallenging && !moveIsClaiming) return false;
-            auto sqState = GetSquareState(col, row);
-            if (sqState.IsOwnedBy(ActiveLeader)) return false;
-            if (moveIsChallenging) {
-                if (sqState.IsUnclaimed) return false;
-                return !sqState.IsOwnedBy(fromPlayer) || IsSinglePlayer;
-            } else if (moveIsClaiming) {
-                print('test move claiming');
-                return sqState.IsUnclaimed;
-            }
-            return false;
-        }
+    bool InvalidReason(const string &in reason) {
+        warn("Move invalid b/c: " + reason);
         return false;
     }
 
 
+    bool IsValidMove(const string &in msgType, uint col, uint row, TTGSquareState fromPlayer, bool isFromLeader, const string &in lastFromUid) const {
+        if (fromPlayer == TTGSquareState::Unclaimed) return InvalidReason("from player == unclaimed");
+        if (IsGameFinished) return InvalidReason("game finished");
+        if (IsInChallenge || IsInClaim) {
+            bool moveIsChallengeRes = msgType == "G_CHALLENGE_RESULT";
+            bool moveIsForceEnd = msgType == "G_CHALLENGE_FORCE_END";
+            if (!moveIsChallengeRes && !moveIsForceEnd) return InvalidReason("only challenge result or force end are valid");
+            if (moveIsForceEnd) {
+                return client.IsPlayerAdminOrMod(lastFromUid) || InvalidReason("force end only by admin or mod");
+            }
+            if (IsSinglePlayer && challengeResult.HasResultFor(fromPlayer)) return InvalidReason("got result already");
+            if (!IsSinglePlayer && challengeResult.HasResultFor(lastFromUid)) return InvalidReason("got result already: " + challengeResult.GetResultFor(lastFromUid, -1));
+            return true;
+        } else if (IsWaitingForMove) {
+            if (col >= 3 || row >= 3) return InvalidReason("col/row >= 3");
+            if (!isFromLeader) return InvalidReason("move not from lead player");
+            if (fromPlayer != ActiveLeader && !IsSinglePlayer) return InvalidReason("not from active leader");
+            bool moveIsClaiming = msgType == "G_TAKE_SQUARE";
+            bool moveIsChallenging = msgType == "G_CHALLENGE_SQUARE";
+            if (!moveIsChallenging && !moveIsClaiming) return InvalidReason("move type must be take or challenge square");
+            if (opt_CannotImmediatelyRepick && WasPriorSquare(col, row)) return InvalidReason("cannot repick prior square");
+            auto sqState = GetSquareState(col, row);
+            if (sqState.IsOwnedBy(ActiveLeader)) return InvalidReason("square owned by player");
+            if (moveIsChallenging) {
+                if (sqState.IsUnclaimed) return InvalidReason("cannot challenge an unclaimed square");
+                return !sqState.IsOwnedBy(fromPlayer) || IsSinglePlayer || InvalidReason("owned by player");
+            } else if (moveIsClaiming) {
+                return sqState.IsUnclaimed || InvalidReason("cannot claim a claimed square");
+            }
+            return InvalidReason("should have returned true by now");
+        }
+        return InvalidReason("at end, should have hit a branch");
+    }
+
+
     void ProcessMove(Json::Value@ msg) {
+        while (IsPreStart) yield();
         string msgType = msg['type'];
         auto pl = msg['payload'];
         int seq = pl['seq'];
         bool isReplay = seq < client.GameReplayNbMsgs;
+        bool isGmReset = msgType == "GM_RESET";
+        if (isGmReset) {
+            expectedSeq = seq + 1;
+            dev_print('reset expected next sequence number to: ' + expectedSeq);
+            return;
+        } else if (seq != expectedSeq) {
+            warn("Skipping message with sequence number: " + seq + '; expected: ' + expectedSeq);
+            return;
+        }
+        expectedSeq++;
+        dev_print('Processing: ' + seq + ', Next Expected Seq ' + expectedSeq);
 
         if (msgType.StartsWith("GM_")) {
             ProcessGameMasterEvent(msgType, pl);
@@ -430,7 +449,10 @@ class TicTacGoState {
         }
         if (!msgType.StartsWith("G_")) {
             warn("Skipping non-game msg: " + msgType + "; " + Json::Write(msg));
+            return;
         }
+        // skip rematch meta
+        if (msgType == "G_REMATCH_INIT") return;
         // deserialize game move; all game moves have a col/row
         uint col, row;
         try {
@@ -536,15 +558,18 @@ class TicTacGoState {
 
     void ProcessGameMasterEvent(const string &in type, Json::Value@ pl) {
         if (type == "GM_PLAYER_LEFT") {
-            string uid = pl['uid'];
-            string name = pl['username'];
-            GameInfo.MovePlayerToBackOfTeam(uid);
-            MyLeadersName = TeamNames[MyTeamLeader][0];
-            OpposingLeaderName = IsSinglePlayer ? MyLeadersName : TeamNames[TheirTeamLeader][0];
-            IAmALeader = GameInfo.teams[MyTeamLeader][0] == client.clientUid;
-            // if someone DCs, dnf them
-            if (!IsSinglePlayer && challengeResult.active && !challengeResult.HasResultFor(uid)) {
-                challengeResult.SetPlayersTime(uid, name, DNF_TIME, UidToTeam(uid));
+            if (!IsGameFinished) {
+                string uid = pl['uid'];
+                string name = pl['username'];
+                GameInfo.MovePlayerToBackOfTeam(uid);
+                MyLeadersName = TeamNames[MyTeamLeader][0];
+                OpposingLeaderName = IsSinglePlayer ? MyLeadersName : TeamNames[TheirTeamLeader][0];
+                IAmALeader = GameInfo.teams[MyTeamLeader][0] == client.clientUid;
+                // if someone DCs, dnf them
+                if (!IsSinglePlayer && challengeResult.active && !challengeResult.HasResultFor(uid)) {
+                    warn("DNFing due to player left");
+                    challengeResult.SetPlayersTime(uid, name, DNF_TIME, UidToTeam(uid));
+                }
             }
         } else if (type == "GM_PLAYER_JOINED") {
             // todo
@@ -751,7 +776,7 @@ class TicTacGoState {
         if (IsWaitingForMove && turnCounter == 0) {
             return false;
         }
-        return !IsInClaimOrChallenge && !IsGameFinished && !challengeRunActive;
+        return IsWaitingForMove && !challengeRunActive;
     }
 
     void InServerRunChallenge() {
@@ -810,7 +835,7 @@ class TicTacGoState {
         if (cmap is null) return;
         hideChallengeWindowInServer = true;
         sleep(750);
-        if (cmap is null || cmap.Playground is null) {
+        if ((cmap is null || cmap.Playground is null)) {
             EndChallenge();
             return;
         }
@@ -851,7 +876,7 @@ class TicTacGoState {
             // if the challenge is resolved (e.g., via force ending) then we want to exit out
             // ~~also if we already have a result~~ leave players in the map while other ppl haven't finished yet
             shouldExitChallenge = challengeResult.IsResolved;
-            if (shouldDnf || shouldExitChallenge || GetApp().CurrentPlayground is null) {
+            if (shouldDnf || shouldExitChallenge || GetApp().CurrentPlayground is null && app.Switcher.ModuleStack.Length > 0) {
                 log_trace('should dnf, or exit, or player already did.');
                 if (shouldDnf) {
                     log_warn("shouldDnf. time left: " + timeLeft + "; oppTime: " + oppTime + ", duration=" + duration);
@@ -940,7 +965,7 @@ class TicTacGoState {
 
     void EndChallenge() {
         challengeRunActive = false;
-        if (!IsInServer)
+        if (!IsInServer && GameInfo !is null && !IsPreStart)
             ReturnToMenu();
     }
 
@@ -980,9 +1005,16 @@ class ChallengeResultState {
     UidRank@[] ranking;
     int finishesToWin = 1;
 
-    void Reset() {
+    void Reset(bool hard = false) {
         startTime = -1;
         active = false;
+        if (hard) {
+            player1Time = -1;
+            player2Time = -1;
+            uidTimes.DeleteAll();
+            ranking.Resize(0);
+            firstResultAt = -1;
+        }
     }
 
     void Activate(uint col, uint row, TTGSquareState challenger, TTGGameState type, string[][] &in teamUids, string[][] &in teamNames, TTGMode mode, int battle_finishesToWin) {

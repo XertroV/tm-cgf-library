@@ -38,6 +38,11 @@ class TicTacGo : Game::Engine {
 
     Json::Value@[] incomingEvents;
 
+    CoroutineFunc@ OnRematch = null;
+    string rematchJoinCode;
+    string rematchFromUser;
+    bool rematchBeingCreated;
+
     TicTacGo(Game::Client@ client, bool setRandomNonce = false) {
         // if (setRandomNonce)
         //     idNonce = client.clientUid;
@@ -47,7 +52,11 @@ class TicTacGo : Game::Engine {
         client.AddMessageHandler("PLAYER_LEFT", CGF::MessageHandler(MsgHandler_PlayerEvent));
         client.AddMessageHandler("PLAYER_JOINED", CGF::MessageHandler(MsgHandler_PlayerEvent));
         client.AddMessageHandler("LOBBY_LIST", CGF::MessageHandler(MsgHandler_Ignore));
-        ResetState();
+        client.AddMessageHandler("REMATCH_ROOM_CREATED", CGF::MessageHandler(MsgHandler_RematchRoomCreated));
+        client.AddMessageHandler("GM_REMATCH_ROOM_CREATED", CGF::MessageHandler(MsgHandler_GmRematchRoomCreated));
+        client.AddMessageHandler("G_REMATCH_INIT", CGF::MessageHandler(MsgHandler_GRematchInit));
+        client.AddMessageHandler("GAME_REPLAY_START", CGF::MessageHandler(MsgHandler_OnGameStartEvent));
+        // ResetState();
     }
 
     const string get_idNonce() {
@@ -83,6 +92,54 @@ class TicTacGo : Game::Engine {
         return true;
     }
 
+    bool MsgHandler_RematchRoomCreated(Json::Value@ j) {
+        // if (!client.IsInGame) return true;
+        rematchJoinCode = j['payload']['join_code'];
+        rematchFromUser = j['payload']['by']['username'];
+        OnClickRematchAccept();
+        return true;
+    }
+
+    bool MsgHandler_GmRematchRoomCreated(Json::Value@ j) {
+        warn("GM room created msg");
+        // if (!client.IsInGame) return true;
+        rematchJoinCode = j['payload']['join_code'];
+        rematchFromUser = j['payload']['by']['username'];
+        return true;
+    }
+
+    void OnClickRematchAccept() {
+        // back to lobby, then join room
+        if (rematchJoinCode.Length == 0) return;
+        ReturnToMenu();
+        yield();
+        client.SendLeave();
+        yield();
+        client.SendLeave();
+        yield();
+        client.JoinRoomViaCode(rematchJoinCode);
+        rematchJoinCode = "";
+    }
+
+    void _CallOnRematch() {
+        if (OnRematch !is null) {
+            OnRematch();
+        }
+    }
+
+    bool MsgHandler_GRematchInit(Json::Value@ j) {
+        // if (!client.IsInGame) return true;
+        // only admins/mods can start this
+        if (client.IsPlayerAdminOrMod(j['from']['uid']))
+            rematchBeingCreated = true;
+        return true;
+    }
+    bool MsgHandler_OnGameStartEvent(Json::Value@ j) {
+        rematchJoinCode = "";
+        rematchBeingCreated = false;
+        return true;
+    }
+
     vec2 get_framePadding() {
         return UI::GetStyleVarVec2(UI::StyleVar::FramePadding);
     };
@@ -93,13 +150,13 @@ class TicTacGo : Game::Engine {
 
     void OnGameStart() {
         trace("On game start!");
-        ReturnToMenu();
+        // ReturnToMenu();
+        // ResetState();
+        stateObj.OnGameStart();
         yield();
         MM::setMenuPage("/local");
         yield();
         MM::setMenuPage("/empty");
-        ResetState();
-        stateObj.OnGameStart();
         startnew(CoroutineFunc(GameLoop));
         startnew(CoroutineFunc(JoinClubRoom));
         startnew(CoroutineFunc(BlackoutLoop));
@@ -109,7 +166,8 @@ class TicTacGo : Game::Engine {
         stateObj.OnGameEnd();
         MM::setMenuPage("/local");
         yield();
-        MM::setMenuPage("/home");
+        // no need to set the page to home, and makes loading worse
+        // MM::setMenuPage("/home");
     }
 
     void Render() {
@@ -123,6 +181,7 @@ class TicTacGo : Game::Engine {
         if (stateObj.challengeStartTime < 0) return;
         if (stateObj.currGameTime < 0) return;
         if (!stateObj.challengeRunActive) return;
+        if (stateObj.IsPreStart) return;
         if (!stateObj.IsInServer)
             RenderChatWindow();
         else
@@ -298,6 +357,7 @@ class TicTacGo : Game::Engine {
                 UI::SetCursorPos((region - btnSize) / 2);
                 if (UI::Button("DNF##dnf-btn"+idNonce, btnSize)) {
                     stateObj.ReportChallengeResult(DNF_TIME);
+                    if (stateObj.IsSinglePlayer) stateObj.EndChallenge();
                 }
             }
             UI::EndChild();
@@ -353,6 +413,35 @@ class TicTacGo : Game::Engine {
             }
         }
 
+        if (rematchJoinCode.Length > 0) {
+            DrawRematchPromptWindow();
+        }
+        DrawTtgMainWindow();
+        DrawChallengeWindow();
+    }
+
+    void DrawRematchPromptWindow() {
+        if (UI::Begin("rematch window", UI::WindowFlags::NoTitleBar | UI::WindowFlags::AlwaysAutoResize)) {
+            UI::PushFont(mapUiFont);
+            UI::AlignTextToFramePadding();
+            UI::Text("Rematch?");
+            if (UI::Button("Accept##rematch")) {
+                OnClickRematchAccept();
+            }
+            UI::SameLine();
+            UI::Dummy(vec2(30, 30));
+            UI::SameLine();
+            if (UI::Button("Leave##rematch")) {
+                ReturnToMenu();
+                client.SendLeave();
+                client.SendLeave();
+            }
+            UI::PopFont();
+        }
+        UI::End();
+    }
+
+    void DrawTtgMainWindow() {
         UI::SetNextWindowSize(Draw::GetWidth() / 2, Draw::GetHeight() * 3 / 5, UI::Cond::FirstUseEver);
         UI::PushFont(hoverUiFont);
         if (UI::Begin("Tic Tac GO! ("+stateObj.MyName+")##" + idNonce)) {
@@ -372,7 +461,6 @@ class TicTacGo : Game::Engine {
         }
         UI::End();
         UI::PopFont();
-        DrawChallengeWindow();
     }
 
     // player 1 col
@@ -381,6 +469,7 @@ class TicTacGo : Game::Engine {
             DrawPlayer(TTGSquareState::Player1);
             UI::Dummy(vec2(0, 8));
             DrawPlayer(TTGSquareState::Player2);
+            DrawLeaveGameOrRematch();
             if (GameInfo.players.Length > 2) {
                 UI::Dummy(vec2(0, 8));
                 DrawShowAllPlayers();
@@ -441,7 +530,7 @@ class TicTacGo : Game::Engine {
             if (UI::Button("Leave Game")) {
                 if (stateObj.IsInServer)
                     ReturnToMenu();
-                if (stateObj.IsGameFinished)
+                if (client.IsInGame && stateObj.IsGameFinished)
                     client.SendLeave();
                 client.SendLeave();
             }
@@ -468,6 +557,7 @@ class TicTacGo : Game::Engine {
     }
 
     bool IsPlayerConnected(TTGSquareState player) {
+        if (GameInfo is null) return false;
         return (stateObj.IsSinglePlayer) || client.currentPlayers.Exists(GameInfo.teams[player][0]);
     }
 
@@ -492,18 +582,35 @@ class TicTacGo : Game::Engine {
             UI::Text("\\$ea4 (Disconnected)");
         }
         UI::PopFont();
-        if (player == TTGSquareState::Player2) {
-            if (stateObj.IsGameFinished) {
-                UI::Dummy(vec2(0, 15));
-                UI::PushFont(hoverUiFont);
-                if (UI::Button("Leave##game")) {
-                    // once for game, once for room
-                    client.SendLeave();
-                    client.SendLeave();
+    }
+
+    void DrawLeaveGameOrRematch() {
+        // do nothing if the game isn't finished
+        if (!stateObj.IsGameFinished) return;
+        UI::Dummy(vec2(0, 15));
+        UI::PushFont(hoverUiFont);
+        if (rematchJoinCode.Length == 0 && client.IsPlayerAdminOrMod(client.clientUid)) {
+            if (UI::Button("Rematch##new-game")) {
+                client.SendPayload("G_REMATCH_INIT");
+                _CallOnRematch();
+            }
+        } else {
+            UI::AlignTextToFramePadding();
+            if (rematchJoinCode.Length == 0) {
+                UI::Text(rematchBeingCreated ? "Rematch being prepared..." : "Awaiting rematch request...");
+            } else {
+                if (UI::Button("Accept Rematch##lhs")) {
+                    OnClickRematchAccept();
                 }
-                UI::PopFont();
             }
         }
+        if (UI::Button("Leave##game-lhs")) {
+            // once for game, once for room
+            ReturnToMenu();
+            client.SendLeave();
+            client.SendLeave();
+        }
+        UI::PopFont();
     }
 
     vec4 lastWinMsgSize = vec4(0, 0, 100, 30);
@@ -769,11 +876,11 @@ class TicTacGo : Game::Engine {
         while (app.Switcher.ModuleStack.Length == 0 || cast<CSmArenaClient>(app.Switcher.ModuleStack[0]) !is null) yield();
         // something else is active, prbs the menu
         // if we're in a game currently, then we should leave the game UI so that we can rejoin and thus rejoin the server
-        if (client.IsInGame) {
+        if (client.IsInGame && client.IsConnected) {
             yield();
             sleep(1000);
             yield();
-            if (client.IsInGame) {
+            if (client.IsInGame && client.IsConnected) {
                 client.SendLeave();
             }
         }
@@ -781,8 +888,9 @@ class TicTacGo : Game::Engine {
 
     void BlackoutLoop() {
         if (!stateObj.IsInServer) return;
+        while (!client.IsInGame) yield();
         auto app = cast<CGameManiaPlanet>(GetApp());
-        while (client.IsInGame) {
+        while (client.IsConnected && client.IsInGame) {
             yield();
             if (app.CurrentPlayground is null) continue;
             app.CurrentPlayground.GameTerminals_IsBlackOut = stateObj.ShouldBlackout();
@@ -793,8 +901,10 @@ class TicTacGo : Game::Engine {
     }
 
     void GameLoop() {
-        while (stateObj.IsPreStart) yield();
-        while (not stateObj.IsGameFinished && client.IsConnected) {
+        while (stateObj.IsPreStart) {
+            yield();
+        }
+        while (client.IsConnected && client.IsInGame) {
             yield();
             ProcessAvailableMsgs();
         }
@@ -814,7 +924,8 @@ class TicTacGo : Game::Engine {
                 // auto fromPlayer = gotOwnMessage ? IAmPlayer : TheyArePlayer;
                 // lastFrom = fromPlayer;
                 // try {
-                stateObj.ProcessMove(msg);
+                if (client.IsInGame)
+                    stateObj.ProcessMove(msg);
                 // } catch {
                     // warn("Exception processing move: " + getExceptionInfo());
                     // warn("The move: " + Json::Write(msg));
@@ -983,11 +1094,21 @@ class TicTacGo : Game::Engine {
             }
             UI::EndDisabled();
         }
-        if (!stateObj.IsSinglePlayer && !S_LocalDev) {
+        if (!stateObj.IsSinglePlayer && !client.InLocalDevMode) {
             UI::SameLine();
             UI::Dummy(vec2(8, 0));
             UI::SameLine();
             S_TTG_AutostartMap = UI::Checkbox("Auto?", S_TTG_AutostartMap);
+        }
+        if (client.InLocalDevMode) {
+            UI::PushFont(hoverUiFont);
+            if (UI::Button("Cheat (10min)")) {
+                stateObj.ReportChallengeResult(1000 * 60 * 10);
+            }
+            if (UI::Button("Cheat (20min)")) {
+                stateObj.ReportChallengeResult(1000 * 60 * 20);
+            }
+            UI::PopFont();
         }
     }
 

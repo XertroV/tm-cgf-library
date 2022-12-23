@@ -3,6 +3,8 @@ class TtgGame {
     Game::Client@ client;
     TicTacGo@ ttg;
     bool hasPerms = false;
+    bool rematchSetupActive = false;
+    string instId;
 
     TtgGame() {
         // required permissions
@@ -12,6 +14,7 @@ class TtgGame {
         else {
             NotifyError("You don't have the required permissions to play TTG. (PlayLocalMap)\n\nYou need standard or club access.");
         }
+        instId = Crypto::RandomBase64(6);
     }
 
     void Initialize() {
@@ -19,6 +22,7 @@ class TtgGame {
         @client = Game::Client();
         @ttg = TicTacGo(client);
         @client.gameEngine = ttg;
+        @ttg.OnRematch = CoroutineFunc(this.OnRematch);
         startnew(CoroutineFunc(TtgLobbyLoop));
         startnew(CoroutineFunc(SelfDestructLoop));
     }
@@ -44,8 +48,9 @@ class TtgGame {
         while (!IsShutdown) {
             if (lastScope != client.currScope) {
                 lastScope = client.currScope;
+                rematchSetupActive = false;
                 if (lastScope == Game::Scope::InRoom) {
-                    m_roomName = LocalPlayersName + "'s Room";
+                    // m_roomName = LocalPlayersName + "'s Room";
                     teamsLocked = false;
                 }
             }
@@ -91,8 +96,11 @@ class TtgGame {
         else if (client.IsInRoom) RenderRoom();
         else if (client.IsInGame) {
             if (ttg.GameInfo is null) RenderWaitingForGameInfo();
-            if (client.roomInfo.use_club_room && !CurrentlyInMap && !ttg.stateObj.IsInClaimOrChallenge) RenderJoiningServer();
-            else ttg.RenderInterface();
+            else if (client.roomInfo.use_club_room && !CurrentlyInMap && !ttg.stateObj.IsInClaimOrChallenge) RenderJoiningServer();
+            else {
+                ttg.RenderInterface();
+                if (rematchSetupActive) RenderRematchSetup();
+            }
         }
         else {
             UI::Text("Unknown client state!");
@@ -104,13 +112,20 @@ class TtgGame {
 
     protected bool MainWindowOpen = true; // set to false after deving so ppl have to open it
 
-    int DefaultLobbyWindowHeight = 650;
+    int DefaultLobbyWindowHeight = 750;
+    int DefaultLobbyWindowWidth = 1000;
 
     protected bool BeginMainWindow() {
         // if (!MainWindowOpen) startnew(TTG::NullifyGame);
-        UI::SetNextWindowSize(900, DefaultLobbyWindowHeight, UI::Cond::FirstUseEver);
-        bool ret = UI::Begin("Lobby - Tic Tac GO!", MainWindowOpen);
+        UI::SetNextWindowSize(DefaultLobbyWindowWidth, DefaultLobbyWindowHeight, UI::Cond::FirstUseEver);
+        bool ret = UI::Begin("Lobby - Tic Tac GO!##" + instId, MainWindowOpen);
         if (ret) UpdateLobbyWindowSizePos();
+        return ret;
+    }
+
+    protected bool BeginRematchWindow() {
+        UI::SetNextWindowSize(DefaultLobbyWindowWidth, DefaultLobbyWindowHeight, UI::Cond::Always);
+        bool ret = UI::Begin("TTG! Rematch Set Up##" + instId, rematchSetupActive);
         return ret;
     }
 
@@ -193,6 +208,14 @@ class TtgGame {
         }
         UI::End();
         RenderLobbyChatWindow();
+    }
+
+    void RenderRematchSetup() {
+        if (!rematchSetupActive) return;
+        if (BeginRematchWindow()) {
+            DrawRoomCreation();
+        }
+        UI::End();
     }
 
     int lobbyChatWindowFlags = UI::WindowFlags::NoResize;
@@ -329,6 +352,10 @@ class TtgGame {
         UI::Text(S_TTG_HideRoomNames ? RoomNameNonce(room) : RoomNameText(room));
     }
 
+    void OnRematch() {
+        rematchSetupActive = true;
+    }
+
     // consts for TTG
     int m_playerLimit = 2;
     int m_nbTeams = 2;
@@ -350,7 +377,6 @@ class TtgGame {
     bool m_useClubRoom = false;
 
     void DrawRoomCreation() {
-
         if (DrawHeading1Button("Create a room.", "Back##from-create")) {
             isCreatingRoom = false;
         }
@@ -386,6 +412,7 @@ class TtgGame {
         UI::BeginDisabled(Time::Now < createRoomTimeout);
         if (UI::Button("Create Room")) {
             createRoomTimeout = Time::Now + ROOM_TIMEOUT_MS;
+            rematchSetupActive = false;
             CreateRoom();
         }
         UI::EndDisabled();

@@ -15,11 +15,9 @@ todo:
 
 - team chat `/t`
 
-- notification sound or visual indicator when it's your turn
-
-- team score totals so you can tell who's winning easily
-
 - room reuse? or mb auto-join new room?
+
+-
 
 - (mb, not sure) alt turn order: 1,1,2,2,1,1,2,2,...
 
@@ -27,6 +25,9 @@ todo:
 (auto cancel skin downloads)
 
 
+
+- notification sound or visual indicator when it's your turn
+- team score totals so you can tell who's winning easily
 
 - admin, force game start
 - auto assign to teams

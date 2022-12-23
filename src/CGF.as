@@ -33,6 +33,7 @@ namespace Game {
         ClientState state = ClientState::Uninitialized;
         bool loggedIn = false;
         int connectedAt;
+        bool InLocalDevMode = false;
 
         dictionary currentPlayers;
         dictionary readyStatus;
@@ -93,6 +94,7 @@ namespace Game {
         Client(const string &in _name = "") {
             host = S_LocalDev ? "localhost" : S_Host;
             port = S_Port;
+            InLocalDevMode = S_LocalDev;
             AddMessageHandler("SEND_CHAT", CGF::MessageHandler(MsgHandler_Chat));
             AddMessageHandler("ENTERED_LOBBY", CGF::MessageHandler(MsgHandler_LobbyInfo));
             AddMessageHandler("LOBBY_INFO", CGF::MessageHandler(MsgHandler_LobbyInfo));
@@ -142,7 +144,7 @@ namespace Game {
         }
 
         void Initialize() {
-            if (!S_LocalDev)
+            if (!InLocalDevMode)
                 GetAuthToken();
             int reconnectCounter = 0;
             Connect();
@@ -239,7 +241,7 @@ namespace Game {
         void Reconnect(uint timeout = 5000) {
             if (!IsDisconnected && !IsTimedOut) return;
             warn("Attempting reconnect...");
-            if (!(S_LocalDev || S_LegacyAuth) && Time::Now - tokenRequestTime > (60 * 1000))
+            if (!(InLocalDevMode || S_LegacyAuth) && Time::Now - tokenRequestTime > (60 * 1000))
                 GetAuthToken();
             Connect(timeout);
         }
@@ -262,7 +264,7 @@ namespace Game {
             // print("Connected. Server version: " + ver);
             NotifyInfo("Connected.\nServer Version: " + ver + "\nCurrent Players: " + (nbClients + 1));
             // login via openplanet auth
-            if (S_LocalDev || S_LegacyAuth) {
+            if (InLocalDevMode || S_LegacyAuth) {
                 LegacyLogin();
             } else if (!LoginOpenplanetAuth()) {
                 warn("Unable to login :(");
@@ -315,12 +317,12 @@ namespace Game {
                         bool gameMsg = type.StartsWith("G_") || type.StartsWith("GM_");
                         if (gameMsg && IsInGame) {
                             gameEngine.MessageHandler(msg);
-                        } else {
-                            auto handlers = GetMessageHandlers(type);
-                            if (handlers is null) throw("handlers should never be null!");
-                            for (uint i = 0; i < handlers.Length; i++) handlers[i](msg);
-                            if (handlers.Length == 0) warn("Unhandled message of type: " + type);
                         }
+                        // if it's a game message, still pass it on to any handlers
+                        auto handlers = GetMessageHandlers(type);
+                        if (handlers is null) throw("handlers should never be null!");
+                        for (uint i = 0; i < handlers.Length; i++) handlers[i](msg);
+                        if (!gameMsg && handlers.Length == 0) warn("Unhandled message of type: " + type);
                     }
                 }
             }
@@ -605,16 +607,20 @@ namespace Game {
             // stuff for specific scopes
             if (IsInGame) {
                 @gameInfoFull = null;
-                startnew(CoroutineFunc(gameEngine.OnGameStart));
+                // startnew(CoroutineFunc(gameEngine.OnGameStart));
+                gameEngine.OnGameStart();
             }
             if (priorScope == 3 && IsInRoom) {
                 _GameReplayNbMsgs = 0;
-                startnew(CoroutineFunc(gameEngine.OnGameEnd));
+                // startnew(CoroutineFunc(gameEngine.OnGameEnd));
+                gameEngine.OnGameEnd();
             }
             if (IsInRoom) {
                 cachedThumbnails.DeleteAll();
                 LastRoomPreparationStatus = "";
             }
+            // yield to give other chance a stuff to react
+            yield();
         }
 
         bool MsgHandler_LobbyInfo(Json::Value@ j) {
