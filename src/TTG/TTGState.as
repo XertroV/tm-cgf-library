@@ -679,7 +679,7 @@ class TicTacGoState {
         yield();
         // join map
         challengeRunActive = true;
-        LoadMapNow(MapUrlTmx(currMap));
+        LoadMapNow(MapUrlTmx(currMap['TrackID']));
         startnew(CoroutineFunc(ResetLaunchMapBtnSoon));
         while (!CurrentlyInMap) yield();
         sleep(50);
