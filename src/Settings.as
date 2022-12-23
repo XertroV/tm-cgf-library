@@ -41,7 +41,7 @@ bool S_TTG_AutostartMap = false;
 #endif
 void Render_Settings_Changelog() {
     UI::Markdown("""
- # 0.1.39
+ # 0.1.41
 
  ## Server Play
 
@@ -58,6 +58,8 @@ void Render_Settings_Changelog() {
  - Bump limit to 64 players (TTG)
  - Add scores total to teams in-game UI (TTG)
  - Add a rematch button when the game is over (TTG + CGF)
+ - Load maps from TMX url instead of CGF mirror (TTG)
+ - Fix hang when going back to main menu while in-game menu is open (TTG)
 
  # 0.1.24
 

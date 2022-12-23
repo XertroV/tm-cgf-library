@@ -28,6 +28,9 @@ void LoadMapNow(const string &in url) {
 
 void ReturnToMenu() {
     auto app = cast<CGameManiaPlanet>(GetApp());
+    if (app.Network.PlaygroundClientScriptAPI.IsInGameMenuDisplayed) {
+        app.Network.PlaygroundInterfaceScriptHandler.CloseInGameMenu(CGameScriptHandlerPlaygroundInterface::EInGameMenuResult::Resume);
+    }
     app.BackToMainMenu();
 }
 

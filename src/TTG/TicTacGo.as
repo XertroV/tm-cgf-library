@@ -56,13 +56,13 @@ class TicTacGo : Game::Engine {
         client.AddMessageHandler("GM_REMATCH_ROOM_CREATED", CGF::MessageHandler(MsgHandler_GmRematchRoomCreated));
         client.AddMessageHandler("G_REMATCH_INIT", CGF::MessageHandler(MsgHandler_GRematchInit));
         client.AddMessageHandler("GAME_REPLAY_START", CGF::MessageHandler(MsgHandler_OnGameStartEvent));
-        // ResetState();
     }
 
     const string get_idNonce() {
         return client.clientUid;
     }
 
+    // used by debug client
     void ResetState() {
         trace("TTG State Reset!");
         stateObj.Reset();
@@ -150,9 +150,14 @@ class TicTacGo : Game::Engine {
 
     void OnGameStart() {
         trace("On game start!");
-        // ReturnToMenu();
-        // ResetState();
         stateObj.OnGameStart();
+        ReturnToMenu();
+        startnew(CoroutineFunc(OnGameStartCoro));
+    }
+
+    void OnGameStartCoro() {
+        AwaitManialinkTitleReady();
+        while (stateObj.IsPreStart) yield();
         yield();
         MM::setMenuPage("/local");
         yield();
