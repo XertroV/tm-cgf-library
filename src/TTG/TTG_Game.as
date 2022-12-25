@@ -103,7 +103,7 @@ class TtgGame {
             }
         }
         else {
-            UI::Text("Unknown client state!");
+            RenderLoadingScreen("Unknown client state!", true);
             warn("Unknown client state!");
         }
         UI::PopStyleColor();
@@ -385,24 +385,8 @@ class TtgGame {
             UI::TableNextRow();
             UI::TableNextColumn();
 
-            bool changed = false;
-            UI::AlignTextToFramePadding();
-            UI::Text("Room Name:");
-            UI::SameLine();
-            m_roomName = UI::InputText("##Room Name", m_roomName, changed);
-            m_isPublic = UI::Checkbox("Is Public?", m_isPublic);
-            m_singlePlayer = UI::Checkbox("Single Player Game?", m_singlePlayer);
-            AddSimpleTooltip("Note: this will auto-disable the room being public.");
-            if (m_singlePlayer) {
-                m_isPublic = false;
-            }
-
-            // don't show the checkbox here if the user isn't able to create an activity in a club,
-            // since we're sort of doing that on their behalf.
-            if (Permissions::CreateActivity()) {
-                m_useClubRoom = UI::Checkbox("Play on a server instead of locally. (\\$fe1" + Icons::ExclamationTriangle + " Experimental\\$z)", m_useClubRoom);
-            }
-
+            DrawMainRoomOptions();
+            UI::Separator();
             DrawMapOptionsInput();
 
             UI::TableNextColumn();
@@ -428,8 +412,37 @@ class TtgGame {
         UI::PopFont();
     }
 
+    void DrawMainRoomOptions() {
+        UI::Text(Highlight(">>  Room Options:"));
+
+        bool changed = false;
+
+        Indent(2);
+        UI::AlignTextToFramePadding();
+        UI::Text("Room Name:");
+        UI::SameLine();
+        m_roomName = UI::InputText("##Room Name", m_roomName, changed);
+
+        Indent(2);
+        m_isPublic = UI::Checkbox("Is Public?", m_isPublic);
+
+        Indent(2);
+        m_singlePlayer = UI::Checkbox("Single Player Game?", m_singlePlayer);
+        AddSimpleTooltip("Note: this will auto-disable the room being public.");
+        if (m_singlePlayer) {
+            m_isPublic = false;
+        }
+
+        // don't show the checkbox here if the user isn't able to create an activity in a club,
+        // since we're sort of doing that on their behalf.
+        if (Permissions::CreateActivity()) {
+            Indent(2);
+            m_useClubRoom = UI::Checkbox("Play on a server instead of locally. (\\$fe1" + Icons::ExclamationTriangle + " Experimental\\$z)", m_useClubRoom);
+        }
+
+    }
+
     void DrawMapOptionsInput() {
-        UI::Separator();
         UI::AlignTextToFramePadding();
         UI::Text(Highlight(">>  Map Options:"));
         DrawMapSelectionType();
@@ -597,6 +610,7 @@ class TtgGame {
         AddSimpleTooltip("Players will automatically DNF after X seconds.");
 
         if (m_AutoDnfEnabled) {
+            UI::AlignTextToFramePadding();
             Indent(2);
             UI::Text("Auto DNF Seconds: ");
             UI::SameLine();

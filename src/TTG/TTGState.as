@@ -70,6 +70,7 @@ class TicTacGoState {
     int opt_AutoDNF = -1;
     // used during battle mode
     int opt_FinishesToWin = 1;
+    MapGoal opt_MapGoal = MapGoal::Finish;
 
     TicTacGoState(Game::Client@ client) {
         @challengeResult = ChallengeResultState();
@@ -126,6 +127,8 @@ class TicTacGoState {
 
         opt_FirstRoundForCenter = GetGameOptBool(game_opts, '1st_round_for_center', false);
         opt_CannotImmediatelyRepick = GetGameOptBool(game_opts, 'cannot_repick', false);
+
+        opt_MapGoal = MapGoal(GetGameOptInt(game_opts, 'map_goal', 0));
 
         if (IsSinglePlayer) opt_FirstRoundForCenter = false;
     }
