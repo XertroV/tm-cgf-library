@@ -381,30 +381,39 @@ class TtgGame {
             isCreatingRoom = false;
         }
 
-        bool changed = false;
-        UI::AlignTextToFramePadding();
-        UI::Text("Room Name:");
-        UI::SameLine();
-        m_roomName = UI::InputText("##Room Name", m_roomName, changed);
-        m_isPublic = UI::Checkbox("Is Public?", m_isPublic);
-        m_singlePlayer = UI::Checkbox("Single Player Game?", m_singlePlayer);
-        AddSimpleTooltip("Note: this will auto-disable the room being public.");
-        if (m_singlePlayer) {
-            m_isPublic = false;
+        if (UI::BeginTable("room-creation-opts", 2, UI::TableFlags::SizingStretchSame)) {
+            UI::TableNextRow();
+            UI::TableNextColumn();
+
+            bool changed = false;
+            UI::AlignTextToFramePadding();
+            UI::Text("Room Name:");
+            UI::SameLine();
+            m_roomName = UI::InputText("##Room Name", m_roomName, changed);
+            m_isPublic = UI::Checkbox("Is Public?", m_isPublic);
+            m_singlePlayer = UI::Checkbox("Single Player Game?", m_singlePlayer);
+            AddSimpleTooltip("Note: this will auto-disable the room being public.");
+            if (m_singlePlayer) {
+                m_isPublic = false;
+            }
+
+            // don't show the checkbox here if the user isn't able to create an activity in a club,
+            // since we're sort of doing that on their behalf.
+            if (Permissions::CreateActivity()) {
+                m_useClubRoom = UI::Checkbox("Play on a server instead of locally. (\\$fe1" + Icons::ExclamationTriangle + " Experimental\\$z)", m_useClubRoom);
+            }
+
+            DrawMapOptionsInput();
+
+            UI::TableNextColumn();
+
+            // update modes and single player based on ticking the single player box
+            if (m_singlePlayer) gameOptions['mode'] = 1;
+            DrawSetGameOptions();
+            if (m_singlePlayer && int(gameOptions['mode']) != 1) m_singlePlayer = false;
+
+            UI::EndTable();
         }
-
-        // don't show the checkbox here if the user isn't able to create an activity in a club,
-        // since we're sort of doing that on their behalf.
-        if (Permissions::CreateActivity()) {
-            m_useClubRoom = UI::Checkbox("Play on a server instead of locally. (\\$fe1" + Icons::ExclamationTriangle + " Experimental\\$z)", m_useClubRoom);
-        }
-
-        DrawMapOptionsInput();
-
-        // update modes and single player based on ticking the single player box
-        if (m_singlePlayer) gameOptions['mode'] = 1;
-        DrawSetGameOptions();
-        if (m_singlePlayer && int(gameOptions['mode']) != 1) m_singlePlayer = false;
 
         UI::Separator();
 
@@ -483,7 +492,7 @@ class TtgGame {
     void DrawMapsMaxDifficulty() {
         Indent(2);
         UI::AlignTextToFramePadding();
-        TextSameLine("Maximum Difficulty: ");
+        TextSameLine("Max. Difficulty: ");
         if (UI::BeginCombo("##max-difficulty", tostring(m_maxDifficulty))) {
             DrawDifficultySelectable(CGF::MaxDifficulty::Beginner);
             DrawDifficultySelectable(CGF::MaxDifficulty::Intermediate);
@@ -526,7 +535,7 @@ class TtgGame {
     int m_autoDnfSecs = 30;
 
     void DrawSetGameOptions() {
-        UI::Separator();
+        // UI::Separator();
         UI::AlignTextToFramePadding();
         UI::Text(Highlight(">>  Game Options"));
 
@@ -541,11 +550,9 @@ class TtgGame {
             if (DrawModeSelectable(TTGMode::Teams, currMode)) {
                 m_playerLimit = 6;
             }
-// #if DEV && FALSE
             if (DrawModeSelectable(TTGMode::BattleMode, currMode)) {
                 m_playerLimit = 16;
             }
-// #endif
             UI::EndCombo();
         }
         if (UI::IsItemHovered()) {
@@ -567,11 +574,15 @@ class TtgGame {
             // draw room size dragger
             UI::AlignTextToFramePadding();
             Indent(2);
-            UI::Text("N Finishes to Win:");
+            UI::Text("Finishes to Win:");
             UI::SameLine();
             m_opt_finishesToWin = UI::SliderInt("##-finishes-to-win", m_opt_finishesToWin, 1, m_playerLimit / 2);
             m_opt_finishesToWin = Math::Min(m_playerLimit / 2, m_opt_finishesToWin);
         }
+
+#if DEV
+        DrawScoreConditionGameOpt();
+#endif
 
         Indent(2);
         JsonCheckbox("Enable records?", gameOptions, "enable_records", false);
@@ -618,6 +629,31 @@ class TtgGame {
         // Indent();
         // JsonCheckbox("Give-up = DNF?", gameOptions, "give_up_is_dnf", false);
         // AddSimpleTooltip("");
+    }
+
+    void DrawScoreConditionGameOpt() {
+        auto currMapGoal = MapGoal(int(gameOptions['map_goal']));
+        Indent(2);
+        UI::AlignTextToFramePadding();
+        TextSameLine("Map Goal:");
+        auto clicked = UI::BeginCombo("##map-goal", tostring(currMapGoal));
+        AddSimpleTooltip("What must players achieve in order to score?\n(Note: the TTG timer doesn't reset.)");
+        if (clicked) {
+            DrawMapGoalSelectable(MapGoal::Finish, currMapGoal);
+            DrawMapGoalSelectable(MapGoal::Bronze, currMapGoal);
+            DrawMapGoalSelectable(MapGoal::Silver, currMapGoal);
+            DrawMapGoalSelectable(MapGoal::Gold, currMapGoal);
+            DrawMapGoalSelectable(MapGoal::Author, currMapGoal);
+            UI::EndCombo();
+        }
+    }
+
+    bool DrawMapGoalSelectable(MapGoal goal, MapGoal curr) {
+        bool clicked = UI::Selectable(tostring(goal), goal == curr);
+        if (clicked) {
+            gameOptions['map_goal'] = int(goal);
+        }
+        return clicked;
     }
 
     const string ModeDescription(TTGMode mode) {
@@ -763,6 +799,10 @@ class TtgGame {
                 Indent(4);
                 UI::Text("Finishes to Win: " + string(go.Get('finishes_to_win', '1')));
             }
+
+            auto currGoal = MapGoal(Text::ParseInt(go.Get('map_goal', '0')));
+            Indent(2);
+            UI::Text("Map Goal: " + tostring(currGoal));
 
             Indent(2);
             UI::Text("Records Enabled: " + string(go.Get('enable_records', 'False')));
@@ -975,6 +1015,11 @@ Json::Value@ DefaultTtgGameOptions() {
     go['cannot_repick'] = true;
     go['reveal_maps'] = false;
     go['game_version'] = Meta::ExecutingPlugin().Version;
+    go['map_goal'] = int(MapGoal::Finish);
 
     return go;
+}
+
+enum MapGoal {
+    Finish = 0, Bronze = 1, Silver, Gold, Author
 }
