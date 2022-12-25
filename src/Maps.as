@@ -29,9 +29,12 @@ void LoadMapNow(const string &in url) {
 void ReturnToMenu() {
     auto app = cast<CGameManiaPlanet>(GetApp());
     if (app.Network.PlaygroundClientScriptAPI.IsInGameMenuDisplayed) {
-        app.Network.PlaygroundInterfaceScriptHandler.CloseInGameMenu(CGameScriptHandlerPlaygroundInterface::EInGameMenuResult::Resume);
+        app.Network.PlaygroundInterfaceScriptHandler.CloseInGameMenu(CGameScriptHandlerPlaygroundInterface::EInGameMenuResult::Quit);
+    } else {
+        app.BackToMainMenu();
     }
-    app.BackToMainMenu();
+    // wait for the menu to load.
+    while (app.Switcher.ModuleStack.Length == 0 || cast<CTrackManiaMenus>(app.Switcher.ModuleStack[0]) is null) yield();
 }
 
 void AwaitManialinkTitleReady() {
@@ -186,8 +189,9 @@ void UploadMapFromLocal(const string &in uid) {
     auto dfm = cma.DataFileMgr;
     auto userId = cma.UserMgr.Users[0].Id;
     // back to menu so we can refresh maps
-    app.BackToMainMenu();
-    while (!app.ManiaTitleControlScriptAPI.IsReady) yield();
+    ReturnToMenu();
+    AwaitManialinkTitleReady();
+    yield();
     // Do not run from within a map; will cause a script error (Map.MapInfo.MapUid is undefined, and lots of angelscript exceptions, too)
     dfm.Map_RefreshFromDisk();
     trace('UploadMapFromLocal: refreshed maps, attempting upload');
