@@ -111,7 +111,7 @@ class TicTacGo : Game::Engine {
     void OnClickRematchAccept() {
         // back to lobby, then join room
         if (rematchJoinCode.Length == 0) return;
-        ReturnToMenu();
+        startnew(ReturnToMenu);
         yield();
         client.SendLeave();
         yield();
@@ -151,7 +151,7 @@ class TicTacGo : Game::Engine {
     void OnGameStart() {
         trace("On game start!");
         stateObj.OnGameStart();
-        ReturnToMenu();
+        startnew(ReturnToMenu);
         startnew(CoroutineFunc(OnGameStartCoro));
     }
 
@@ -437,7 +437,7 @@ class TicTacGo : Game::Engine {
             UI::Dummy(vec2(30, 30));
             UI::SameLine();
             if (UI::Button("Leave##rematch")) {
-                ReturnToMenu();
+                startnew(ReturnToMenu);
                 client.SendLeave();
                 client.SendLeave();
             }
@@ -534,7 +534,7 @@ class TicTacGo : Game::Engine {
             UI::TableNextColumn();
             if (UI::Button("Leave Game")) {
                 if (stateObj.IsInServer)
-                    ReturnToMenu();
+                    startnew(ReturnToMenu);
                 if (client.IsInGame && stateObj.IsGameFinished)
                     client.SendLeave();
                 client.SendLeave();
@@ -611,7 +611,7 @@ class TicTacGo : Game::Engine {
         }
         if (UI::Button("Leave##game-lhs")) {
             // once for game, once for room
-            ReturnToMenu();
+            startnew(ReturnToMenu);
             client.SendLeave();
             client.SendLeave();
         }
