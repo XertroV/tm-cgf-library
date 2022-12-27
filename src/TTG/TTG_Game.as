@@ -86,6 +86,8 @@ class TtgGame {
     }
 
     void RenderInterface() {
+        bool overlayOpen = UI::IsOverlayShown();
+        if (!overlayOpen && client.IsInGameLobby) return;
         if (showPatchNotes) RenderPatchNotesWindow();
         UI::PushFont(hoverUiFont);
         UI::PushStyleColor(UI::Col::FrameBg, vec4(.2, .2, .2, 1));
@@ -246,7 +248,7 @@ class TtgGame {
             }
             UI::AlignTextToFramePadding();
             UI::Text("\\$eb1Note: these values are not autopopulated with the room's existing settings.");
-            DrawSetGameOptions();
+            DrawSetGameOptions(true);
             UI::Separator();
             if (UI::Button("Save Game Options")) {
                 editGameOptsActive = false;
@@ -601,7 +603,8 @@ class TtgGame {
         UI::Text("Mode:");
         UI::SameLine();
         if (UI::BeginCombo("##go-mode", tostring(currMode))) {
-            DrawModeSelectable(TTGMode::SinglePlayer, currMode);
+            if (!isEditingGameOpts)
+                DrawModeSelectable(TTGMode::SinglePlayer, currMode);
             DrawModeSelectable(TTGMode::Standard, currMode);
             if (DrawModeSelectable(TTGMode::Teams, currMode)) {
                 m_playerLimit = 6;
@@ -765,6 +768,10 @@ class TtgGame {
 
     void UpdateGameOpts() {
         auto pl = Json::Object();
+        auto mode = TTGMode(int(gameOptions['mode']));
+        if (mode == TTGMode::Standard) {
+            m_playerLimit = 2;
+        }
         pl['player_limit'] = m_playerLimit; // might be > 2 for teams or battle mode
         gameOptions['auto_dnf'] = m_AutoDnfEnabled ? m_autoDnfSecs : -1;
         gameOptions['finishes_to_win'] = m_opt_finishesToWin;
@@ -954,7 +961,8 @@ class TtgGame {
                         client.SendPayload("FORCE_START");
                     }
                     UI::TableNextColumn();
-                    if (UI::Button("Edit Game Options")) {
+                    bool isSinglePlayer = 1 == Text::ParseInt(client.roomInfo.game_opts.Get('mode', '2'));
+                    if (!isSinglePlayer && UI::Button("Edit Game Options")) {
                         editGameOptsActive = true;
                     }
                 }
