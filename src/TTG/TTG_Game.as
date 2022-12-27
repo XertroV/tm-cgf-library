@@ -234,6 +234,8 @@ class TtgGame {
             if (DrawHeading1Button("Edit Game Options", "Back")) {
                 editGameOptsActive = false;
             }
+            UI::AlignTextToFramePadding();
+            UI::Text("\\$eb1Note: these values are not autopopulated with the room's existing settings.");
             DrawSetGameOptions();
             UI::Separator();
             if (UI::Button("Save Game Options")) {
@@ -849,9 +851,11 @@ class TtgGame {
                 UI::Text("Finishes to Win: " + string(go.Get('finishes_to_win', '1')));
             }
 
+#if DEV
             auto currGoal = MapGoal(Text::ParseInt(go.Get('map_goal', '0')));
             Indent(2);
             UI::Text("Map Goal: " + tostring(currGoal));
+#endif
 
             Indent(2);
             UI::Text("Records Enabled: " + string(go.Get('enable_records', 'False')));

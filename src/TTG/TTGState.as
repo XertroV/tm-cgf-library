@@ -127,8 +127,9 @@ class TicTacGoState {
 
         opt_FirstRoundForCenter = GetGameOptBool(game_opts, '1st_round_for_center', false);
         opt_CannotImmediatelyRepick = GetGameOptBool(game_opts, 'cannot_repick', false);
-
+#if DEV
         opt_MapGoal = MapGoal(GetGameOptInt(game_opts, 'map_goal', 0));
+#endif
 
         if (IsSinglePlayer) opt_FirstRoundForCenter = false;
     }
