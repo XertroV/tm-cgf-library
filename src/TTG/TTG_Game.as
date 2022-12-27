@@ -4,6 +4,7 @@ class TtgGame {
     TicTacGo@ ttg;
     bool hasPerms = false;
     bool rematchSetupActive = false;
+    bool editGameOptsActive = false;
     string instId;
 
     TtgGame() {
@@ -93,7 +94,10 @@ class TtgGame {
         else if (!client.IsLoggedIn) RenderLoggingIn();
         else if (client.IsMainLobby) RenderJoiningGameLobby();
         else if (client.IsInGameLobby) RenderGameLobby();
-        else if (client.IsInRoom) RenderRoom();
+        else if (client.IsInRoom) {
+            RenderRoom();
+            if (editGameOptsActive) RenderEditGameOpts();
+        }
         else if (client.IsInGame) {
             if (ttg.GameInfo is null) RenderWaitingForGameInfo();
             else if (client.roomInfo.use_club_room && !CurrentlyInMap && !ttg.stateObj.IsInClaimOrChallenge) RenderJoiningServer();
@@ -124,8 +128,14 @@ class TtgGame {
     }
 
     protected bool BeginRematchWindow() {
-        UI::SetNextWindowSize(DefaultLobbyWindowWidth, DefaultLobbyWindowHeight, UI::Cond::Always);
+        UI::SetNextWindowSize(DefaultLobbyWindowWidth, DefaultLobbyWindowHeight, UI::Cond::Appearing);
         bool ret = UI::Begin("TTG! Rematch Set Up##" + instId, rematchSetupActive);
+        return ret;
+    }
+
+    protected bool BeginEditGameOptsWindow() {
+        UI::SetNextWindowSize(DefaultLobbyWindowWidth, DefaultLobbyWindowHeight, UI::Cond::Appearing);
+        bool ret = UI::Begin("TTG! Edit Game Options##" + instId, editGameOptsActive);
         return ret;
     }
 
@@ -214,6 +224,22 @@ class TtgGame {
         if (!rematchSetupActive) return;
         if (BeginRematchWindow()) {
             DrawRoomCreation();
+        }
+        UI::End();
+    }
+
+    void RenderEditGameOpts() {
+        if (!editGameOptsActive) return;
+        if (BeginEditGameOptsWindow()) {
+            if (DrawHeading1Button("Edit Game Options", "Back")) {
+                editGameOptsActive = false;
+            }
+            DrawSetGameOptions();
+            UI::Separator();
+            if (UI::Button("Save Game Options")) {
+                editGameOptsActive = false;
+                UpdateGameOpts();
+            }
         }
         UI::End();
     }
@@ -547,7 +573,7 @@ class TtgGame {
     bool m_AutoDnfEnabled = false;
     int m_autoDnfSecs = 30;
 
-    void DrawSetGameOptions() {
+    void DrawSetGameOptions(bool isEditingGameOpts = false) {
         // UI::Separator();
         UI::AlignTextToFramePadding();
         UI::Text(Highlight(">>  Game Options"));
@@ -720,6 +746,15 @@ class TtgGame {
         client.SendPayload("CREATE_ROOM", pl, vis);
     }
 
+    void UpdateGameOpts() {
+        auto pl = Json::Object();
+        pl['player_limit'] = m_playerLimit; // might be > 2 for teams or battle mode
+        gameOptions['auto_dnf'] = m_AutoDnfEnabled ? m_autoDnfSecs : -1;
+        gameOptions['finishes_to_win'] = m_opt_finishesToWin;
+        pl['game_opts'] = gameOptions;
+        client.SendPayload("UPDATE_GAME_OPTS", pl, CGF::Visibility::global);
+    }
+
     void RenderRoom() {
         isCreatingRoom = false;
         if (client.roomInfo is null) {
@@ -854,7 +889,7 @@ class TtgGame {
             }
         } else {
             bool isAdmin = client.IsPlayerAdminOrMod(client.clientUid);
-            auto nCols = isAdmin ? 4 : 3;
+            auto nCols = isAdmin ? 5 : 3;
             if (UI::BeginTable("ttg-ready,force,status", nCols, UI::TableFlags::SizingStretchSame)) {
                 UI::TableSetupColumn("l");
                 UI::TableSetupColumn("ready");
@@ -898,6 +933,10 @@ class TtgGame {
                     UI::TableNextColumn();
                     if (UI::Button("Force Start")) {
                         client.SendPayload("FORCE_START");
+                    }
+                    UI::TableNextColumn();
+                    if (UI::Button("Edit Game Options")) {
+                        editGameOptsActive = true;
                     }
                 }
 
