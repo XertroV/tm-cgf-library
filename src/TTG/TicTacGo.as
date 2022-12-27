@@ -1356,14 +1356,16 @@ void UITeamsScoreBoard(ChallengeResultState@ cr, bool alwaysShowScores = false, 
     if (!alwaysShowScores && cr.IsResolved) {
         auto winner = cr.Winner;
         if (winner != TTGSquareState::Unclaimed) {
-            auto winScore = score[winner];
-            auto loseScore = score[-(winner - 1)];
+            // auto winScore = score[winner];
+            // auto loseScore = score[-(winner - 1)];
             auto winnerName = cr.teamNames[winner][0];
             UI::Text("Winners: Team " + winnerName);
             if (showTeamsPoints)
-                UI::Text("Points: " + winScore + " vs. " + loseScore);
+                DrawTeamsTotalPointsVs(score);
         }
     } else {
+        if (showTeamsPoints)
+            DrawTeamsTotalPointsVs(score);
         if (UI::BeginTable("teams-score-list##"+cr.id, 3, UI::TableFlags::SizingStretchProp)) {
             int[] count = {0, 0};
             int maxPlayers = Math::Min(cr.teamUids[0].Length, cr.teamUids[1].Length);
@@ -1386,6 +1388,18 @@ void UITeamsScoreBoard(ChallengeResultState@ cr, bool alwaysShowScores = false, 
             UI::EndTable();
         }
     }
+}
+
+void DrawTeamsTotalPointsVs(const int[] &in score) {
+    UI::PushStyleColor(UI::Col::Text, GetLightColorForTeam(TTGSquareState::Player1));
+    UI::Text(tostring(score[0]));
+    UI::PopStyleColor();
+    UI::SameLine();
+    UI::Text("vs.");
+    UI::SameLine();
+    UI::PushStyleColor(UI::Col::Text, GetLightColorForTeam(TTGSquareState::Player2));
+    UI::Text(tostring(score[1]));
+    UI::PopStyleColor();
 }
 
 void DrawTeamsPlayerScoreRow(TTGSquareState team, const string &in name, const string &in timeText = "", const string &in pointsText = "") {
