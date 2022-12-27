@@ -41,12 +41,13 @@ bool S_TTG_AutostartMap = false;
 #endif
 void Render_Settings_Changelog() {
     UI::Markdown("""
- # 0.1.43
+ # 0.1.45
 
  ## Server Play
 
  This update brings the ability to host games on a server. All players can see each others' cars.
 
+ - Add change log in plugin settings & via button in lobby
  - Add preparation status messages to inform users of room set up progress (CGF + TTG)
  - Implement server mode for TTG
  - Add DNF button (TTG); only shows up in server mode
@@ -56,7 +57,7 @@ void Render_Settings_Changelog() {
  - Add auth error state and page in case openplanet auth times out (TTG + CGF)
  - Add visual indicator for when it's your turn. (TTG)
  - Bump limit to 64 players (TTG)
- - Add scores total to teams in-game UI (TTG)
+ - Add teams scores total to UIs (TTG)
  - Add a rematch button when the game is over (TTG + CGF)
  - Load maps from TMX url instead of CGF mirror (TTG)
  - Fix hang when going back to main menu while in-game menu is open (TTG)

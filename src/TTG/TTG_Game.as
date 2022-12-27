@@ -5,6 +5,7 @@ class TtgGame {
     bool hasPerms = false;
     bool rematchSetupActive = false;
     bool editGameOptsActive = false;
+    bool showPatchNotes = false;
     string instId;
 
     TtgGame() {
@@ -85,6 +86,7 @@ class TtgGame {
     }
 
     void RenderInterface() {
+        if (showPatchNotes) RenderPatchNotesWindow();
         UI::PushFont(hoverUiFont);
         UI::PushStyleColor(UI::Col::FrameBg, vec4(.2, .2, .2, 1));
         if (!hasPerms) RenderNoPerms();
@@ -137,6 +139,14 @@ class TtgGame {
         UI::SetNextWindowSize(DefaultLobbyWindowWidth, DefaultLobbyWindowHeight, UI::Cond::Appearing);
         bool ret = UI::Begin("TTG! Edit Game Options##" + instId, editGameOptsActive);
         return ret;
+    }
+
+    void RenderPatchNotesWindow() {
+        UI::SetNextWindowSize(DefaultLobbyWindowWidth, DefaultLobbyWindowHeight, UI::Cond::Appearing);
+        if (UI::Begin("CGF / TTG! Patch Notes##" + instId, showPatchNotes)) {
+            Render_Settings_Changelog();
+        }
+        UI::End();
     }
 
     vec2 lastCenteredTextBounds = vec2(100, 20);
@@ -273,16 +283,21 @@ class TtgGame {
         if (client.lobbyInfo is null) {
             UI::Text("Waiting for Lobby info...");
         } else {
+            float cols = 4.;
             auto li = client.lobbyInfo;
             auto pos = UI::GetCursorPos();
             auto width = UI::GetWindowContentRegionWidth();
             UI::Text("Public Rooms: " + li.n_public_rooms);
-            UI::SetCursorPos(pos + vec2(width / 3., 0));
+            UI::SetCursorPos(pos + vec2(width / cols, 0));
             UI::AlignTextToFramePadding();
             UI::Text("Total Rooms: " + li.n_rooms);
-            UI::SetCursorPos(pos + vec2(width / 3. * 2., 0));
+            UI::SetCursorPos(pos + vec2(width / cols * 2., 0));
             UI::AlignTextToFramePadding();
             UI::Text("Players in Lobby: " + li.n_clients);
+            UI::SetCursorPos(pos + vec2(width / cols * 3., 0));
+            if (UI::Button("Patch Notes")) {
+                showPatchNotes = true;
+            }
         }
 
         UI::Separator();
