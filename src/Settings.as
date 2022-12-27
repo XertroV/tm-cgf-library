@@ -41,7 +41,7 @@ bool S_TTG_AutostartMap = false;
 #endif
 void Render_Settings_Changelog() {
     UI::Markdown("""
- # 0.1.41
+ # 0.1.43
 
  ## Server Play
 
@@ -60,6 +60,8 @@ void Render_Settings_Changelog() {
  - Add a rematch button when the game is over (TTG + CGF)
  - Load maps from TMX url instead of CGF mirror (TTG)
  - Fix hang when going back to main menu while in-game menu is open (TTG)
+ - Fix reconnect bug when exiting main window during authentication (CGF)
+ - Implement editing game options while in-room before the game has started (TTG + CGF)
 
  # 0.1.24
 
