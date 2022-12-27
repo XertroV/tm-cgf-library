@@ -813,9 +813,9 @@ class TicTacGoState {
             while (app.CurrentPlayground is null) yield();
             sleep(100);
         } else {
-            // we might be rejoining an ongoing map
+            // we might be rejoining an ongoing map, only send request restart if there are no times yet
             if (challengeResult.IsEmpty)
-            app.Network.PlaygroundClientScriptAPI.RequestRestartMap();
+                app.Network.PlaygroundClientScriptAPI.RequestRestartMap();
             startnew(CoroutineFunc(SpamVoteYesForABit));
             while (cmap.UI.UISequence == CGamePlaygroundUIConfig::EUISequence::Playing) yield();
         }
@@ -846,7 +846,7 @@ class TicTacGoState {
         challengeStartTime = Time::Now + (player.StartTime - currGameTime);
         // while (player.CurrentRaceTime > 0) yield(); // wait for current race time to go negative
         if (challengeStartTime < int(Time::Now)) {
-            warn("challengeStartTime is in the past; now - start = " + (int(Time::Now) - challengeStartTime) + ". setting to 1.5s in the future.");
+            warn("challengeStartTime is in the past; now - start = " + (int(Time::Now) - challengeStartTime) + ".");
             // the timer should always start at -1.5s, so set it 1.5s in the future
             // challengeStartTime = Time::Now + 1500;
         }
