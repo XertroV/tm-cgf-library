@@ -36,12 +36,8 @@ bool S_TTG_HidePlayerEvents = false;
 bool S_TTG_AutostartMap = false;
 
 [SettingsTab name="Changelog" order="99"]
-#if FALSE
-;
-#endif
 void Render_Settings_Changelog() {
-    UI::Markdown("""
- # 0.1.45
+    UI::Markdown(" # " + Meta::ExecutingPlugin().Version + """
 
  ## Server Play
 
