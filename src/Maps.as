@@ -43,7 +43,8 @@ void AwaitManialinkTitleReady() {
 }
 
 bool HasJoinLinkPermissions() {
-    return Permissions::PlayPublicClubRoom() && Permissions::PlayPrivateActivity();
+    // the activities are public, and I think only club has playprivate, but std has playpublic
+    return Permissions::PlayPublicClubRoom(); // && Permissions::PlayPrivateActivity();
 }
 
 void LoadJoinLink(const string &in joinLink) {
