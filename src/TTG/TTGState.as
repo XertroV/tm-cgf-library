@@ -627,12 +627,12 @@ class TicTacGoState {
         int mapIx = row * 3 + col;
         if (mapIx >= int(client.mapsList.Length)) {
             // RESTART MAP
-            warn('bad map index'+ col + ", " + row);
+            NotifyError('bad map index '+ col + ", " + row);
             // this issue seems rare, but better to return something than nothing
             return client.mapsList[0];
         }
         if (mapIx < 0) {
-            warn('negavive col/row?: ' + col + ", " + row);
+            NotifyError('negavive col/row?: ' + col + ", " + row);
             return client.mapsList[0];
         }
         return client.mapsList[mapIx];
