@@ -520,6 +520,7 @@ class TtgGame {
 
     void DrawMapPackInput() {
         Indent(2);
+        UI::AlignTextToFramePadding();
         UI::Text("Map Pack ID:");
         UI::SameLine();
         m_mapPackID = UI::InputText("##map-pack-input", m_mapPackID);
