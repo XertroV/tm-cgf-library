@@ -189,8 +189,7 @@ class TicTacGo : Game::Engine {
         if (stateObj.IsPreStart) return;
         if (!stateObj.IsInServer)
             RenderChatWindow();
-        else
-            RenderDNFButton();
+        RenderDNFButton();
         RenderTimer();
         RenderLeavingChallenge();
         if (stateObj.IsSinglePlayer || stateObj.IsStandard)

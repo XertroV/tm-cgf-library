@@ -648,6 +648,7 @@ class TicTacGoState {
 
     // relative to Time::Now to avoid pause menu strats
     int challengeStartTime = -1;
+    int playerInitStartTime = -1;
     int challengeEndTime = -1;
     int challengeScreenTimeout = -1;
     int currGameTime = -1;
@@ -712,6 +713,7 @@ class TicTacGoState {
         currGameTime = GetApp().PlaygroundScript.Now;
         // ! timer bugs sometimes on start hmm
         challengeStartTime = Time::Now + (player.StartTime - currGameTime);
+        playerInitStartTime = player.StartTime;
         if (challengeStartTime < int(Time::Now)) {
             warn("challengeStartTime is in the past; now - start = " + (int(Time::Now) - challengeStartTime) + ". setting to 1.5s in the future.");
             // the timer should always start at -1.5s, so set it 1.5s in the future
@@ -828,7 +830,7 @@ class TicTacGoState {
         HideGameUI::opt_EnableRecords = opt_EnableRecords;
         startnew(HideGameUI::OnMapLoad);
 
-        auto player = FindLocalPlayersInPlaygroundPlayers();
+        auto player = FindLocalPlayersInPlaygroundPlayers(GetApp());
         while (cmap.UILayers.Length < 20) yield();
         while (cmap !is null && cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
         sleep(100);
@@ -845,6 +847,7 @@ class TicTacGoState {
         }
         currGameTime = cmap.Playground.GameTime;
         challengeStartTime = Time::Now + (player.StartTime - currGameTime);
+        playerInitStartTime = player.StartTime;
         // while (player.CurrentRaceTime > 0) yield(); // wait for current race time to go negative
         if (challengeStartTime < int(Time::Now)) {
             warn("challengeStartTime is in the past; now - start = " + (int(Time::Now) - challengeStartTime) + ".");
@@ -951,8 +954,8 @@ class TicTacGoState {
         return layer;
     }
 
-    CSmScriptPlayer@ FindLocalPlayersInPlaygroundPlayers() {
-        auto cp = cast<CGameManiaPlanet>(GetApp()).CurrentPlayground;
+    CSmScriptPlayer@ FindLocalPlayersInPlaygroundPlayers(CGameCtnApp@ app) {
+        auto cp = cast<CGameManiaPlanet>(app).CurrentPlayground;
         for (uint i = 0; i < cp.Players.Length; i++) {
             auto item = cast<CSmPlayer>(cp.Players[i]);
             if (item !is null && item.User.Name == LocalPlayersName) {
@@ -970,7 +973,7 @@ class TicTacGoState {
     void EndChallenge() {
         challengeRunActive = false;
         if (!IsInServer && GameInfo !is null && !IsPreStart)
-            ReturnToMenu();
+            startnew(ReturnToMenu);
     }
 
     void ReportChallengeResult(int duration) {
