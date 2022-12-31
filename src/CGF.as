@@ -18,6 +18,7 @@ namespace Game {
         Net::Socket@ socket = Net::Socket();
         string host;
         uint16 port;
+        string GameLobbyName;
 
         Auth::PluginAuthTask@ tokenTask;
         string g_token = "";
@@ -91,7 +92,8 @@ namespace Game {
          */
 
         // alternative user name is the optional param -- for testing
-        Client(const string &in _name = "") {
+        Client(const string &in _GameLobbyName, const string &in _name = "") {
+            GameLobbyName = _GameLobbyName;
             host = S_LocalDev ? "localhost" : S_Host;
             port = S_Port;
             InLocalDevMode = S_LocalDev;
@@ -259,10 +261,12 @@ namespace Game {
             string ver = string(latestServerInfo["version"]);
             if (!ver.StartsWith(LATEST_SERVER_MINOR)) {
                 NotifyWarning("Server version is different from expected. Is there a CGF update?\n\nVersion: " + ver);
+                NotifyWarning("I'll attempt to connect but FYI if you get bugs, check for an update.");
             }
             int nbClients = int(latestServerInfo['n_clients']);
             // print("Connected. Server version: " + ver);
             NotifyInfo("Connected.\nServer Version: " + ver + "\nCurrent Players: " + (nbClients + 1));
+            SendRejoinIntent(GameLobbyName);
             // login via openplanet auth
             if (InLocalDevMode || S_LegacyAuth) {
                 LegacyLogin();
@@ -278,6 +282,10 @@ namespace Game {
 
         bool get_IsLoggedIn() const {
             return loggedIn;
+        }
+
+        void SendRejoinIntent(const string &in lobbyName) {
+            SendPayload("REJOIN_INTENT", JsonObject1("lobby", lobbyName));
         }
 
         // rejoin handled on server side now

@@ -21,7 +21,7 @@ class TtgGame {
 
     void Initialize() {
         // this takes a while
-        @client = Game::Client();
+        @client = Game::Client("TicTacGo");
         @ttg = TicTacGo(client);
         @client.gameEngine = ttg;
         @ttg.OnRematch = CoroutineFunc(this.OnRematch);

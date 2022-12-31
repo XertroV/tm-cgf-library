@@ -211,7 +211,7 @@ class ClientsTab : Tab {
         if (S_LocalDev) {
             name = "DebugClient";
         }
-        auto client = Game::Client(name + "-" + tostring(allClients.Length));
+        auto client = Game::Client("TicTacGo", name + "-" + tostring(allClients.Length));
         auto window = DebugClientWindow(client);
         allClients.InsertLast(client);
         allWindows.InsertLast(window);
