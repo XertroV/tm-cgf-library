@@ -61,6 +61,7 @@ void Render_Settings_Changelog() {
  - Implement editing game options while in-room before the game has started (TTG + CGF)
  - Fix bug where maps weren't cleared properly (TTG)
  - Fix bug where a map from the prior game could not be selected when 'cannot pick last round's square' option enabled (TTG)
+ - Improve timer method to use exact times instead of estimating (TTG)
 
  # 0.1.24
 
