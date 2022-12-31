@@ -97,6 +97,8 @@ class TicTacGoState {
                 boardState[i][j].Reset();
             }
         }
+
+        ResetChallengeState();
     }
 
     void OnGameStart() {
@@ -595,8 +597,10 @@ class TicTacGoState {
 
     void BeginChallengeSoon() {
         // this can happen when replaying game events
-        if (!challengeResult.active) return;
-        if (!IsInClaimOrChallenge) return;
+        if (!challengeResult.active || !IsInClaimOrChallenge) {
+            warn("BeginChallengeSoon returning b/c: !challengeResult.active || !IsInClaimOrChallenge");
+            return;
+        }
         string myNonce = Crypto::RandomBase64(10);
         beginChallengeLatestNonce = myNonce;
         auto col = challengeResult.col;
@@ -606,6 +610,9 @@ class TicTacGoState {
         currTrackId = map['TrackID'];
         currTrackIdStr = tostring(currTrackId);
         challengeResult.startTime = Time::Now + challengePreWaitPeriod;
+        hideChallengeWindowInServer = false;
+        trace("Challenge start time: " + challengeResult.startTime);
+        trace("Challenge nonce: " + myNonce);
         // autostart if not
         if (!IsInServer && !IsSinglePlayer && !S_LocalDev) {
             // we sleep for slightly less to avoid race conditions with the launch map button
@@ -615,12 +622,17 @@ class TicTacGoState {
             if (crChecks && !challengeRunActive && S_TTG_AutostartMap && !CurrentlyInMap) {
                 print("Autostarting map for: " + MyName);
                 startnew(CoroutineFunc(RunChallengeAndReportResult));
+            } else {
+                warn("Skipping challenge b/c one of: crChecks failed, challenge active, not autostart, or currently in map");
             }
         } else if (IsInServer) {
             sleep(200);
             bool crChecks = beginChallengeLatestNonce == myNonce && !challengeResult.HasResultFor(client.clientUid);
-            if (crChecks && !challengeRunActive)
+            if (crChecks && !challengeRunActive) {
                 startnew(CoroutineFunc(InServerRunChallenge));
+            } else {
+                warn("Skipping challenge b/c one of: crChecks failed, challenge active");
+            }
         }
     }
 
@@ -793,6 +805,7 @@ class TicTacGoState {
         return IsWaitingForMove && !challengeRunActive;
     }
 
+    // todo: refactor this and the above to use mostly the same logic, and abstract differences
     void InServerRunChallenge() {
         if (!IsInServer) {
             warn("InServerRunChallenge called when not in a server");

@@ -35,6 +35,9 @@ bool S_TTG_HidePlayerEvents = false;
 [Setting category="Tic Tac Go" name="Autostart Maps?"]
 bool S_TTG_AutostartMap = false;
 
+[Setting category="Tic Tac Go" name="Show Game Debug Info?"]
+bool S_TTG_DrawGameDebugInfo = false;
+
 [SettingsTab name="Changelog" order="99"]
 void Render_Settings_Changelog() {
     UI::Markdown(" # " + Meta::ExecutingPlugin().Version + """

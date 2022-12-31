@@ -35,7 +35,7 @@ namespace CGF {
     }
 
     enum MapSelection {
-        RandomWithFilter, MapPack
+        RandomWithFilter = 1, MapPack = 2, TrackOfTheDay, RoyalTraining
     }
 
     const string MapSelectionStr(MapSelection ms) {

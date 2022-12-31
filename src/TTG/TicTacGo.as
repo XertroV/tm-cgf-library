@@ -474,6 +474,7 @@ class TicTacGo : Game::Engine {
             UI::Dummy(vec2(0, 8));
             DrawPlayer(TTGSquareState::Player2);
             DrawLeaveGameOrRematch();
+            DrawGameDebugInfo();
             if (GameInfo.players.Length > 2) {
                 UI::Dummy(vec2(0, 8));
                 DrawShowAllPlayers();
@@ -482,6 +483,16 @@ class TicTacGo : Game::Engine {
             DrawChat();
         }
         UI::EndChild();
+    }
+
+    void DrawGameDebugInfo() {
+        if (S_LocalDev || S_TTG_DrawGameDebugInfo) {
+            if (UI::CollapsingHeader("Game Debug Info")) {
+                UI::Text(tostring(stateObj.state));
+                UI::Text(stateObj.currMap is null ? "Curr Map: null" : ("Map: " + ColoredString(string(stateObj.currMap['Name']))));
+                UI::Text("In Map: " + tostring(CurrentlyInMap));
+            }
+        }
     }
 
     void DrawShowAllPlayers() {
