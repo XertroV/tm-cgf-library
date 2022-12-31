@@ -763,9 +763,15 @@ class TtgGame {
         } else if (m_mapsType == CGF::MapSelection::RoyalTraining) {
             pl['map_pack'] = 1566;
         } else if (m_mapsType == CGF::MapSelection::TrackOfTheDay) {
+            if (pl.HasKey('map_pack'))
+                pl.Remove('map_pack');
             pl['use_totd'] = true;
         } else if (pl.HasKey('map_pack')) {
             pl.Remove('map_pack');
+        }
+
+        if (m_mapsType != CGF::MapSelection::TrackOfTheDay) {
+            pl['use_totd'] = false;
         }
 
         if (singlePlayer) {
