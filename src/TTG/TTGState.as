@@ -677,6 +677,7 @@ class TicTacGoState {
     bool shouldExitChallenge = false;
     uint shouldExitChallengeTime = DNF_TIME;
     bool serverChallengeInExpectedMap = false;
+    uint lastSpamNo = 0;
 
     void ResetChallengeState() {
         showForceEndPrompt = false;
@@ -884,10 +885,16 @@ class TicTacGoState {
         bool hasFinished = false;
         while (true) {
             if (cmap is null || cmap.UI is null || app.Network.PlaygroundClientScriptAPI is null) break;
-            if (app.Network.PlaygroundClientScriptAPI.Request_IsInProgress && challengeResult.IsEmpty) {
-                // if there's a vote, and there are no scores yet, vote no a few times
-                // this can happen if a player rejoins
-                startnew(CoroutineFunc(SpamVoteNoForABit));
+            if (lastSpamNo + 5000 < Time::Now) {
+                if (app.Network.PlaygroundClientScriptAPI.Request_IsInProgress && challengeResult.IsEmpty) {
+                    // if there's a vote, and there are no scores yet, vote no a few times
+                    // this can happen if a player rejoins
+                    startnew(CoroutineFunc(SpamVoteNoForABit));
+                    lastSpamNo = Time::Now;
+                } else if (app.Network.PlaygroundClientScriptAPI.Request_IsInProgress && !challengeResult.IsResolved) {
+                    startnew(CoroutineFunc(SpamVoteNoForABitWhileStillUnresolved));
+                    lastSpamNo = Time::Now;
+                }
             }
             if (!hasFinished && cmap.UI.UISequence == CGamePlaygroundUIConfig::EUISequence::Finish) {
                 hasFinished = true;
@@ -955,6 +962,21 @@ class TicTacGoState {
                 net.PlaygroundClientScriptAPI.Vote_Cast(false);
             }
             sleep(500);
+        }
+    }
+
+    void SpamVoteNoForABitWhileStillUnresolved() {
+        auto app = cast<CGameManiaPlanet>(GetApp());
+        auto net = app.Network;
+        for (uint i = 0; i < 8; i++) {
+            uint start = Time::Now;
+            bool keepChecking = net.PlaygroundClientScriptAPI !is null && net.PlaygroundClientScriptAPI.Request_IsInProgress && !challengeResult.IsResolved;
+            while (Time::Now < start + 500 && keepChecking) {
+                yield();
+                keepChecking = net.PlaygroundClientScriptAPI !is null && net.PlaygroundClientScriptAPI.Request_IsInProgress && !challengeResult.IsResolved;
+            }
+            if (!keepChecking) break;
+            net.PlaygroundClientScriptAPI.Vote_Cast(false);
         }
     }
 

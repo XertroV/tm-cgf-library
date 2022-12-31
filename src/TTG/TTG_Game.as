@@ -497,6 +497,10 @@ class TtgGame {
             DrawMapsMaxDifficulty();
         } else if (m_mapsType == CGF::MapSelection::MapPack) {
             DrawMapPackInput();
+        } else {
+            Indent(2);
+            UI::AlignTextToFramePadding();
+            UI::Text("Map Source: " + tostring(m_mapsType));
         }
     }
 
@@ -508,6 +512,8 @@ class TtgGame {
         if (UI::BeginCombo("##map-selection-type", CGF::MapSelectionStr(m_mapsType))) {
             DrawMapSelectionTypeSelectable(CGF::MapSelection::RandomWithFilter);
             DrawMapSelectionTypeSelectable(CGF::MapSelection::MapPack);
+            DrawMapSelectionTypeSelectable(CGF::MapSelection::TrackOfTheDay);
+            DrawMapSelectionTypeSelectable(CGF::MapSelection::RoyalTraining);
             UI::EndCombo();
         }
     }
@@ -754,6 +760,10 @@ class TtgGame {
 
         if (m_mapsType == CGF::MapSelection::MapPack) {
             pl['map_pack'] = Text::ParseInt(m_mapPackID);
+        } else if (m_mapsType == CGF::MapSelection::RoyalTraining) {
+            pl['map_pack'] = 1566;
+        } else if (m_mapsType == CGF::MapSelection::TrackOfTheDay) {
+            pl['use_totd'] = true;
         } else if (pl.HasKey('map_pack')) {
             pl.Remove('map_pack');
         }
@@ -861,10 +871,12 @@ class TtgGame {
                 UI::Text("Play on a Server: True (" + (roomInfo.join_link.Length > 0 ? "Got Join Link" : "Awaiting Join Link") + ")");
             }
             Indent(2);
-            if (roomInfo.map_pack < 0) {
-                UI::Text("Maps: between " + roomInfo.min_secs + " and " + roomInfo.max_secs + " s long, and a maximum difficulty of " + roomInfo.max_difficulty + ".");
-            } else {
+            if (roomInfo.map_pack >= 0) {
                 UI::Text("Maps: from Map Pack #" + roomInfo.map_pack);
+            } else if (roomInfo.use_totd) {
+                UI::Text("Maps: Track of the Day");
+            } else {
+                UI::Text("Maps: between " + roomInfo.min_secs + " and " + roomInfo.max_secs + " s long, and a maximum difficulty of " + roomInfo.max_difficulty + ".");
             }
             auto go = roomInfo.game_opts;
             auto currMode = TTGMode(Text::ParseInt(go['mode']));

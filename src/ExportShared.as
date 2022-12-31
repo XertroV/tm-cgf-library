@@ -35,7 +35,7 @@ namespace CGF {
     }
 
     enum MapSelection {
-        RandomWithFilter = 1, MapPack = 2, TrackOfTheDay, RoyalTraining
+        RandomWithFilter = 1, MapPack = 2, TrackOfTheDay = 3, RoyalTraining = 4
     }
 
     const string MapSelectionStr(MapSelection ms) {
@@ -43,6 +43,10 @@ namespace CGF {
             return "Random (filtered)";
         } else if (ms == MapSelection::MapPack) {
             return "Map Pack";
+        } else if (ms == MapSelection::TrackOfTheDay) {
+            return "Track of the Day";
+        } else if (ms == MapSelection::RoyalTraining) {
+            return "Royal Training Map Pack";
         }
         return "Unknown";
     }

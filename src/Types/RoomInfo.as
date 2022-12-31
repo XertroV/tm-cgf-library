@@ -18,6 +18,7 @@ class RoomInfo {
   private string _join_link;
   // note: game_opts will always be a mapping of string => string
   private const Json::Value@ _game_opts;
+  bool _use_totd = false;
   bool maps_loaded = false;
 
   /* Methods // Mixin: Default Constructor */
@@ -28,7 +29,8 @@ class RoomInfo {
     const string &in max_difficulty,
     Json::Value@ game_opts,
     int map_pack = -1, bool use_club_room = false,
-    const string &in join_link = ""
+    const string &in join_link = "",
+    bool use_totd = false
   ) {
     this._name = name;
     this._n_teams = n_teams;
@@ -47,6 +49,7 @@ class RoomInfo {
     this._use_club_room = use_club_room;
     this._join_link = join_link;
     @this._game_opts = game_opts;
+    this._use_totd = use_totd;
   }
 
   /* Methods // Mixin: ToFrom JSON Object */
@@ -68,6 +71,7 @@ class RoomInfo {
     this._started = bool(j["started"]);
     this.maps_loaded = bool(j.Get("maps_loaded", false));
     this._use_club_room = bool(j.Get("use_club_room", false));
+    this._use_totd = bool(j.Get("use_totd", false));
     this._join_link = string(j.Get("cr_join_link", ""));
     @this._game_opts = j["game_opts"];
     if (_game_opts.GetType() != Json::Type::Object) throw("Invalid game_opts: not an obj");
@@ -162,6 +166,10 @@ class RoomInfo {
 
   bool get_use_club_room() const {
     return this._use_club_room;
+  }
+
+  bool get_use_totd() const {
+    return this._use_totd;
   }
 
   const string get_join_link() const {
