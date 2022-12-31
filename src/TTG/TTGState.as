@@ -617,7 +617,10 @@ class TicTacGoState {
                 startnew(CoroutineFunc(RunChallengeAndReportResult));
             }
         } else if (IsInServer) {
-            startnew(CoroutineFunc(InServerRunChallenge));
+            sleep(200);
+            bool crChecks = beginChallengeLatestNonce == myNonce && !challengeResult.HasResultFor(client.clientUid);
+            if (crChecks && !challengeRunActive)
+                startnew(CoroutineFunc(InServerRunChallenge));
         }
     }
 
@@ -649,6 +652,7 @@ class TicTacGoState {
     // relative to Time::Now to avoid pause menu strats
     int challengeStartTime = -1;
     int playerInitStartTime = -1;
+    int lastPlayerStartTime = -1;
     int challengeEndTime = -1;
     int challengeScreenTimeout = -1;
     int currGameTime = -1;
@@ -703,6 +707,7 @@ class TicTacGoState {
         while (player.StartTime < 0) yield();
         HideGameUI::opt_EnableRecords = opt_EnableRecords;
         startnew(HideGameUI::OnMapLoad);
+        auto initNbGhosts = GetCurrNbGhosts();
         yield();
         yield();
         // start of challenge
@@ -714,6 +719,7 @@ class TicTacGoState {
         // ! timer bugs sometimes on start hmm
         challengeStartTime = Time::Now + (player.StartTime - currGameTime);
         playerInitStartTime = player.StartTime;
+        lastPlayerStartTime = player.StartTime;
         if (challengeStartTime < int(Time::Now)) {
             warn("challengeStartTime is in the past; now - start = " + (int(Time::Now) - challengeStartTime) + ". setting to 1.5s in the future.");
             // the timer should always start at -1.5s, so set it 1.5s in the future
@@ -727,11 +733,11 @@ class TicTacGoState {
         while (true) {
             if (!hasFinished && uiConfig.UISequence == CGamePlaygroundUIConfig::EUISequence::Finish) {
                 hasFinished = true;
-                // we over measure if we set the end time here, and under measure if we use what was set earlier.
-                // so use last time plus the period. add to end time so GUI updates
-                // ! note: we could use better methods for calculating duration (MLFeed is an example), but the goal here is something simple, reasonably robust, and *light*. Dependancies can be added per-plugin based on that game's requirements. We don't really need that sort of accuracy here.
-                challengeEndTime += currPeriod;
-                duration = challengeEndTime - challengeStartTime;
+                while (initNbGhosts == GetCurrNbGhosts()) yield();
+                auto runTime = GetMostRecentGhostTime();
+                auto endTime = lastPlayerStartTime + runTime;
+                duration = endTime - playerInitStartTime;
+                challengeEndTime = challengeStartTime + duration;
                 // report result
                 ReportChallengeResult(duration);
             }
@@ -740,6 +746,8 @@ class TicTacGoState {
             bool shouldDnf = false;
             if (!hasFinished) {
                 duration = Time::Now - challengeStartTime;
+                lastPlayerStartTime = player.StartTime;
+                initNbGhosts = GetCurrNbGhosts();
                 oppTime = challengeResult.ranking.Length > 0 ? challengeResult.ranking[0].time : DNF_TIME;
                 timeLeft = oppTime + opt_AutoDNF_ms - duration;
                 shouldDnf = opt_AutoDNF_ms > 0 && timeLeft <= 0;
@@ -829,6 +837,7 @@ class TicTacGoState {
 
         HideGameUI::opt_EnableRecords = opt_EnableRecords;
         startnew(HideGameUI::OnMapLoad);
+        auto initNbGhosts = GetCurrNbGhosts();
 
         auto player = FindLocalPlayersInPlaygroundPlayers(GetApp());
         while (cmap.UILayers.Length < 20) yield();
@@ -848,6 +857,7 @@ class TicTacGoState {
         currGameTime = cmap.Playground.GameTime;
         challengeStartTime = Time::Now + (player.StartTime - currGameTime);
         playerInitStartTime = player.StartTime;
+        lastPlayerStartTime = player.StartTime;
         // while (player.CurrentRaceTime > 0) yield(); // wait for current race time to go negative
         if (challengeStartTime < int(Time::Now)) {
             warn("challengeStartTime is in the past; now - start = " + (int(Time::Now) - challengeStartTime) + ".");
@@ -868,7 +878,11 @@ class TicTacGoState {
             }
             if (!hasFinished && cmap.UI.UISequence == CGamePlaygroundUIConfig::EUISequence::Finish) {
                 hasFinished = true;
-                duration = challengeEndTime - challengeStartTime;
+                while (initNbGhosts == GetCurrNbGhosts()) yield();
+                auto runTime = GetMostRecentGhostTime();
+                auto endTime = lastPlayerStartTime + runTime;
+                duration = endTime - playerInitStartTime;
+                challengeEndTime = challengeStartTime + duration;
                 ReportChallengeResult(duration);
             }
             int oppTime = 0;
@@ -876,6 +890,8 @@ class TicTacGoState {
             bool shouldDnf = false;
             if (!hasFinished) {
                 duration = Time::Now - challengeStartTime;
+                lastPlayerStartTime = player.StartTime;
+                initNbGhosts = GetCurrNbGhosts();
                 oppTime = challengeResult.ranking.Length > 0 ? challengeResult.ranking[0].time : DNF_TIME;
                 timeLeft = oppTime + opt_AutoDNF_ms - duration;
                 shouldDnf = opt_AutoDNF_ms > 0 && timeLeft <= 0;

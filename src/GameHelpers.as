@@ -36,3 +36,15 @@ void SetLoadingScreenText(const string &in text, const string &in secondaryText 
     if (secLabel is null) return;
     secLabel.Label = secondaryText;
 }
+
+int GetMostRecentGhostTime() {
+    auto dfm = GetApp().Network.ClientManiaAppPlayground.DataFileMgr;
+    auto nbGhosts = dfm.Ghosts.Length;
+    auto mostRecent = dfm.Ghosts[nbGhosts - 1];
+    return int(mostRecent.Result.Time);
+}
+
+int GetCurrNbGhosts() {
+    auto dfm = GetApp().Network.ClientManiaAppPlayground.DataFileMgr;
+    return dfm.Ghosts.Length;
+}
