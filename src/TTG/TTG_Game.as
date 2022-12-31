@@ -483,7 +483,7 @@ class TtgGame {
         if (Permissions::CreateActivity()) {
             Indent(2);
             m_useClubRoom = UI::Checkbox("Play on a server instead of locally. (\\$fe1" + Icons::ExclamationTriangle + " Experimental\\$z)", m_useClubRoom);
-            AddSimpleTooltip("Each round, each player's client will auto-vote on the next map.\nIf that fails, manually voting to go to the correct map should fix things.");
+            AddSimpleTooltip("Experimenal note about voting:\nEach round, each player's client will auto-vote on the next map.\nIf that fails, manually voting to go to the correct map should fix things.");
         }
 
     }
