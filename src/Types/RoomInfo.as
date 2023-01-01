@@ -195,6 +195,10 @@ class RoomInfo {
     return this.started; // || (0 < game_start_time && game_start_time < float(Time::Stamp));
   }
 
+  bool get_WaitingForServer() const {
+    return this._use_club_room && this._join_link.Length == 0;
+  }
+
   /* Methods // Mixin: ToString */
   const string ToString() {
     return 'RoomInfo('

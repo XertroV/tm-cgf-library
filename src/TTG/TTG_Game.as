@@ -926,12 +926,14 @@ class TtgGame {
 
         if (client.roomInfo.HasStarted) {
             UI::SetCursorPos(pos + vec2(UI::GetWindowContentRegionWidth() / 2. - 100., 0));
-            if (client.roomInfo.maps_loaded) {
+            if (!client.roomInfo.maps_loaded) {
+                UI::Text("Waiting for maps...");
+            } else if (client.roomInfo.WaitingForServer) {
+                UI::Text("Waiting for server join link...");
+            } else {
                 if (UI::Button("Game started. Rejoin!")) {
                     client.SendPayload("JOIN_GAME_NOW");
                 }
-            } else {
-                UI::Text("Waiting for maps...");
             }
         } else {
             bool isAdmin = client.IsPlayerAdminOrMod(client.clientUid);

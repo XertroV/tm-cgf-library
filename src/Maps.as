@@ -6,7 +6,11 @@ const string MapThumbUrl(Json::Value@ map) {
 
 const string MapUrl(Json::Value@ map) {
     int trackId = map['TrackID'];
-    return "https://cgf.s3.nl-1.wasabisys.com/" + trackId + ".Map.Gbx";
+    return MapUrlTmx(trackId);
+}
+
+const string MapUrlCgf(int TrackID) {
+    return "https://cgf.s3.nl-1.wasabisys.com/" + TrackID + ".Map.Gbx";
 }
 
 const string MapUrlTmx(int TrackID) {
@@ -33,7 +37,11 @@ void ReturnToMenu() {
     } else {
         app.BackToMainMenu();
     }
-    // wait for the menu to load.
+    WaitForMainMenuToHaveFocus();
+}
+
+void WaitForMainMenuToHaveFocus() {
+    auto app = cast<CGameManiaPlanet>(GetApp());
     while (app.Switcher.ModuleStack.Length == 0 || cast<CTrackManiaMenus>(app.Switcher.ModuleStack[0]) is null) yield();
 }
 
@@ -119,7 +127,7 @@ void EnsureMapsHelper(Json::Value@ map_tids_uids) {
     for (uint i = 0; i < uids.Length; i++) {
         auto uid = uids[i];
         auto tid = tids[i];
-        auto coro = startnew(DownloadMapAndUpload, DlMapAndUploadData(uid, tid));
+        auto coro = startnew(DownloadMapAndUpload, MapUidTidData(uid, tid));
         coros.InsertLast(coro);
     }
     await(coros);
@@ -127,7 +135,7 @@ void EnsureMapsHelper(Json::Value@ map_tids_uids) {
 }
 
 void DownloadMapAndUpload(ref@ data) {
-    DlMapAndUploadData@ pl = cast<DlMapAndUploadData>(data);
+    MapUidTidData@ pl = cast<MapUidTidData>(data);
     if (pl is null) {
         warn("DownloadMapAndUpload got a null payload!");
         return;
@@ -138,10 +146,10 @@ void DownloadMapAndUpload(ref@ data) {
     }
 }
 
-class DlMapAndUploadData {
+class MapUidTidData {
     int tid;
     string uid;
-    DlMapAndUploadData(const string &in uid, int tid) {
+    MapUidTidData(const string &in uid, int tid) {
         this.tid = tid;
         this.uid = uid;
     }
@@ -160,18 +168,25 @@ const string GetLocalTmxMapPath(int TrackID) {
 }
 
 void DownloadTmxMapToLocal(int TrackID) {
+    auto outFile = GetLocalTmxMapPath(TrackID);
+    if (IO::FileExists(outFile)) return;
     string url = MapUrlTmx(TrackID);
     auto req = PluginGetRequest(url);
     req.Start();
     while (!req.Finished()) yield();
-    // todo
-    if (req.ResponseCode() >= 400) {
+    if (req.ResponseCode() >= 400 || req.ResponseCode() < 200 || req.Error().Length > 0) {
         warn("Error downloading TMX map to local: " + req.Error());
-    } else {
-        auto outFile = GetLocalTmxMapPath(TrackID);
-        req.SaveToFile(outFile);
-        trace('Saved tmx map ' + TrackID + ' to ' + outFile);
+        @req = PluginGetRequest(MapUrlCgf(TrackID));
+        req.Start();
+        while (!req.Finished()) yield();
+        if (req.ResponseCode() >= 400 || req.ResponseCode() < 200 || req.Error().Length > 0) {
+            warn("Error downloading TMX map from mirror to local: " + req.Error());
+            NotifyWarning("Failed to download map with TrackID: " + TrackID);
+            return;
+        }
     }
+    req.SaveToFile(outFile);
+    trace('Saved tmx map ' + TrackID + ' to ' + outFile);
 }
 
 // this shouldn't be necessary that often, and ppl can manually clear (or we can clean up on plugin load or something)
@@ -246,3 +261,43 @@ void MapUploadTest() {
     // }
 }
 #endif
+
+uint lastPreloadMapsStarted = 0;
+uint lastPreloadMapsFinished = 0;
+
+Meta::PluginCoroutine@ PreloadMapsBackground(int[]@ maps) {
+    return startnew(PreloadMaps, maps);
+}
+
+void PreloadMaps(ref@ _maps) {
+    auto @maps = cast<int[]>(_maps);
+    if (maps is null) {
+        warn("PreloadMaps could not cast _maps to int[]");
+        return;
+    }
+    trace("Preloading " + maps.Length + " maps.");
+    lastPreloadMapsStarted = Time::Now;
+    Meta::PluginCoroutine@[] coros;
+    for (uint i = 0; i < maps.Length; i++) {
+        coros.InsertLast(startnew(PreloadMap, MapUidTidData("", maps[i])));
+    }
+    await(coros);
+    WaitForMainMenuToHaveFocus();
+    try {
+        auto dfm = cast<CTrackMania>(GetApp()).MenuManager.MenuCustom_CurrentManiaApp.DataFileMgr;
+        dfm.Map_RefreshFromDisk();
+    } catch {
+        warn("Exception refreshing maps on disk: " + getExceptionInfo());
+    }
+    lastPreloadMapsFinished = Time::Now;
+    trace("Preload maps done.");
+}
+
+void PreloadMap(ref@ r) {
+    auto d = cast<MapUidTidData>(r);
+    if (d is null) {
+        warn("PreloadMap could not cast ref to MapUidTidData");
+        return;
+    }
+    DownloadTmxMapToLocal(d.tid);
+}

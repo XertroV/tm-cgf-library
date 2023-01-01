@@ -113,6 +113,7 @@ namespace Game {
             AddMessageHandler("PLAYER_READY", CGF::MessageHandler(MsgHandler_ReadyEvent));
             AddMessageHandler("LIST_READY_STATUS", CGF::MessageHandler(MsgHandler_ReadyEvent));
             AddMessageHandler("MAPS_LOADED", CGF::MessageHandler(MsgHandler_MapsLoaded));
+            AddMessageHandler("MAPS_PRELOAD", CGF::MessageHandler(MsgHandler_MapsPreload));
             AddMessageHandler("MAP_LOAD_ERROR", CGF::MessageHandler(MsgHandler_LoadError));
             AddMessageHandler("PREPARATION_STATUS", CGF::MessageHandler(MsgHandler_PreparationStatus));
             AddMessageHandler("SERVER_JOIN_LINK", CGF::MessageHandler(MsgHandler_ServerJoinLink));
@@ -811,6 +812,20 @@ namespace Game {
 
         bool MsgHandler_MapsLoaded(Json::Value@ j) {
             roomInfo.maps_loaded = true;
+            return true;
+        }
+
+        bool MsgHandler_MapsPreload(Json::Value@ j) {
+            auto mapTids = j['payload']['maps'];
+            if (mapTids.GetType() != Json::Type::Array) {
+                warn('maps_preload got something other than an array. skipping');
+                return true;
+            }
+            int[] maps;
+            for (uint i = 0; i < mapTids.Length; i++) {
+                maps.InsertLast(mapTids[i]);
+            }
+            PreloadMapsBackground(maps);
             return true;
         }
 

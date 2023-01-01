@@ -66,6 +66,7 @@ void Render_Settings_Changelog() {
  - Fix bug where a map from the prior game could not be selected when 'cannot pick last round's square' option enabled (TTG)
  - Improve timer method to use exact times instead of estimating (TTG)
  - Add TOTD and Royal Trailing map sources (TTG + CGF)
+ - Pre-download maps for faster load times (TTG + CGF)
 
  # 0.1.24
 
