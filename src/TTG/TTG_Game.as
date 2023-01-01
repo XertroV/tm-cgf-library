@@ -939,7 +939,7 @@ class TtgGame {
             bool isAdmin = client.IsPlayerAdminOrMod(client.clientUid);
             auto nCols = isAdmin ? 5 : 3;
             if (UI::BeginTable("ttg-ready,force,status", nCols, UI::TableFlags::SizingStretchSame)) {
-                UI::TableSetupColumn("l");
+                UI::TableSetupColumn("l", UI::TableColumnFlags::WidthFixed, 100.);
                 UI::TableSetupColumn("ready");
                 UI::TableSetupColumn("status");
                 if (isAdmin)
@@ -984,9 +984,11 @@ class TtgGame {
                     }
                     UI::TableNextColumn();
                     bool isSinglePlayer = 1 == Text::ParseInt(client.roomInfo.game_opts.Get('mode', '2'));
-                    if (!isSinglePlayer && UI::Button("Edit Game Options")) {
+                    UI::BeginDisabled(isSinglePlayer);
+                    if (UI::Button("Edit Game Options")) {
                         editGameOptsActive = true;
                     }
+                    UI::EndDisabled();
                 }
 
                 // UI::TableNextColumn();
