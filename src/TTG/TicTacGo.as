@@ -486,7 +486,7 @@ class TicTacGo : Game::Engine {
     }
 
     void DrawGameDebugInfo() {
-        if (S_LocalDev || S_TTG_DrawGameDebugInfo) {
+        if (S_TTG_DrawGameDebugInfo) {
             if (UI::CollapsingHeader("Game Debug Info")) {
                 UI::Text(tostring(stateObj.state));
                 UI::Text(stateObj.currMap is null ? "Curr Map: null" : ("Map: " + ColoredString(string(stateObj.currMap['Name']))));
