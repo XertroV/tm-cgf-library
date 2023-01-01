@@ -73,7 +73,7 @@ class RoomInfo {
     this._use_club_room = bool(j.Get("use_club_room", false));
     this._use_totd = bool(j.Get("use_totd", false));
     this._join_link = string(j.Get("cr_join_link", ""));
-    @this._game_opts = j["game_opts"];
+    @this._game_opts = j.Get("game_opts", Json::Object());
     if (_game_opts.GetType() != Json::Type::Object) throw("Invalid game_opts: not an obj");
   }
 

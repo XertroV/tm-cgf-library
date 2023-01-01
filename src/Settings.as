@@ -46,10 +46,10 @@ void Render_Settings_Changelog() {
 
  This update brings the ability to host games on a server. All players can see each others' cars.
 
- - Add change log in plugin settings & via button in lobby
+ - Add patch notes accessible via lobby button & in plugin settings
  - Add preparation status messages to inform users of room set up progress (CGF + TTG)
- - Implement server mode for TTG
- - Add DNF button (TTG); only shows up in server mode
+ - Implement server mode for (TTG + CGF)
+ - Add DNF button (TTG)
  - Auto DNF someone on disconnection from game room (TTG)
  - Add load error notifications, particularly for map packs atm (TTG + CGF)
  - Lobby feedback if permissions check will fail when the game starts (TTG)
