@@ -22,11 +22,15 @@ class TtgGame {
     void Initialize() {
         // this takes a while
         @client = Game::Client("TicTacGo");
-        @ttg = TicTacGo(client);
-        @client.gameEngine = ttg;
+        CreateNewGameClient();
         @ttg.OnRematch = CoroutineFunc(this.OnRematch);
         startnew(CoroutineFunc(TtgLobbyLoop));
         startnew(CoroutineFunc(SelfDestructLoop));
+    }
+
+    void CreateNewGameClient() {
+        @ttg = TicTacGo(client);
+        @client.gameEngine = ttg;
     }
 
     bool get_IsShutdown() {
@@ -54,6 +58,7 @@ class TtgGame {
                 if (lastScope == Game::Scope::InRoom) {
                     // m_roomName = LocalPlayersName + "'s Room";
                     teamsLocked = false;
+                    CreateNewGameClient();
                 }
             }
             yield();
