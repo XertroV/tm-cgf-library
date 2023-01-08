@@ -619,7 +619,7 @@ class TicTacGoState {
             sleep(challengePreWaitPeriod - 30);
             // load map immediately if the CR is the same one and the setting is enabled.
             bool crChecks = beginChallengeLatestNonce == myNonce && !challengeResult.HasResultFor(client.clientUid);
-            if (crChecks && !challengeRunActive && S_TTG_AutostartMap && !CurrentlyInMap) {
+            if (crChecks && S_TTG_AutostartMap && !CurrentlyInMap) {
                 print("Autostarting map for: " + MyName);
                 startnew(CoroutineFunc(RunChallengeAndReportResult));
             } else {
@@ -628,7 +628,7 @@ class TicTacGoState {
         } else if (IsInServer) {
             sleep(200);
             bool crChecks = beginChallengeLatestNonce == myNonce && !challengeResult.HasResultFor(client.clientUid);
-            if (crChecks && !challengeRunActive) {
+            if (crChecks) {
                 startnew(CoroutineFunc(InServerRunChallenge));
             } else {
                 warn("Skipping challenge b/c one of: crChecks failed, challenge active");
