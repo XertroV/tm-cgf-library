@@ -33,6 +33,7 @@ enum TTGGameState {
 class TicTacGo : Game::Engine {
     Game::Client@ client;
     // string idNonce;
+    string clientNonce = Crypto::RandomBase64(5);
 
     TicTacGoState@ stateObj;
 
@@ -56,6 +57,7 @@ class TicTacGo : Game::Engine {
         client.AddMessageHandler("GM_REMATCH_ROOM_CREATED", CGF::MessageHandler(MsgHandler_GmRematchRoomCreated));
         client.AddMessageHandler("G_REMATCH_INIT", CGF::MessageHandler(MsgHandler_GRematchInit));
         client.AddMessageHandler("GAME_REPLAY_START", CGF::MessageHandler(MsgHandler_OnGameStartEvent));
+        trace('created TTG client with nonce/id: ' + clientNonce);
     }
 
     const string get_idNonce() {
