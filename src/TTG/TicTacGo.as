@@ -113,7 +113,6 @@ class TicTacGo : Game::Engine {
     void OnClickRematchAccept() {
         // back to lobby, then join room
         if (rematchJoinCode.Length == 0) return;
-        startnew(ReturnToMenu);
         yield();
         client.SendLeave();
         yield();
@@ -121,6 +120,8 @@ class TicTacGo : Game::Engine {
         yield();
         client.JoinRoomViaCode(rematchJoinCode);
         rematchJoinCode = "";
+        // returning to menu bugs and leaves twice
+        // startnew(ReturnToMenu);
     }
 
     void _CallOnRematch() {
@@ -438,7 +439,7 @@ class TicTacGo : Game::Engine {
             UI::Dummy(vec2(30, 30));
             UI::SameLine();
             if (UI::Button("Leave##rematch")) {
-                startnew(ReturnToMenu);
+                // startnew(ReturnToMenu);
                 client.SendLeave();
                 client.SendLeave();
             }
