@@ -23,7 +23,6 @@ class TtgGame {
         // this takes a while
         @client = Game::Client("TicTacGo");
         CreateNewGameClient();
-        @ttg.OnRematch = CoroutineFunc(this.OnRematch);
         startnew(CoroutineFunc(TtgLobbyLoop));
         startnew(CoroutineFunc(SelfDestructLoop));
     }
@@ -31,6 +30,7 @@ class TtgGame {
     void CreateNewGameClient() {
         @ttg = TicTacGo(client);
         @client.gameEngine = ttg;
+        @ttg.OnRematch = CoroutineFunc(this.OnRematch);
     }
 
     bool get_IsShutdown() {
@@ -200,7 +200,14 @@ class TtgGame {
     }
 
     void RenderJoiningGameLobby() {
-        RenderLoadingScreen(Icons::Hashtag + "  Joining Lobby...");
+        if (BeginMainWindow()) {
+            DrawCenteredText(Icons::Hashtag + "  Joining Lobby...");
+            if (UI::Button("Manually Join")) {
+                client.JoinLobby("TicTacGo");
+            }
+        }
+        UI::End();
+        RenderHeartbeatPulse(lobbyWindowPos + lobbyWindowSize / 2., lobbyWindowSize / 2. * vec2(1, false ? 0.0001 : 1.));
     }
 
     void RenderWaitingForGameInfo() {

@@ -797,18 +797,19 @@ class TicTacGoState {
     // black out client UI when in a server when we don't want ppl to see the map
     bool ShouldBlackout() {
         return false;
-        if (!IsInServer) return false;
-        if (IsInClaimOrChallenge) {
-            return !serverChallengeInExpectedMap;
-        }
-        if (IsWaitingForMove && turnCounter == 0) {
-            return false;
-        }
-        return IsWaitingForMove && !challengeRunActive;
+        // if (!IsInServer) return false;
+        // if (IsInClaimOrChallenge) {
+        //     return !serverChallengeInExpectedMap;
+        // }
+        // if (IsWaitingForMove && turnCounter == 0) {
+        //     return false;
+        // }
+        // return IsWaitingForMove && !challengeRunActive;
     }
 
     // todo: refactor this and the above to use mostly the same logic, and abstract differences
     void InServerRunChallenge() {
+        // warn('InServerRunChallenge');
         if (!IsInServer) {
             warn("InServerRunChallenge called when not in a server");
             return;
@@ -818,16 +819,19 @@ class TicTacGoState {
         auto app = cast<CGameManiaPlanet>(GetApp());
         // wait for us to join the server if we haven't yet
         while (!CurrentlyInMap) yield();
+        // warn('InServerRunChallenge in map');
         auto cp = cast<CSmArenaClient>(app.CurrentPlayground);
         while (cp.Map is null) yield();
         while (app.Network.ClientManiaAppPlayground is null) yield();
-
+        sleep(250);
+        // warn('setting challenge run active');
         challengeRunActive = true;
         auto cmap = app.Network.ClientManiaAppPlayground;
         auto currUid = cp.Map.MapInfo.MapUid;
         string expectedUid = currMap.Get('TrackUID', '??');
         if (expectedUid.Length < 5) warn("Expected uid is bad! " + expectedUid);
         serverChallengeInExpectedMap = expectedUid == currUid;
+        // warn('serverChallengeInExpectedMap: ' + tostring(serverChallengeInExpectedMap));
         if (!serverChallengeInExpectedMap) {
             auto net = app.Network;
             net.PlaygroundClientScriptAPI.RequestGotoMap(expectedUid);
@@ -947,7 +951,8 @@ class TicTacGoState {
     void SpamVoteYesForABit() {
         auto app = cast<CGameManiaPlanet>(GetApp());
         auto net = app.Network;
-        for (uint i = 0; i < 8; i++) {
+        sleep(500);
+        for (uint i = 0; i < 16; i++) {
             if (net.PlaygroundClientScriptAPI !is null) {
                 if (!net.PlaygroundClientScriptAPI.Request_IsInProgress) break;
                 net.PlaygroundClientScriptAPI.Vote_Cast(true);
@@ -959,6 +964,7 @@ class TicTacGoState {
     void SpamVoteNoForABit() {
         auto app = cast<CGameManiaPlanet>(GetApp());
         auto net = app.Network;
+        sleep(500);
         for (uint i = 0; i < 8; i++) {
             if (net.PlaygroundClientScriptAPI !is null) {
                 if (!net.PlaygroundClientScriptAPI.Request_IsInProgress) break;
