@@ -96,7 +96,7 @@ class TicTacGo : Game::Engine {
         // if (!client.IsInGame) return true;
         rematchJoinCode = j['payload']['join_code'];
         rematchFromUser = j['payload']['by']['username'];
-        OnClickRematchAccept();
+        startnew(OnClickRematchAccept);
         return true;
     }
 
@@ -164,7 +164,7 @@ class TicTacGo : Game::Engine {
         MM::setMenuPage("/empty");
         startnew(CoroutineFunc(GameLoop));
         startnew(CoroutineFunc(JoinClubRoom));
-        startnew(CoroutineFunc(BlackoutLoop));
+        // startnew(CoroutineFunc(BlackoutLoop));
     }
 
     void OnGameEnd() {
@@ -430,7 +430,7 @@ class TicTacGo : Game::Engine {
             UI::AlignTextToFramePadding();
             UI::Text("Rematch?");
             if (UI::Button("Accept##rematch")) {
-                OnClickRematchAccept();
+                startnew(OnClickRematchAccept);
             }
             UI::SameLine();
             UI::Dummy(vec2(30, 30));
@@ -615,7 +615,7 @@ class TicTacGo : Game::Engine {
                 UI::Text(rematchBeingCreated ? "Rematch being prepared..." : "Awaiting rematch request...");
             } else {
                 if (UI::Button("Accept Rematch##lhs")) {
-                    OnClickRematchAccept();
+                    startnew(OnClickRematchAccept);
                 }
             }
         }
@@ -902,17 +902,17 @@ class TicTacGo : Game::Engine {
     }
 
     void BlackoutLoop() {
-        if (!stateObj.IsInServer) return;
-        while (!client.IsInGame) yield();
-        auto app = cast<CGameManiaPlanet>(GetApp());
-        while (client.IsConnected && client.IsInGame) {
-            yield();
-            if (app.CurrentPlayground is null) continue;
-            app.CurrentPlayground.GameTerminals_IsBlackOut = stateObj.ShouldBlackout();
-        }
-        if (app.CurrentPlayground !is null) {
-            app.CurrentPlayground.GameTerminals_IsBlackOut = false;
-        }
+        // if (!stateObj.IsInServer) return;
+        // while (!client.IsInGame) yield();
+        // auto app = cast<CGameManiaPlanet>(GetApp());
+        // while (client.IsConnected && client.IsInGame) {
+        //     yield();
+        //     if (app.CurrentPlayground is null) continue;
+        //     app.CurrentPlayground.GameTerminals_IsBlackOut = stateObj.ShouldBlackout();
+        // }
+        // if (app.CurrentPlayground !is null) {
+        //     app.CurrentPlayground.GameTerminals_IsBlackOut = false;
+        // }
     }
 
     void GameLoop() {

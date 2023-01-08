@@ -796,6 +796,7 @@ class TicTacGoState {
 
     // black out client UI when in a server when we don't want ppl to see the map
     bool ShouldBlackout() {
+        return false;
         if (!IsInServer) return false;
         if (IsInClaimOrChallenge) {
             return !serverChallengeInExpectedMap;
@@ -845,8 +846,10 @@ class TicTacGoState {
             while (cmap.UI.UISequence == CGamePlaygroundUIConfig::EUISequence::Playing) yield();
         }
         serverChallengeInExpectedMap = true;
-        while (cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Intro) yield();
-        while (cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
+        while (cmap !is null && cmap.UI !is null && cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Intro) yield();
+        if (cmap is null || cmap.UI is null) return; // exited playground
+        while (cmap !is null && cmap.UI !is null && cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
+        if (cmap is null || cmap.UI is null) return; // exited playground
         // Now that we're playing, we need to figure out if we're in a warmup or not.
 
         HideGameUI::opt_EnableRecords = opt_EnableRecords;
