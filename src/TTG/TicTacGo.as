@@ -98,7 +98,7 @@ class TicTacGo : Game::Engine {
         // if (!client.IsInGame) return true;
         rematchJoinCode = j['payload']['join_code'];
         rematchFromUser = j['payload']['by']['username'];
-        startnew(OnClickRematchAccept);
+        startnew(CoroutineFunc(OnClickRematchAccept));
         return true;
     }
 
@@ -432,7 +432,7 @@ class TicTacGo : Game::Engine {
             UI::AlignTextToFramePadding();
             UI::Text("Rematch?");
             if (UI::Button("Accept##rematch")) {
-                startnew(OnClickRematchAccept);
+                startnew(CoroutineFunc(OnClickRematchAccept));
             }
             UI::SameLine();
             UI::Dummy(vec2(30, 30));
@@ -617,7 +617,7 @@ class TicTacGo : Game::Engine {
                 UI::Text(rematchBeingCreated ? "Rematch being prepared..." : "Awaiting rematch request...");
             } else {
                 if (UI::Button("Accept Rematch##lhs")) {
-                    startnew(OnClickRematchAccept);
+                    startnew(CoroutineFunc(OnClickRematchAccept));
                 }
             }
         }
