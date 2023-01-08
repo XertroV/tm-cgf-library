@@ -41,6 +41,12 @@ bool S_TTG_DrawGameDebugInfo = false;
 [SettingsTab name="Changelog" order="99"]
 void Render_Settings_Changelog() {
     UI::Markdown(" # " + Meta::ExecutingPlugin().Version + """
+ - Disable blackout feature
+ - Fix null pointer exception when leaving map
+ - Create a new TTG game data structure on entering a room instead of resetting the old one
+ - Fix yield in UI code that caused a plugin crash
+
+ # 0.1.54
 
  ## Server Play
 
