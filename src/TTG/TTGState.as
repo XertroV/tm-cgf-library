@@ -843,11 +843,12 @@ class TicTacGoState {
             while (app.CurrentPlayground is null) yield();
             sleep(100);
         } else {
+            bool reqAlreadyInProg = app.Network.PlaygroundClientScriptAPI.Request_IsInProgress;
             // we might be rejoining an ongoing map, only send request restart if there are no times yet
-            if (challengeResult.IsEmpty)
-                app.Network.PlaygroundClientScriptAPI.RequestRestartMap();
+            app.Network.PlaygroundClientScriptAPI.RequestRestartMap();
+            // while (!reqAlreadyInProg && !app.Network.PlaygroundClientScriptAPI.Request_IsInProgress) yield();
             startnew(CoroutineFunc(SpamVoteYesForABit));
-            while (cmap.UI.UISequence == CGamePlaygroundUIConfig::EUISequence::Playing) yield();
+            while (app.Network.PlaygroundClientScriptAPI.Request_IsInProgress || cmap.UI.UISequence == CGamePlaygroundUIConfig::EUISequence::Playing) yield();
         }
         serverChallengeInExpectedMap = true;
         while (cmap !is null && cmap.UI !is null && cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Intro) yield();
@@ -952,10 +953,18 @@ class TicTacGoState {
         auto app = cast<CGameManiaPlanet>(GetApp());
         auto net = app.Network;
         sleep(500);
+        bool voteInProg = false;
+        bool voteEnded = false;
         for (uint i = 0; i < 16; i++) {
             if (net.PlaygroundClientScriptAPI !is null) {
-                if (!net.PlaygroundClientScriptAPI.Request_IsInProgress) break;
-                net.PlaygroundClientScriptAPI.Vote_Cast(true);
+                if (net.PlaygroundClientScriptAPI.Request_IsInProgress) {
+                    voteInProg = true;
+                    net.PlaygroundClientScriptAPI.Vote_Cast(true);
+                } else if (voteInProg) {
+                    voteEnded = true;
+                    voteInProg = false;
+                    break;
+                }
             }
             sleep(500);
         }
@@ -967,8 +976,8 @@ class TicTacGoState {
         sleep(500);
         for (uint i = 0; i < 8; i++) {
             if (net.PlaygroundClientScriptAPI !is null) {
-                if (!net.PlaygroundClientScriptAPI.Request_IsInProgress) break;
-                net.PlaygroundClientScriptAPI.Vote_Cast(false);
+                if (net.PlaygroundClientScriptAPI.Request_IsInProgress)
+                    net.PlaygroundClientScriptAPI.Vote_Cast(false);
             }
             sleep(500);
         }
