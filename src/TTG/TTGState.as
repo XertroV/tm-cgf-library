@@ -619,7 +619,7 @@ class TicTacGoState {
             sleep(challengePreWaitPeriod - 30);
             // load map immediately if the CR is the same one and the setting is enabled.
             bool crChecks = beginChallengeLatestNonce == myNonce && !challengeResult.HasResultFor(client.clientUid);
-            if (crChecks && !challengeRunActive && S_TTG_AutostartMap && !CurrentlyInMap) {
+            if (crChecks && S_TTG_AutostartMap && !CurrentlyInMap) {
                 print("Autostarting map for: " + MyName);
                 startnew(CoroutineFunc(RunChallengeAndReportResult));
             } else {
@@ -628,7 +628,7 @@ class TicTacGoState {
         } else if (IsInServer) {
             sleep(200);
             bool crChecks = beginChallengeLatestNonce == myNonce && !challengeResult.HasResultFor(client.clientUid);
-            if (crChecks && !challengeRunActive) {
+            if (crChecks) {
                 startnew(CoroutineFunc(InServerRunChallenge));
             } else {
                 warn("Skipping challenge b/c one of: crChecks failed, challenge active");
@@ -797,18 +797,19 @@ class TicTacGoState {
     // black out client UI when in a server when we don't want ppl to see the map
     bool ShouldBlackout() {
         return false;
-        if (!IsInServer) return false;
-        if (IsInClaimOrChallenge) {
-            return !serverChallengeInExpectedMap;
-        }
-        if (IsWaitingForMove && turnCounter == 0) {
-            return false;
-        }
-        return IsWaitingForMove && !challengeRunActive;
+        // if (!IsInServer) return false;
+        // if (IsInClaimOrChallenge) {
+        //     return !serverChallengeInExpectedMap;
+        // }
+        // if (IsWaitingForMove && turnCounter == 0) {
+        //     return false;
+        // }
+        // return IsWaitingForMove && !challengeRunActive;
     }
 
     // todo: refactor this and the above to use mostly the same logic, and abstract differences
     void InServerRunChallenge() {
+        // warn('InServerRunChallenge');
         if (!IsInServer) {
             warn("InServerRunChallenge called when not in a server");
             return;
@@ -818,16 +819,19 @@ class TicTacGoState {
         auto app = cast<CGameManiaPlanet>(GetApp());
         // wait for us to join the server if we haven't yet
         while (!CurrentlyInMap) yield();
+        // warn('InServerRunChallenge in map');
         auto cp = cast<CSmArenaClient>(app.CurrentPlayground);
         while (cp.Map is null) yield();
         while (app.Network.ClientManiaAppPlayground is null) yield();
-
+        sleep(250);
+        // warn('setting challenge run active');
         challengeRunActive = true;
         auto cmap = app.Network.ClientManiaAppPlayground;
         auto currUid = cp.Map.MapInfo.MapUid;
         string expectedUid = currMap.Get('TrackUID', '??');
         if (expectedUid.Length < 5) warn("Expected uid is bad! " + expectedUid);
         serverChallengeInExpectedMap = expectedUid == currUid;
+        // warn('serverChallengeInExpectedMap: ' + tostring(serverChallengeInExpectedMap));
         if (!serverChallengeInExpectedMap) {
             auto net = app.Network;
             net.PlaygroundClientScriptAPI.RequestGotoMap(expectedUid);
@@ -839,11 +843,12 @@ class TicTacGoState {
             while (app.CurrentPlayground is null) yield();
             sleep(100);
         } else {
+            bool reqAlreadyInProg = app.Network.PlaygroundClientScriptAPI.Request_IsInProgress;
             // we might be rejoining an ongoing map, only send request restart if there are no times yet
-            if (challengeResult.IsEmpty)
-                app.Network.PlaygroundClientScriptAPI.RequestRestartMap();
+            app.Network.PlaygroundClientScriptAPI.RequestRestartMap();
+            // while (!reqAlreadyInProg && !app.Network.PlaygroundClientScriptAPI.Request_IsInProgress) yield();
             startnew(CoroutineFunc(SpamVoteYesForABit));
-            while (cmap.UI.UISequence == CGamePlaygroundUIConfig::EUISequence::Playing) yield();
+            while (app.Network.PlaygroundClientScriptAPI.Request_IsInProgress || cmap.UI.UISequence == CGamePlaygroundUIConfig::EUISequence::Playing) yield();
         }
         serverChallengeInExpectedMap = true;
         while (cmap !is null && cmap.UI !is null && cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Intro) yield();
@@ -947,10 +952,19 @@ class TicTacGoState {
     void SpamVoteYesForABit() {
         auto app = cast<CGameManiaPlanet>(GetApp());
         auto net = app.Network;
-        for (uint i = 0; i < 8; i++) {
+        sleep(500);
+        bool voteInProg = false;
+        bool voteEnded = false;
+        for (uint i = 0; i < 16; i++) {
             if (net.PlaygroundClientScriptAPI !is null) {
-                if (!net.PlaygroundClientScriptAPI.Request_IsInProgress) break;
-                net.PlaygroundClientScriptAPI.Vote_Cast(true);
+                if (net.PlaygroundClientScriptAPI.Request_IsInProgress) {
+                    voteInProg = true;
+                    net.PlaygroundClientScriptAPI.Vote_Cast(true);
+                } else if (voteInProg) {
+                    voteEnded = true;
+                    voteInProg = false;
+                    break;
+                }
             }
             sleep(500);
         }
@@ -959,10 +973,11 @@ class TicTacGoState {
     void SpamVoteNoForABit() {
         auto app = cast<CGameManiaPlanet>(GetApp());
         auto net = app.Network;
+        sleep(500);
         for (uint i = 0; i < 8; i++) {
             if (net.PlaygroundClientScriptAPI !is null) {
-                if (!net.PlaygroundClientScriptAPI.Request_IsInProgress) break;
-                net.PlaygroundClientScriptAPI.Vote_Cast(false);
+                if (net.PlaygroundClientScriptAPI.Request_IsInProgress)
+                    net.PlaygroundClientScriptAPI.Vote_Cast(false);
             }
             sleep(500);
         }

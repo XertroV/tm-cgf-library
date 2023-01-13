@@ -41,6 +41,11 @@ bool S_TTG_DrawGameDebugInfo = false;
 [SettingsTab name="Changelog" order="99"]
 void Render_Settings_Changelog() {
     UI::Markdown(" # " + Meta::ExecutingPlugin().Version + """
+
+ - Refactor voting code to be more tolerant of latency -- less manual voting should be required.
+
+ # 0.1.56
+
  - Disable blackout feature
  - Fix null pointer exception when leaving map
  - Create a new TTG game data structure on entering a room instead of resetting the old one
@@ -54,7 +59,7 @@ void Render_Settings_Changelog() {
 
  - Add patch notes accessible via lobby button & in plugin settings
  - Add preparation status messages to inform users of room set up progress (CGF + TTG)
- - Implement server mode (TTG + CGF)
+ - Implement server mode for (TTG + CGF)
  - Add DNF button (TTG)
  - Auto DNF someone on disconnection from game room (TTG)
  - Add load error notifications, particularly for map packs atm (TTG + CGF)
