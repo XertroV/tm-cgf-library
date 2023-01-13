@@ -42,6 +42,10 @@ bool S_TTG_DrawGameDebugInfo = false;
 void Render_Settings_Changelog() {
     UI::Markdown(" # " + Meta::ExecutingPlugin().Version + """
 
+ - Remove useless fonts (saves ~3s load time)
+
+ # 0.1.58
+
  - Refactor voting code to be more tolerant of latency -- less manual voting should be required.
 
  # 0.1.56
