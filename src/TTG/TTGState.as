@@ -692,10 +692,6 @@ class TicTacGoState {
     void RunChallengeAndReportResult() {
         ResetChallengeState();
         disableLaunchMapBtn = true;
-        // set menu screen to avoid map-loading issues.
-        MM::setMenuPage("/local");
-        yield();
-        MM::setMenuPageEmpty();
         SetLoadingScreenText("TTG! - " + string(currMap.Get("Name", "???")), "Go Team " + MyLeadersName + "!");
         yield();
         yield();

@@ -82,6 +82,11 @@ namespace MM {
             if (UI::MenuItem("Empty")) {
                 setMenuPage("/empty");
             }
+#if DEV
+            if (UI::MenuItem("Profile")) {
+                setMenuPage("/profile");
+            }
+#endif
 
             UI::EndMenu();
         }

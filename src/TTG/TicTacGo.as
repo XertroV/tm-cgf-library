@@ -161,10 +161,6 @@ class TicTacGo : Game::Engine {
     void OnGameStartCoro() {
         AwaitManialinkTitleReady();
         while (stateObj.IsPreStart) yield();
-        yield();
-        MM::setMenuPage("/local");
-        yield();
-        MM::setMenuPage("/empty");
         startnew(CoroutineFunc(GameLoop));
         startnew(CoroutineFunc(JoinClubRoom));
         // startnew(CoroutineFunc(BlackoutLoop));
@@ -172,17 +168,12 @@ class TicTacGo : Game::Engine {
 
     void OnGameEnd() {
         stateObj.OnGameEnd();
-        MM::setMenuPage("/local");
         yield();
-        // no need to set the page to home, and makes loading worse
-        // MM::setMenuPage("/home");
     }
 
     void Render() {
         RenderForceEndMaybe();
         if (!CurrentlyInMap) {
-            if (stateObj.IsInAGame || MM::lastWasEmpty)
-                RenderBackgroundGoneNotice();
             return;
         }
         // print("render? " + challengeStartTime + ", gt: " + currGameTime);
