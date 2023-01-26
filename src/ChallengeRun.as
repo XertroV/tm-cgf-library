@@ -37,6 +37,7 @@ class ChallengeRun {
     string loadingScreenBottom;
     string mapUid;
     string mapName;
+    int trackID;
 
     ChallengeRunReport@ reportFunc;
 
@@ -51,6 +52,7 @@ class ChallengeRun {
             const string &in loadingScreenBottom,
             const string &in mapUid,
             const string &in mapName,
+            int trackID,
             bool mapSameAsLast,
             bool runInServer,
             ChallengeRunReport@ reportFunc,
@@ -68,6 +70,7 @@ class ChallengeRun {
         this.loadingScreenTop = loadingScreenTop;
         this.loadingScreenBottom = loadingScreenBottom;
 
+        this.trackID = trackID;
         this.mapUid = mapUid;
         this.mapName = mapName;
         this.mapSameAsLast = mapSameAsLast;
@@ -188,8 +191,9 @@ class ChallengeRun {
 
     // check if the player finished
     bool Main_Check_Finish() {
-        throw('override me');
-        return false;
+        auto cmap = GetApp().Network.ClientManiaAppPlayground;
+        if (cmap is null) return false;
+        return cmap.UI.UISequence == CGamePlaygroundUIConfig::EUISequence::Finish;
     }
 
     // check if we should exit the main loop
@@ -212,7 +216,7 @@ class ChallengeRun {
         // -- get time from ghost
         // -- set vars
         // -- report result
-        if (Main_Check_Finish()) {
+        if (!hasFinished && Main_Check_Finish()) {
             hasFinished = true;
             while (initNbGhosts == GetCurrNbGhosts()) yield();
             auto runTime = GetMostRecentGhostTime();
@@ -325,6 +329,16 @@ class LocalChallengeRun : ChallengeRun {
         super();
     }
 
+    void Activate_LoadChallengeMapAsync() override {
+        challengeRunActive = true;
+        LoadMapNow(MapUrlTmx(trackID));
+        startnew(CoroutineFunc(ResetLaunchMapBtnSoon));
+    }
+
+    void ResetLaunchMapBtnSoon() {
+        throw('todo');
+    }
+
     void OnReady_WaitForUISequences() override {
         auto cmap = GetApp().Network.ClientManiaAppPlayground;
         while (cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Intro) yield();
@@ -378,6 +392,18 @@ class ClubServerChallengeRun : ChallengeRun {
         hideChallengeWindowInServer = true;
     }
 
+
+    void Main_Pre_Check_Finish() override {
+
+    }
+
+    bool Main_Check_ShouldExit() override {
+        return GetApp().CurrentPlayground is null && GetApp().Switcher.ModuleStack.Length > 0;
+    }
+
+
+    // voting stuff below
+
     uint priorRulesStart = 0;
     void LoadExpectedMapByVoting() {
         if (InExpectedMap()) {
@@ -429,10 +455,6 @@ class ClubServerChallengeRun : ChallengeRun {
         auto cp = cast<CSmArenaClient>(GetApp().CurrentPlayground);
         if (cp is null) return false;
         return mapUid == cp.Map.MapInfo.MapUid;
-    }
-
-    bool Main_Check_ShouldExit() override {
-        return GetApp().CurrentPlayground is null && GetApp().Switcher.ModuleStack.Length > 0;
     }
 
     const string ExpVoteQuestionEndsWith_JumpToMap() {
