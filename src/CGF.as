@@ -330,7 +330,9 @@ namespace Game {
                         // if it's a game message, still pass it on to any handlers
                         auto handlers = GetMessageHandlers(type);
                         if (handlers is null) throw("handlers should never be null!");
-                        for (uint i = 0; i < handlers.Length; i++) handlers[i](msg);
+                        for (uint i = 0; i < handlers.Length; i++) {
+                            handlers[i](msg);
+                        };
                         if (!gameMsg && handlers.Length == 0) warn("Unhandled message of type: " + type);
                     }
                 }

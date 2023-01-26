@@ -6,24 +6,19 @@ class ChallengeRun {
     int playerInitStartTime = -1;
     int lastPlayerStartTime = -1;
     int challengeEndTime = -1;
-    int challengeScreenTimeout = -1;
     int currGameTime = -1;
     int currPeriod = 15;  // frame time
     bool challengeRunActive = false;
     bool disableLaunchMapBtn = false;
     bool hideChallengeWindowInServer = false;
-    uint challengeEndedAt;
-    bool showForceEndPrompt = false;
     bool shouldExitChallenge = false;
     uint shouldExitChallengeTime = DNF_TIME;
-    bool serverChallengeInExpectedMap = false;
-    uint lastSpamNo = 0;
     int initNbGhosts = 0;
     int duration = -1;
     bool opt_EnableRecords = false;
     int opt_AutoDNF_ms = -1;
     CSmScriptPlayer@ player;
-    ChallengeResultState@ challengeResult = ChallengeResultState();
+    ChallengeResultState@ challengeResult;
 
     bool runInServer = false;
 
@@ -55,9 +50,11 @@ class ChallengeRun {
             int trackID,
             bool mapSameAsLast,
             bool runInServer,
+            int opt_AutoDNF_ms, // = -1,
+            bool opt_EnableRecords, // = false,
             ChallengeRunReport@ reportFunc,
-            int opt_AutoDNF_ms = -1,
-            bool opt_EnableRecords = false
+            ChallengeResultState@ challengeResult
+
         ) {
         this.initialized = true;
 
@@ -66,6 +63,7 @@ class ChallengeRun {
 
         if (reportFunc is null) throw('report func null!');
         @this.reportFunc = reportFunc;
+        @this.challengeResult = challengeResult;
 
         this.loadingScreenTop = loadingScreenTop;
         this.loadingScreenBottom = loadingScreenBottom;
@@ -82,6 +80,42 @@ class ChallengeRun {
         if (!initialized) {
             throw("You must call .Initialize immediately after instantiating a ChallengeRun");
         }
+    }
+
+
+    /**
+     * Run order:
+     * bool PreconditionsMet(): in the expected state
+     * PreActivate(): loading screen, etc
+     * Activate(): flag active, load map or do voting
+     * PostActivate(): correct map loaded, wait for round to start
+     * bool PreMain_CheckExit(): ensure we're still in the playground etc
+     * PreMain(): set initial variables
+     * bool UpdateMain(): called every frame, monitors time and reports results; false to break
+     * PostMain(): after done, cleanup
+     */
+    void RunNowAsync() {
+        // ** CHECKS
+        if (!PreconditionsMet()) return;
+        // ** INIT
+        trace('ChallengeRun.RunNowAsync: PreActivate');
+        PreActivate();
+        trace('ChallengeRun.RunNowAsync: Activate');
+        Activate();
+        trace('ChallengeRun.RunNowAsync: PostActivate');
+        PostActivate();
+        // ** CHALLENGE READY
+        trace('ChallengeRun.RunNowAsync: PreMain_CheckExit');
+        if (PreMain_CheckExit()) return;
+        // ** Start
+        trace('ChallengeRun.RunNowAsync: PreMain');
+        PreMain();
+        yield();
+        trace('ChallengeRun.RunNowAsync: UpdateMain');
+        while (UpdateMain()) yield();
+        // ** END
+        trace('ChallengeRun.RunNowAsync: PostMain');
+        PostMain();
     }
 
 
@@ -105,19 +139,23 @@ class ChallengeRun {
 
     // terminates when we are in the intro
     void OnReady_WaitForPlayers() {
-        while (GetApp().CurrentPlayground is null) yield();
-        auto cmap = GetApp().Network.ClientManiaAppPlayground;
+        while (GetApp().Network.ClientManiaAppPlayground is null) yield();
+        while (cast<CSmArenaClient>(GetApp().CurrentPlayground) is null) yield();
+        yield();
         auto cp = cast<CSmArenaClient>(GetApp().CurrentPlayground);
         while (cp !is null && cp.Players.Length < 1) yield();
         // auto player = cast<CSmScriptPlayer>(cast<CSmPlayer>(cp.Players[0]).ScriptAPI);
         // cmap never null
-        while (cp !is null && cmap.UI is null) yield();
+        auto cmap = GetApp().Network.ClientManiaAppPlayground;
+        while (cmap.UI is null) yield();
     }
 
     void OnReady_WaitForUI() {
+        while (GetApp().CurrentPlayground is null) yield();
+        while (GetApp().Network.ClientManiaAppPlayground is null) yield();
         auto cp = cast<CSmArenaClient>(GetApp().CurrentPlayground);
         auto cmap = GetApp().Network.ClientManiaAppPlayground;
-        while (cp !is null && cmap !is null && cmap.UI is null) yield();
+        while (cmap.UI is null) yield();
     }
 
     void OnReady_WaitForUISequences() {
@@ -169,22 +207,37 @@ class ChallengeRun {
         initNbGhosts = GetCurrNbGhosts();
 
         auto cmap = GetApp().Network.ClientManiaAppPlayground;
-        if (cmap is null) return;
+        auto cp = cast<CSmArenaClient>(GetApp().CurrentPlayground);
+        if (cmap is null || cp is null) return;
         @player = FindLocalPlayersInPlaygroundPlayers(GetApp());
+        while (player is null) {
+            yield();
+            @player = FindLocalPlayersInPlaygroundPlayers(GetApp());
+        }
+
+        while (player.StartTime < 0) yield();
+        while (cp.Arena.Rules.RulesStateStartTime > uint(2<<30)) yield();
+        // we can afford to wait a little to avoid race conditions with timers by acting too early
+        sleep(500);
 
         // set start time
         currGameTime = cmap.Playground.GameTime;
-        challengeStartTime = Time::Now + (player.StartTime - currGameTime);
-        playerInitStartTime = player.StartTime;
-        lastPlayerStartTime = player.StartTime;
+        // auto roundStartTime = cp.Arena.Rules.RulesStateStartTime;
+        auto roundStartTime = player.StartTime;
+        challengeStartTime = Time::Now + (roundStartTime - currGameTime);
+        playerInitStartTime = roundStartTime;
+        lastPlayerStartTime = roundStartTime;
         // while (player.CurrentRaceTime > 0) yield(); // wait for current race time to go negative
         if (challengeStartTime < int(Time::Now)) {
             warn("challengeStartTime is in the past; now - start = " + (int(Time::Now) - challengeStartTime) + ".");
             // the timer should always start at -1.5s, so set it 1.5s in the future
-            // challengeStartTime = Time::Now + 1500;
+            challengeStartTime = Time::Now + 1500;
         }
 
-        log_info("Set challenge start time: " + challengeStartTime);
+        log_info("Set challenge start time: " + challengeStartTime + " (now: " + Time::Now + ")");
+        log_info("roundStartTime: " + roundStartTime);
+        log_info("playerInitStartTime: " + playerInitStartTime);
+        log_info("lastPlayerStartTime: " + lastPlayerStartTime);
         // wait for finish timer
         hasFinished = false;
     }
@@ -202,20 +255,28 @@ class ChallengeRun {
         return false;
     }
 
-    // for voting in server mode
-    void Main_Pre_Check_Finish() {
-        return;
+    // for voting in server mode; will terminate UpdateMain if false is returned.
+    bool Main_Pre_Check_Finish() {
+        return true;
+    }
+
+    bool firstRun = true;
+    void LogFirstRunOnly(const string &in msg) {
+        if (!firstRun) return;
+        print(msg);
     }
 
     // return true to continue, false to break
     bool UpdateMain() {
         // **** CHECK VOTES
-        Main_Pre_Check_Finish();
+        LogFirstRunOnly("[ChallengeRun::UpdateMain] Check Votes");
+        if (!Main_Pre_Check_Finish()) return false;
         // **** CHECK FINISH
         // - check for finish
         // -- get time from ghost
         // -- set vars
         // -- report result
+        LogFirstRunOnly("[ChallengeRun::UpdateMain] Check Finish");
         if (!hasFinished && Main_Check_Finish()) {
             hasFinished = true;
             while (initNbGhosts == GetCurrNbGhosts()) yield();
@@ -223,33 +284,49 @@ class ChallengeRun {
             auto endTime = lastPlayerStartTime + runTime;
             duration = endTime - playerInitStartTime;
             challengeEndTime = challengeStartTime + duration;
+            log_info("Finished run");
+            log_info("initNbGhosts: " + initNbGhosts);
+            log_info("GetCurrNbGhosts: " + GetCurrNbGhosts());
+            log_info("ghost runTime: " + runTime);
+            log_info("lastPlayerStartTime: " + lastPlayerStartTime);
+            log_info("playerInitStartTime: " + playerInitStartTime);
+            log_info("endTime: " + endTime);
+            log_info("duration: " + duration);
+            log_info("challengeStartTime: " + challengeStartTime);
+            log_info("challengeEndTime: " + challengeEndTime);
             // report result
             ReportChallengeResult(duration);
         }
         // **** UPDATE NOT FINISHED
         // - if not finished
         // -- update duration, start time, nb ghosts, opponent time, time left (if dnf), shouldDnf flag
+        LogFirstRunOnly("[ChallengeRun::UpdateMain] Update Not-Finish (finished? " + tostring(hasFinished) + ")");
         int oppTime = 0;
         int timeLeft = DNF_TEST;
         bool shouldDnf = false;
         if (!hasFinished) {
             duration = Time::Now - challengeStartTime;
-            lastPlayerStartTime = player.StartTime;
+            if (player.StartTime != lastPlayerStartTime) {
+                lastPlayerStartTime = player.StartTime;
+                log_info("updated lastPlayerStartTime: " + lastPlayerStartTime);
+            }
             initNbGhosts = GetCurrNbGhosts();
             oppTime = challengeResult.ranking.Length > 0 ? challengeResult.ranking[0].time : DNF_TIME;
             timeLeft = oppTime + opt_AutoDNF_ms - duration;
             shouldDnf = opt_AutoDNF_ms > 0 && timeLeft <= 0;
         }
-        // if the challenge is resolved (e.g., via force ending) then we want to exit out
-        // ~~also if we already have a result~~ leave players in the map while other ppl haven't finished yet
-        shouldExitChallenge = challengeResult.IsResolved;
 
         // **** CHECK EXIT LOOP
         // - check if challenge resolved, or should DNF, or null pg, etc
         // -- maybe report dnf time
         // -- set exit challenge time
         // -- break loop
-        if (Main_Check_ShouldExit()) {
+        LogFirstRunOnly("[ChallengeRun::UpdateMain] Check Should Exit");
+        // if the challenge is resolved (e.g., via force ending) then we want to exit out
+        // ~~also if we already have a result~~ leave players in the map while other ppl haven't finished yet
+        shouldExitChallenge = challengeResult.IsResolved;
+        if (shouldDnf || shouldExitChallenge || Main_Check_ShouldExit()) {
+            LogFirstRunOnly("[ChallengeRun::UpdateMain] ShouldExit = True");
             log_trace('should dnf, or exit, or player already did.');
             if (shouldDnf) {
                 log_warn("shouldDnf. time left: " + timeLeft + "; oppTime: " + oppTime + ", duration=" + duration);
@@ -258,7 +335,7 @@ class ChallengeRun {
             if (!shouldExitChallenge && !hasFinished)
                 ReportChallengeResult(DNF_TIME); // more than 24 hrs, just
             // if we are still in the map we want to let hte user know before we exit
-            if (shouldExitChallenge) {
+            if (shouldExitChallenge || challengeResult.IsResolved) {
                 shouldExitChallengeTime = Time::Now + 3000;
                 AwaitShouldExitTimeOrMapLeft();
             }
@@ -268,10 +345,13 @@ class ChallengeRun {
         }
         // ** UPDATE
         // - update game time, period, etc
+        LogFirstRunOnly("[ChallengeRun::UpdateMain] Update Time");
         currGameTime = GetApp().Network.ClientManiaAppPlayground.Playground.GameTime;
         if (!hasFinished)
             challengeEndTime = Time::Now;
         currPeriod = GetApp().Network.PlaygroundInterfaceScriptHandler.Period;
+        LogFirstRunOnly("[ChallengeRun::UpdateMain] Done");
+        firstRun = false;
         return true;
     }
 
@@ -294,33 +374,6 @@ class ChallengeRun {
         if (!runInServer)
             startnew(ReturnToMenu);
     }
-
-    /**
-     * Run order:
-     * bool PreconditionsMet(): in the expected state
-     * PreActivate(): loading screen, etc
-     * Activate(): flag active, load map or do voting
-     * PostActivate(): correct map loaded, wait for round to start
-     * bool PreMain_CheckExit(): ensure we're still in the playground etc
-     * PreMain(): set initial variables
-     * bool UpdateMain(): called every frame, monitors time and reports results; false to break
-     * PostMain(): after done, cleanup
-     */
-    void RunNowAsync() {
-        // ** CHECKS
-        if (!PreconditionsMet()) return;
-        // ** INIT
-        PreActivate();
-        Activate();
-        PostActivate();
-        // ** CHALLENGE READY
-        if (PreMain_CheckExit()) return;
-        // ** Start
-        PreMain();
-        while (UpdateMain()) yield();
-        // ** END
-        PostMain();
-    }
 }
 
 
@@ -336,7 +389,9 @@ class LocalChallengeRun : ChallengeRun {
     }
 
     void ResetLaunchMapBtnSoon() {
-        throw('todo');
+        // prevents softlock if map cannot load (occasionally happens)
+        sleep(5000);
+        disableLaunchMapBtn = false;
     }
 
     void OnReady_WaitForUISequences() override {
@@ -373,10 +428,32 @@ class ClubServerChallengeRun : ChallengeRun {
         auto cp = cast<CSmArenaClient>(app.CurrentPlayground);
         while (cp.Map is null) yield();
         while (app.Network.ClientManiaAppPlayground is null) yield();
+        auto cmap = app.Network.ClientManiaAppPlayground;
         // warn('setting challenge run active');
         challengeRunActive = true;
-        priorRulesStart = cp.Arena.Rules.RulesStateStartTime;
-        LoadExpectedMapByVoting();
+        // todo: flag for first server joining. if not, then we always want to vote to restart. if yes, then we'll just accept it as an ongoing game.
+        do {
+            while (!InExpectedMap() && IsPlayingOrFinished(cmap.UI.UISequence)) {
+                if (cp.Arena.Rules.RulesStateStartTime < uint(2<<28))
+                    priorRulesStart = cp.Arena.Rules.RulesStateStartTime;
+                LoadExpectedMapByVoting();
+                sleep(250);
+            }
+            while (true) {
+                yield();
+                @cp = cast<CSmArenaClient>(GetApp().CurrentPlayground);
+                if (cp is null || cp.Arena is null || cp.Arena.Rules is null) continue;
+                auto newRulesStart = cp.Arena.Rules.RulesStateStartTime;
+                trace("waiting for new rules; prior: " + priorRulesStart + "; new: " + newRulesStart);
+                if (newRulesStart <= priorRulesStart) continue;
+                break;
+            }
+        } while (!InExpectedMap());
+    }
+
+    bool IsPlayingOrFinished(CGamePlaygroundUIConfig::EUISequence seq) {
+        return seq == CGamePlaygroundUIConfig::EUISequence::Playing
+            || seq == CGamePlaygroundUIConfig::EUISequence::Finish;
     }
 
     void OnReady_WaitForUISequences() override {
@@ -384,17 +461,28 @@ class ClubServerChallengeRun : ChallengeRun {
         auto cmap = app.Network.ClientManiaAppPlayground;
         while (cmap.UILayers.Length < 15) yield();
         while (cmap !is null && cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
-        sleep(100);
+        sleep(250);
         while (cmap !is null && cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
         while (IsInWarmUp()) yield();
-        sleep(100);
+        sleep(250);
         while (cmap !is null && cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
         hideChallengeWindowInServer = true;
     }
 
-
-    void Main_Pre_Check_Finish() override {
-
+    uint lastVotedNo = 0;
+    // return false to exit main loop
+    bool Main_Pre_Check_Finish() override {
+        auto net = GetApp().Network;
+        auto cmap = GetApp().Network.ClientManiaAppPlayground;
+        auto pcsapi = GetApp().Network.PlaygroundClientScriptAPI;
+        if (cmap is null || cmap.UI is null || pcsapi is null)
+            return false;
+        if (net.InCallvote && pcsapi.Vote_CanVote && lastVotedNo + 60000 < Time::Now) {
+            warn("Voting false for unexpected vote: " + pcsapi.Vote_Question);
+            pcsapi.Vote_Cast(false);
+            lastVotedNo = Time::Now;
+        }
+        return true;
     }
 
     bool Main_Check_ShouldExit() override {
@@ -406,14 +494,22 @@ class ClubServerChallengeRun : ChallengeRun {
 
     uint priorRulesStart = 0;
     void LoadExpectedMapByVoting() {
+        votingState = VotingState::NoVoteActive;
+        voteDone_setNextMap = false;
+        while (cast<CSmArenaClient>(GetApp().CurrentPlayground) is null) yield();
+        auto cp = cast<CSmArenaClient>(GetApp().CurrentPlayground);
+        while (cp.Map is null || cp.Map.MapInfo is null) yield();
         if (InExpectedMap()) {
+            warn('in expected map; same as last? ' + tostring(mapSameAsLast));
             if (!mapSameAsLast) return;
             while (UpdateVoteToRestart()) {
-                sleep(50);
+                // sleep(50);
+                yield();
             }
         } else {
             while (UpdateVoteToChangeMap()) {
-                sleep(50);
+                // sleep(50);
+                yield();
             }
         }
     }
@@ -433,9 +529,17 @@ class ClubServerChallengeRun : ChallengeRun {
         // if we're in the right map then always just exit
         if (InExpectedMap()) return false;
         if (!voteDone_setNextMap) {
-            return UpdateVote_SetNextMap();
+            auto setNextMapLoop = UpdateVote_SetNextMap();
+            if (!setNextMapLoop) {
+                voteDone_setNextMap = true;
+            }
+            return true;
         } else {
-            return UpdateVote_GoToNextMap();
+            auto goToNextLoop = UpdateVote_GoToNextMap();
+            if (!goToNextLoop) {
+                voteDone_setNextMap = false;
+            }
+            return goToNextLoop;
         }
     }
 
@@ -473,13 +577,37 @@ class ClubServerChallengeRun : ChallengeRun {
         return "asks: SetNextMapIdent " + StripFormatCodes(mapName) + "?";
     }
 
+
     bool VoteQuestionIsExpected(CGamePlaygroundClientScriptAPI@ pgcsa) {
-        auto matches = StripFormatCodes(pgcsa.Vote_Question).EndsWith(expectedPromptEnd);
+        string voteQuestion = StripFormatCodes(pgcsa.Vote_Question).Trim();
+        auto matches = voteQuestion.EndsWith(expectedPromptEnd);
 #if DEV
         if (!matches) {
             warn("Vote question not as expected. Have: " + StripFormatCodes(pgcsa.Vote_Question) + ", wanted ends with: " + expectedPromptEnd);
         }
 #endif
+        if (!matches) {
+            string asciiVQ;
+            string asciiName;
+            for (int i = 0; i < voteQuestion.Length; i++) {
+                auto item = voteQuestion[i];
+                if (item < 128) {
+                    asciiVQ += " ";
+                    asciiVQ[asciiVQ.Length - 1] = item;
+                }
+            }
+            for (int i = 0; i < expectedPromptEnd.Length; i++) {
+                auto item = expectedPromptEnd[i];
+                if (item < 128) {
+                    asciiName += " ";
+                    asciiName[asciiName.Length - 1] = item;
+                }
+            }
+            matches = asciiVQ.EndsWith(asciiName);
+            warn("Vote question second go: " + tostring(matches));
+            print("processed q: " + asciiVQ);
+            print("processed expected tail: " + asciiName);
+        }
         return matches;
     }
 
@@ -516,6 +644,7 @@ class ClubServerChallengeRun : ChallengeRun {
     }
 
     void _CreateVoteRequest(CGamePlaygroundClientScriptAPI@ pgcsa) {
+        warn("Initiating vote of type: " + tostring(vote_currRequestType));
         switch (vote_currRequestType) {
             case VoteRequestType::None: {
                 warn("create vote request called with a current request type of None");
@@ -553,7 +682,7 @@ class ClubServerChallengeRun : ChallengeRun {
     bool Vote_WaitForCallVote(CGamePlaygroundClientScriptAPI@ pgcsa, CGameCtnNetwork@ net) {
         if (net.InCallvote) {
             _CheckVoteQuestionAndUpdateState(pgcsa);
-            return true;
+            return Vote_UpdateGeneric();
         }
         if (pgcsa.Request_IsInProgress)
             return true;
@@ -565,10 +694,13 @@ class ClubServerChallengeRun : ChallengeRun {
     uint lastYes = 0;
     uint lastNo = 0;
     bool Vote_CallVoteActive(CGamePlaygroundClientScriptAPI@ pgcsa, CGameCtnNetwork@ net) {
-        if (!VoteQuestionIsExpected(pgcsa)) {
-            _CheckVoteQuestionAndUpdateState(pgcsa);
+        if (!net.InCallvote) {
+            votingState = VotingState::CallVoteComplete;
+            return true;
         } else {
-            if (net.InCallvote) {
+            if (!VoteQuestionIsExpected(pgcsa)) {
+                _CheckVoteQuestionAndUpdateState(pgcsa);
+            } else {
                 if (pgcsa.Vote_CanVote) {
                     pgcsa.Vote_Cast(true);
                 }
@@ -579,10 +711,6 @@ class ClubServerChallengeRun : ChallengeRun {
                 } else {
                     prediction = lastYes > lastNo ? 1 : 0;
                 }
-            } else {
-                // we had an expected vote and it's done, assume it passed and let outside code monitor it.
-                votingState = VotingState::CallVoteComplete;
-                return true;
             }
         }
         return true;
@@ -602,7 +730,10 @@ class ClubServerChallengeRun : ChallengeRun {
             case VotingState::WrongVoteActive: return Vote_FixWrongPrompt(pgcsa, net);
             case VotingState::WaitForCallVote: return Vote_WaitForCallVote(pgcsa, net);
             case VotingState::CallVoteActive: return Vote_CallVoteActive(pgcsa, net);
-            case VotingState::CallVoteComplete: return false;
+            case VotingState::CallVoteComplete: {
+                votingState = VotingState::NoVoteActive;
+                return false;
+            }
         }
         warn("Vote_UpdateGeneric did not return after switch on voting state");
         return false;

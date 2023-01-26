@@ -9,7 +9,7 @@ const int AUTO_DNF_TIMEOUT = 10000;
 const int DNF_TIME = 86400999;
 const int DNF_TEST = 86400000;
 
-UI::Font@ boardFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 50., -1, -1, true, true, true);
+UI::Font@ boardFont = UI::LoadFont("DroidSans.ttf", 50., -1, -1, true, true, false);
 UI::Font@ mapUiFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 30, -1, -1, true, true, true);
 UI::Font@ hoverUiFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 20, -1, -1, true, true, true);
 int nvgFontMessage = nvg::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf");
@@ -83,6 +83,7 @@ class TicTacGo : Game::Engine {
     }
 
     bool MsgHandler_PlayerEvent(Json::Value@ j) {
+        if (client is null) return true;
         if (!client.IsInGame) return true;
         string type = j['type'];
         bool addToLog = type == "PLAYER_LEFT" || type == "PLAYER_JOINED";
@@ -91,10 +92,12 @@ class TicTacGo : Game::Engine {
     }
 
     bool MsgHandler_Ignore(Json::Value@ j) {
+        if (client is null) return true;
         return true;
     }
 
     bool MsgHandler_RematchRoomCreated(Json::Value@ j) {
+        if (client is null) return true;
         // if (!client.IsInGame) return true;
         rematchJoinCode = j['payload']['join_code'];
         rematchFromUser = j['payload']['by']['username'];
@@ -103,6 +106,7 @@ class TicTacGo : Game::Engine {
     }
 
     bool MsgHandler_GmRematchRoomCreated(Json::Value@ j) {
+        if (client is null) return true;
         warn("GM room created msg");
         // if (!client.IsInGame) return true;
         rematchJoinCode = j['payload']['join_code'];
@@ -110,16 +114,20 @@ class TicTacGo : Game::Engine {
         return true;
     }
 
+    uint lastRematchAccept = 0;
     void OnClickRematchAccept() {
+        if (lastRematchAccept + 500 > Time::Now) return;
         // back to lobby, then join room
         if (rematchJoinCode.Length == 0) return;
-        yield();
-        client.SendLeave();
-        yield();
-        client.SendLeave();
-        yield();
-        client.JoinRoomViaCode(rematchJoinCode);
+        string _jc = rematchJoinCode;
         rematchJoinCode = "";
+        lastRematchAccept = Time::Now;
+        yield();
+        client.SendLeave();
+        yield();
+        client.SendLeave();
+        yield();
+        client.JoinRoomViaCode(_jc);
         // returning to menu bugs and leaves twice
         // startnew(ReturnToMenu);
     }
@@ -131,6 +139,7 @@ class TicTacGo : Game::Engine {
     }
 
     bool MsgHandler_GRematchInit(Json::Value@ j) {
+        if (client is null) return true;
         // if (!client.IsInGame) return true;
         // only admins/mods can start this
         if (client.IsPlayerAdminOrMod(j['from']['uid']))
@@ -138,6 +147,7 @@ class TicTacGo : Game::Engine {
         return true;
     }
     bool MsgHandler_OnGameStartEvent(Json::Value@ j) {
+        if (client is null) return true;
         rematchJoinCode = "";
         rematchBeingCreated = false;
         return true;
@@ -333,7 +343,7 @@ class TicTacGo : Game::Engine {
         nvg::FontFace(nvgFontMessage);
         nvg::FontSize(fs);
         nvg::TextAlign(nvg::Align::Center | nvg::Align::Middle);
-        NvgTextWShadow(pos, fs * .05, stateObj.IsInServer ? "Challenge Over. Blackout in" : "Challenge Over. Exiting in", col);
+        NvgTextWShadow(pos, fs * .05, stateObj.IsInServer ? "Challenge Over." : "Challenge Over. Exiting in", col);
         NvgTextWShadow(pos + vec2(0, fs * 1.2), fs * .05, Text::Format("%.1f", 0.001 * Math::Max(timeLeft, 0)), col);
     }
 
@@ -867,6 +877,7 @@ class TicTacGo : Game::Engine {
     bool waitingForOwnMove = false;
 
     void JoinClubRoom() {
+        if (client is null) return;
         if (!client.roomInfo.use_club_room) return;
         while (client.IsConnected && client.roomInfo.join_link.Length == 0) yield();
         if (!client.roomInfo.join_link.StartsWith("#")) {
@@ -875,16 +886,16 @@ class TicTacGo : Game::Engine {
         }
         LoadJoinLink(client.roomInfo.join_link);
         // wait for us to join the server
+        if (client is null) return;
         while (client.IsInGame && !CurrentlyInMap) yield();
         auto app = cast<CGameManiaPlanet>(GetApp());
         while (app.Network.ClientManiaAppPlayground is null || app.Network.ClientManiaAppPlayground.UILayers.Length < 19) yield();
         yield();
-        HideGameUI::opt_EnableRecords = stateObj.opt_EnableRecords;
-        startnew(HideGameUI::OnMapLoad);
         // this is true when we're in the room and between maps
         while (app.Switcher.ModuleStack.Length == 0 || cast<CSmArenaClient>(app.Switcher.ModuleStack[0]) !is null) yield();
         // something else is active, prbs the menu
         // if we're in a game currently, then we should leave the game UI so that we can rejoin and thus rejoin the server
+        if (client is null) return;
         if (client.IsInGame && client.IsConnected) {
             yield();
             sleep(1000);
@@ -1099,17 +1110,22 @@ class TicTacGo : Game::Engine {
         } else {
             UI::BeginDisabled(stateObj.disableLaunchMapBtn);
             if (UI::Button("LAUNCH MAP##" + challengeResult.id)) {
-                startnew(CoroutineFunc(stateObj.RunChallengeAndReportResult));
+                startnew(CoroutineFunc(stateObj.StartLocalChallengeFromButton));
             }
             UI::EndDisabled();
         }
-        if (!stateObj.IsSinglePlayer && !client.InLocalDevMode) {
+        if (true) { // ! single player, ! dev mode
             UI::SameLine();
             UI::Dummy(vec2(8, 0));
             UI::SameLine();
             S_TTG_AutostartMap = UI::Checkbox("Auto?", S_TTG_AutostartMap);
         }
-        if (client.InLocalDevMode) {
+#if DEV
+        if (stateObj.IsSinglePlayer)
+#else
+        if (client.InLocalDevMode)
+#endif
+        {
             UI::PushFont(hoverUiFont);
             if (UI::Button("Cheat (10min)")) {
                 stateObj.ReportChallengeResult(1000 * 60 * 10);

@@ -160,6 +160,20 @@ const string GetLocalTmxMapFolder() {
     return IO::FromUserGameFolder('Maps/CGF-TMX/');
 }
 
+void ClearLocalTmxMapFolder() {
+    auto tmxFolder = GetLocalTmxMapFolder();
+    if (IO::FolderExists(tmxFolder)) {
+        auto files = IO::IndexFolder(tmxFolder, true);
+        for (uint i = 0; i < files.Length; i++) {
+            if (files[i].ToLower().EndsWith(".map.gbx"))
+                IO::Delete(files[i]);
+        }
+        if (files.Length > 0) {
+            trace("Cleared " + files.Length + " maps from TTG/CGF map cache folder ("+tmxFolder+")");
+        }
+    }
+}
+
 const string GetLocalTmxMapPath(int TrackID) {
     auto tmxFolder = GetLocalTmxMapFolder();
     if (!IO::FolderExists(tmxFolder))

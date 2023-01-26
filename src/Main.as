@@ -3,8 +3,8 @@
 
 
 void Main() {
-    // startnew(Loop);
-    // startnew(Debug::Main);
+    // clear cached tmx maps
+    startnew(ClearLocalTmxMapFolder);
     sleep(100);
     OnSettingsChanged();
 #if DEV || UNIT_TEST

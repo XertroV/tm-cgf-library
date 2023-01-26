@@ -28,6 +28,9 @@ class TtgGame {
     }
 
     void CreateNewGameClient() {
+        if (ttg !is null) {
+            @ttg.client = null;
+        }
         @ttg = TicTacGo(client);
         @client.gameEngine = ttg;
         @ttg.OnRematch = CoroutineFunc(this.OnRematch);
@@ -625,7 +628,9 @@ class TtgGame {
         if (UI::BeginCombo("##go-mode", tostring(currMode))) {
             if (!isEditingGameOpts)
                 DrawModeSelectable(TTGMode::SinglePlayer, currMode);
-            DrawModeSelectable(TTGMode::Standard, currMode);
+            if (DrawModeSelectable(TTGMode::Standard, currMode)) {
+                m_playerLimit = 2;
+            };
             if (DrawModeSelectable(TTGMode::Teams, currMode)) {
                 m_playerLimit = 6;
             }
@@ -638,15 +643,24 @@ class TtgGame {
             DrawModeTooltip(currMode);
         }
 
-        if (int(currMode) > 2) {
+        if (int(currMode) > 1) {
             // draw room size dragger
             UI::AlignTextToFramePadding();
             Indent(2);
+            bool isTwoPlayer = int(currMode) == 2;
             UI::Text("Player Limit:");
             UI::SameLine();
             // can bump this up to 64 but lets be conservative for the moment
             uint upperLimit = 64;
-            m_playerLimit = UI::SliderInt("##-playerlimit", m_playerLimit, 3, upperLimit);
+            if (isTwoPlayer) {
+                UI::BeginDisabled(true);
+                UI::SliderInt("##-playerlimit", 2, 2, upperLimit);
+                Indent(2);
+                UI::EndDisabled();
+                UI::Text("\\$c93For more players, select Teams or Battle Mode.");
+            } else {
+                m_playerLimit = UI::SliderInt("##-playerlimit", m_playerLimit, 3, upperLimit);
+            }
         }
 
         if (currMode == TTGMode::BattleMode) {
