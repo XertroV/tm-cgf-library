@@ -790,17 +790,8 @@ class TicTacGoState {
         EndChallenge();
     }
 
-    // black out client UI when in a server when we don't want ppl to see the map
     bool ShouldBlackout() {
         return false;
-        // if (!IsInServer) return false;
-        // if (IsInClaimOrChallenge) {
-        //     return !serverChallengeInExpectedMap;
-        // }
-        // if (IsWaitingForMove && turnCounter == 0) {
-        //     return false;
-        // }
-        // return IsWaitingForMove && !challengeRunActive;
     }
 
     // todo: refactor this and the above to use mostly the same logic, and abstract differences
@@ -858,7 +849,7 @@ class TicTacGoState {
         auto initNbGhosts = GetCurrNbGhosts();
 
         auto player = FindLocalPlayersInPlaygroundPlayers(GetApp());
-        while (cmap.UILayers.Length < 20) yield();
+        while (cmap.UILayers.Length < 15) yield();
         while (cmap !is null && cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
         sleep(100);
         while (cmap !is null && cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
@@ -959,7 +950,7 @@ class TicTacGoState {
                 } else if (voteInProg) {
                     voteEnded = true;
                     voteInProg = false;
-                    break;
+                    // break;
                 }
             }
             sleep(500);
@@ -992,42 +983,6 @@ class TicTacGoState {
             if (!keepChecking) break;
             net.PlaygroundClientScriptAPI.Vote_Cast(false);
         }
-    }
-
-    bool IsInWarmUp() {
-        auto layer = FindWarmUpUILayer();
-        if (layer is null) return false;
-        auto frame = layer.LocalPage.GetFirstChild("frame-warm-up");
-        if (frame is null) return false;
-        // this is visible only when we're in the warmup
-        return frame.Visible;
-    }
-
-    CGameUILayer@ FindWarmUpUILayer() {
-        auto cmap = GetApp().Network.ClientManiaAppPlayground;
-        if (cmap is null) return null;
-        auto layer = cmap.UILayers.Length < 20 ? null : cmap.UILayers[18];
-        if (layer is null || !layer.ManialinkPageUtf8.StartsWith('\n<manialink name="UIModule_Race_WarmUp"')) {
-            for (uint i = 0; i < cmap.UILayers.Length; i++) {
-                auto item = cmap.UILayers[i];
-                if (item.ManialinkPageUtf8.StartsWith('\n<manialink name="UIModule_Race_WarmUp"')) {
-                    @layer = item;
-                    break;
-                }
-            }
-        }
-        return layer;
-    }
-
-    CSmScriptPlayer@ FindLocalPlayersInPlaygroundPlayers(CGameCtnApp@ app) {
-        auto cp = cast<CGameManiaPlanet>(app).CurrentPlayground;
-        for (uint i = 0; i < cp.Players.Length; i++) {
-            auto item = cast<CSmPlayer>(cp.Players[i]);
-            if (item !is null && item.User.Name == LocalPlayersName) {
-                return cast<CSmScriptPlayer>(item.ScriptAPI);
-            }
-        }
-        return null;
     }
 
     // uses shouldExitChallengeTime
