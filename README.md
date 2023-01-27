@@ -11,6 +11,21 @@ Code/issues: [https://github.com/XertroV/tm-cgf-library](https://github.com/Xert
 GL HF
 
 
+changelog:
+- complete refactor around the round loop: entering maps, timer, voting on servers, etc.
+-
+
+
+
+
+
+
+
+
+
+
+
+
 todo:
 
 - team chat `/t`

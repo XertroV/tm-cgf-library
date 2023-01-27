@@ -1,9 +1,12 @@
 // Game::Client@ c1 = null;
 
 
-
 void Main() {
     // clear cached tmx maps
+    @boardFont = UI::LoadFont("DroidSans.ttf", 50., -1, -1, true, true, false);
+    @mapUiFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 30, -1, -1, true, true, true);
+    @hoverUiFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 20, -1, -1, true, true, true);
+
     startnew(ClearLocalTmxMapFolder);
     sleep(100);
     OnSettingsChanged();

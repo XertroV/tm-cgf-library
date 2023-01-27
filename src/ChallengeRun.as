@@ -433,8 +433,10 @@ class ClubServerChallengeRun : ChallengeRun {
         challengeRunActive = true;
         // todo: flag for first server joining. if not, then we always want to vote to restart. if yes, then we'll just accept it as an ongoing game.
         do {
+            while (app.Network.ClientManiaAppPlayground is null) yield();
+            @cmap = app.Network.ClientManiaAppPlayground;
             while (!InExpectedMap() && IsPlayingOrFinished(cmap.UI.UISequence)) {
-                if (cp.Arena.Rules.RulesStateStartTime < uint(2<<28))
+                if (cp.Arena.Rules.RulesStateStartTime < uint(-1000))
                     priorRulesStart = cp.Arena.Rules.RulesStateStartTime;
                 LoadExpectedMapByVoting();
                 sleep(250);
@@ -445,8 +447,7 @@ class ClubServerChallengeRun : ChallengeRun {
                 if (cp is null || cp.Arena is null || cp.Arena.Rules is null) continue;
                 auto newRulesStart = cp.Arena.Rules.RulesStateStartTime;
                 trace("waiting for new rules; prior: " + priorRulesStart + "; new: " + newRulesStart);
-                if (newRulesStart <= priorRulesStart) continue;
-                break;
+                if (newRulesStart > priorRulesStart && newRulesStart < uint(-1000)) break;
             }
         } while (!InExpectedMap());
     }

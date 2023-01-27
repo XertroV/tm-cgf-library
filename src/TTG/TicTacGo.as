@@ -9,9 +9,10 @@ const int AUTO_DNF_TIMEOUT = 10000;
 const int DNF_TIME = 86400999;
 const int DNF_TEST = 86400000;
 
-UI::Font@ boardFont = UI::LoadFont("DroidSans.ttf", 50., -1, -1, true, true, false);
-UI::Font@ mapUiFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 30, -1, -1, true, true, true);
-UI::Font@ hoverUiFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 20, -1, -1, true, true, true);
+// loaded in Main()
+UI::Font@ boardFont = null;
+UI::Font@ mapUiFont = null;
+UI::Font@ hoverUiFont = null;
 int nvgFontMessage = nvg::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf");
 // int nvgFontTimer = nvg::LoadFont("fonts/MontserratMono-SemiBoldItalic.ttf");
 int nvgFontTimer = nvg::LoadFont("fonts/OswaldMono-Regular.ttf");
