@@ -73,6 +73,8 @@ class TicTacGoState {
     int opt_FinishesToWin = 1;
     MapGoal opt_MapGoal = MapGoal::Finish;
 
+    Json::Value@ lastVoteInstruction;
+
     TicTacGoState(Game::Client@ client) {
         @challengeResult = ChallengeResultState();
         @this.client = client;
@@ -403,9 +405,11 @@ class TicTacGoState {
         if (IsInChallenge || IsInClaim) {
             bool moveIsChallengeRes = msgType == "G_CHALLENGE_RESULT";
             bool moveIsForceEnd = msgType == "G_CHALLENGE_FORCE_END";
-            if (!moveIsChallengeRes && !moveIsForceEnd) return InvalidReason("only challenge result or force end are valid");
-            if (moveIsForceEnd) {
-                return client.IsPlayerAdminOrMod(lastFromUid) || InvalidReason("force end only by admin or mod");
+            bool moveIsVoteInstructions = msgType == "G_SERVER_EXPECT_VOTE";
+            bool isValidType = moveIsChallengeRes || moveIsForceEnd || moveIsVoteInstructions;
+            if (!isValidType) return InvalidReason("only challenge result or force end are valid");
+            if (moveIsForceEnd || moveIsVoteInstructions) {
+                return client.IsPlayerAdminOrMod(lastFromUid) || InvalidReason(msgType + ": only by admin or mod");
             }
             if (IsSinglePlayer && challengeResult.HasResultFor(fromPlayer)) return InvalidReason("got result already");
             if (!IsSinglePlayer && challengeResult.HasResultFor(lastFromUid)) return InvalidReason("got result already: " + challengeResult.GetResultFor(lastFromUid, -1));
@@ -488,20 +492,30 @@ class TicTacGoState {
         if (IsInChallenge || IsInClaim) {
             bool moveIsChallengeRes = msgType == "G_CHALLENGE_RESULT";
             bool moveIsForceEnd = msgType == "G_CHALLENGE_FORCE_END";
-            if (!moveIsChallengeRes && !moveIsForceEnd) throw("not a valid move type: should be impossible");
+            bool moveIsVoteInstructions = msgType == "G_SERVER_EXPECT_VOTE";
+            bool isValidType = moveIsChallengeRes || moveIsForceEnd || moveIsVoteInstructions;
+            if (!isValidType) throw("not a valid move type: should be impossible");
             if (!challengeResult.active) throw("challenge is not active");
+            // primary mutation from each instruction type
             if (moveIsForceEnd) {
                 if (!client.IsPlayerAdminOrMod(lastFromUid)) throw("force end from a non admin/mod");
                 challengeResult.ForceEnd();
                 gameLog.InsertLast(TTGGameEvent_ForceEnd(lastFromUsername, lastFromUid));
                 if (!challengeResult.IsResolved)
                     warn("we just force ended the challenge but it did not resolve!");
-            } else if (IsSinglePlayer) {
-                // if we're in a single player game, set a slightly worse time for the inactive player
-                challengeResult.SetPlayersTime(ActiveLeader, int(pl['time']));
-                challengeResult.SetPlayersTime(InactiveLeader, int(pl['time']) + 100);
+            } else if (moveIsVoteInstructions) {
+                if (!client.IsPlayerAdminOrMod(lastFromUid)) throw("vote instruction from a non admin/mod");
+                @lastVoteInstruction = pl;
+            } else if (moveIsChallengeRes) {
+                if (IsSinglePlayer) {
+                    // if we're in a single player game, set a slightly worse time for the inactive player
+                    challengeResult.SetPlayersTime(ActiveLeader, int(pl['time']));
+                    challengeResult.SetPlayersTime(InactiveLeader, int(pl['time']) + 100);
+                } else {
+                    challengeResult.SetPlayersTime(lastFromUid, lastFromUsername, int(pl['time']), lastFromTeam);
+                }
             } else {
-                challengeResult.SetPlayersTime(lastFromUid, lastFromUsername, int(pl['time']), lastFromTeam);
+                NotifyError("impossible? unknown move type");
             }
             if (challengeResult.IsResolved) {
                 bool challengerWon = challengeResult.Winner == challengeResult.challenger;
@@ -530,8 +544,10 @@ class TicTacGoState {
                     lastColRowRaw = xy;
                 }
 
+                currChallengeRun.Shutdown();
                 challengeResult.Reset();
                 challengeEndedAt = Time::Now;
+                @lastVoteInstruction = null;
 
                 state = TTGGameState::WaitingForMove;
                 AdvancePlayerTurns();
@@ -547,6 +563,7 @@ class TicTacGoState {
             auto sqState = GetSquareState(col, row);
             auto finishesToWin = IsBattleMode ? opt_FinishesToWin : 1;
             @challengeResult = ChallengeResultState();
+            if (currChallengeRun !is null) currChallengeRun.Shutdown();
             @currChallengeRun = null;
             if (moveIsChallenging) {
                 if (sqState.IsUnclaimed) throw('invalid, square claimed');

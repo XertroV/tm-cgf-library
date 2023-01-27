@@ -42,6 +42,11 @@ bool S_TTG_DrawGameDebugInfo = false;
 void Render_Settings_Changelog() {
     UI::Markdown(" # " + Meta::ExecutingPlugin().Version + """
 
+ - Completely refactor the challenge loop (loading map, measuring time, voting on servers, etc).
+ - Clear temporarily cached maps on plugin load (so it clears maps cached during the last session). Maps are pre-cached to improve load times (esp. on servers).
+
+ # 0.1.60
+
  - Remove useless fonts (saves ~3s load time)
 
  # 0.1.58

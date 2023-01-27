@@ -1,6 +1,9 @@
 funcdef void ChallengeRunReport(int duration);
+funcdef Json::Value@ ChallengeRunGetLastVoteExpect();
 
 class ChallengeRun {
+    protected bool SHUTDOWN = false;
+
     // relative to Time::Now to avoid pause menu strats
     int challengeStartTime = -1;
     int playerInitStartTime = -1;
@@ -35,6 +38,7 @@ class ChallengeRun {
     int trackID;
 
     ChallengeRunReport@ reportFunc;
+    ChallengeRunGetLastVoteExpect@ getExpectedVote;
 
     bool initialized = false;
 
@@ -53,6 +57,7 @@ class ChallengeRun {
             int opt_AutoDNF_ms, // = -1,
             bool opt_EnableRecords, // = false,
             ChallengeRunReport@ reportFunc,
+            ChallengeRunGetLastVoteExpect@ getExpectedVote,
             ChallengeResultState@ challengeResult
 
         ) {
@@ -62,7 +67,9 @@ class ChallengeRun {
         this.opt_AutoDNF_ms = opt_AutoDNF_ms;
 
         if (reportFunc is null) throw('report func null!');
+        if (getExpectedVote is null) throw('getExpectedVote null!');
         @this.reportFunc = reportFunc;
+        @this.getExpectedVote = getExpectedVote;
         @this.challengeResult = challengeResult;
 
         this.loadingScreenTop = loadingScreenTop;
@@ -82,6 +89,9 @@ class ChallengeRun {
         }
     }
 
+    void Shutdown() {
+        this.SHUTDOWN = true;
+    }
 
     /**
      * Run order:
@@ -175,10 +185,12 @@ class ChallengeRun {
     }
 
     void PreActivate() {
+        if (SHUTDOWN) return;
         SetLoadingScreen();
     }
 
     void Activate() {
+        if (SHUTDOWN) return;
         runActive = true;
         // load map / join server
         // wait for map, currPG to load
@@ -187,6 +199,7 @@ class ChallengeRun {
     }
 
     void PostActivate() {
+        if (SHUTDOWN) return;
         OnReady_WaitForPlayers();
         OnReady_WaitForUI();
         OnReady_WaitForUISequences();
@@ -199,6 +212,7 @@ class ChallengeRun {
     }
 
     void PreMain() {
+        if (SHUTDOWN) return;
         // records hide/show
         HideGameUI::opt_EnableRecords = opt_EnableRecords;
         startnew(HideGameUI::OnMapLoad);
@@ -215,11 +229,11 @@ class ChallengeRun {
             @player = FindLocalPlayersInPlaygroundPlayers(GetApp());
         }
 
-        while (player.StartTime < 0) yield();
-        while (cp.Arena.Rules.RulesStateStartTime > uint(2<<30)) yield();
+        while (!SHUTDOWN && player.StartTime < 0) yield();
+        while (!SHUTDOWN && cp.Arena.Rules.RulesStateStartTime > uint(2<<30)) yield();
         // we can afford to wait a little to avoid race conditions with timers by acting too early
         sleep(500);
-
+        if (SHUTDOWN || cp is null || cmap is null) return;
         // set start time
         currGameTime = cmap.Playground.GameTime;
         // auto roundStartTime = cp.Arena.Rules.RulesStateStartTime;
@@ -268,6 +282,7 @@ class ChallengeRun {
 
     // return true to continue, false to break
     bool UpdateMain() {
+        if (SHUTDOWN) return false;
         // **** CHECK VOTES
         LogFirstRunOnly("[ChallengeRun::UpdateMain] Check Votes");
         if (!Main_Pre_Check_Finish()) return false;
@@ -432,6 +447,7 @@ class ClubServerChallengeRun : ChallengeRun {
         // warn('setting challenge run active');
         challengeRunActive = true;
         // todo: flag for first server joining. if not, then we always want to vote to restart. if yes, then we'll just accept it as an ongoing game.
+        if (SHUTDOWN) return;
         do {
             while (app.Network.ClientManiaAppPlayground is null) yield();
             @cmap = app.Network.ClientManiaAppPlayground;
@@ -443,13 +459,14 @@ class ClubServerChallengeRun : ChallengeRun {
             }
             while (true) {
                 yield();
+                if (SHUTDOWN) return;
                 @cp = cast<CSmArenaClient>(GetApp().CurrentPlayground);
                 if (cp is null || cp.Arena is null || cp.Arena.Rules is null) continue;
                 auto newRulesStart = cp.Arena.Rules.RulesStateStartTime;
                 trace("waiting for new rules; prior: " + priorRulesStart + "; new: " + newRulesStart);
                 if (newRulesStart > priorRulesStart && newRulesStart < uint(-1000)) break;
             }
-        } while (!InExpectedMap());
+        } while (!SHUTDOWN && !InExpectedMap());
     }
 
     bool IsPlayingOrFinished(CGamePlaygroundUIConfig::EUISequence seq) {
@@ -478,11 +495,11 @@ class ClubServerChallengeRun : ChallengeRun {
         auto pcsapi = GetApp().Network.PlaygroundClientScriptAPI;
         if (cmap is null || cmap.UI is null || pcsapi is null)
             return false;
-        if (net.InCallvote && pcsapi.Vote_CanVote && lastVotedNo + 60000 < Time::Now) {
-            warn("Voting false for unexpected vote: " + pcsapi.Vote_Question);
-            pcsapi.Vote_Cast(false);
-            lastVotedNo = Time::Now;
-        }
+        // if (net.InCallvote && pcsapi.Vote_CanVote && lastVotedNo + 60000 < Time::Now) {
+        //     warn("Voting false for unexpected vote: " + pcsapi.Vote_Question);
+        //     pcsapi.Vote_Cast(false);
+        //     lastVotedNo = Time::Now;
+        // }
         return true;
     }
 
@@ -500,15 +517,15 @@ class ClubServerChallengeRun : ChallengeRun {
         while (cast<CSmArenaClient>(GetApp().CurrentPlayground) is null) yield();
         auto cp = cast<CSmArenaClient>(GetApp().CurrentPlayground);
         while (cp.Map is null || cp.Map.MapInfo is null) yield();
-        if (InExpectedMap()) {
+        if (InExpectedMap() && !SHUTDOWN) {
             warn('in expected map; same as last? ' + tostring(mapSameAsLast));
             if (!mapSameAsLast) return;
-            while (UpdateVoteToRestart()) {
+            while (UpdateVoteToRestart() && !SHUTDOWN) {
                 // sleep(50);
                 yield();
             }
         } else {
-            while (UpdateVoteToChangeMap()) {
+            while (UpdateVoteToChangeMap() && !SHUTDOWN) {
                 // sleep(50);
                 yield();
             }
