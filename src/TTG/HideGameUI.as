@@ -22,8 +22,9 @@ namespace HideGameUI {
             if (parts.Length < 2) continue;
             auto pageName = parts[1].Split('"')[0];
             if (pageName.StartsWith("UIModule_Race") && HidePages.Find(pageName) >= 0) {
-                if (opt_EnableRecords && pageName == "UIModule_Race_Record") continue;
                 layer.IsVisible = false;
+                if (pageName == "UIModule_Race_Record")
+                    layer.IsVisible = opt_EnableRecords;
             }
         }
     }

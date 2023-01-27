@@ -548,7 +548,7 @@ class TicTacGoState {
                 }
 
                 if (currChallengeRun !is null)
-                    currChallengeRun.Shutdown();
+                    currChallengeRun.ShutdownIn(3500);
                 challengeResult.Reset();
                 challengeEndedAt = Time::Now;
                 @lastVoteInstruction = null;

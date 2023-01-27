@@ -103,6 +103,18 @@ class ChallengeRun {
         @reportFunc = null;
     }
 
+    int shutdownAfter = 0;
+    void ShutdownIn(int duration_ms) {
+        if (shutdownAfter == 0)
+            shutdownAfter = int(Time::Now) + Math::Min(duration_ms, 5000);
+        startnew(CoroutineFunc(_ShutdownIn));
+    }
+
+    void _ShutdownIn() {
+        while (int(Time::Now) < shutdownAfter) yield();
+        Shutdown();
+    }
+
     /**
      * Run order:
      * bool PreconditionsMet(): in the expected state
