@@ -750,6 +750,10 @@ namespace Game {
             return IsPlayerAdmin(uid) || IsPlayerMod(uid);
         }
 
+        bool IsPlayerMainAdmin(const string &in uid) {
+            return currAdmins.Find(uid) == 0;
+        }
+
         void RemovePlayerFromTeams(const string &in uid) {
             uidToTeamNb.Delete(uid);
             for (uint i = 0; i < currTeams.Length; i++) {

@@ -1,5 +1,6 @@
 funcdef void ChallengeRunReport(int duration);
-funcdef Json::Value@ ChallengeRunGetLastVoteExpect();
+funcdef Json::Value@ CR_GetExpectedVote();
+funcdef void CR_SetExpectedVote(const string &in type, const string &in question);
 
 class ChallengeRun {
     protected bool SHUTDOWN = false;
@@ -36,9 +37,11 @@ class ChallengeRun {
     string mapUid;
     string mapName;
     int trackID;
+    bool shouldManageVotes;
 
     ChallengeRunReport@ reportFunc;
-    ChallengeRunGetLastVoteExpect@ getExpectedVote;
+    CR_GetExpectedVote@ getExpectedVote;
+    CR_SetExpectedVote@ setExpectedVote;
 
     bool initialized = false;
 
@@ -54,12 +57,13 @@ class ChallengeRun {
             int trackID,
             bool mapSameAsLast,
             bool runInServer,
+            bool shouldManageVotes,
             int opt_AutoDNF_ms, // = -1,
             bool opt_EnableRecords, // = false,
             ChallengeRunReport@ reportFunc,
-            ChallengeRunGetLastVoteExpect@ getExpectedVote,
+            CR_GetExpectedVote@ getExpectedVote,
+            CR_SetExpectedVote@ setExpectedVote,
             ChallengeResultState@ challengeResult
-
         ) {
         this.initialized = true;
 
@@ -68,8 +72,10 @@ class ChallengeRun {
 
         if (reportFunc is null) throw('report func null!');
         if (getExpectedVote is null) throw('getExpectedVote null!');
+        if (setExpectedVote is null) throw('setExpectedVote null!');
         @this.reportFunc = reportFunc;
         @this.getExpectedVote = getExpectedVote;
+        @this.setExpectedVote = setExpectedVote;
         @this.challengeResult = challengeResult;
 
         this.loadingScreenTop = loadingScreenTop;
@@ -80,6 +86,7 @@ class ChallengeRun {
         this.mapName = mapName;
         this.mapSameAsLast = mapSameAsLast;
         this.runInServer = runInServer;
+        this.shouldManageVotes = shouldManageVotes;
     }
 
     void EnsureInit() {
@@ -91,6 +98,9 @@ class ChallengeRun {
 
     void Shutdown() {
         this.SHUTDOWN = true;
+        @getExpectedVote = null;
+        @setExpectedVote = null;
+        @reportFunc = null;
     }
 
     /**
@@ -112,6 +122,7 @@ class ChallengeRun {
         PreActivate();
         trace('ChallengeRun.RunNowAsync: Activate');
         Activate();
+        sleep(500);
         trace('ChallengeRun.RunNowAsync: PostActivate');
         PostActivate();
         // ** CHALLENGE READY
@@ -145,6 +156,11 @@ class ChallengeRun {
      */
     void Activate_LoadChallengeMapAsync() {
         throw("Override me");
+    }
+
+    // One person should run this to manage the vote to the next map
+    void Activate_ManageVotesAsync() {
+        return;
     }
 
     // terminates when we are in the intro
@@ -195,6 +211,8 @@ class ChallengeRun {
         // load map / join server
         // wait for map, currPG to load
         // in server: change map if need be
+        if (shouldManageVotes)
+            startnew(CoroutineFunc(this.Activate_ManageVotesAsync));
         Activate_LoadChallengeMapAsync();
     }
 
@@ -437,6 +455,33 @@ class ClubServerChallengeRun : ChallengeRun {
         while (!CurrentlyInMap) yield();
     }
 
+    void Activate_ManageVotesAsync() override {
+        if (!shouldManageVotes) return;
+        // wait a bit to make sure we should still be going, and to get the latest vote instructions
+        sleep(250);
+        do {
+            while (!SHUTDOWN && Update_ManageVotesAsync()) yield();
+        } while (!SHUTDOWN && !InExpectedMap());
+        setExpectedVote("VOTE_DONE", "");
+    }
+
+    bool Update_ManageVotesAsync() {
+        if (SHUTDOWN || !shouldManageVotes) return false;
+        auto app = GetApp();
+        if (app.CurrentPlayground is null
+            || app.Network.ClientManiaAppPlayground is null
+            || app.Network.PlaygroundClientScriptAPI is null) return true;
+        auto voteInst = getExpectedVote();
+        if (voteInst !is null) {
+            if (voteInst.GetType() == Json::Type::Object) {
+                if (voteInst.Get('type', '??') == "VOTE_DONE") {
+                    return false;
+                }
+            }
+        }
+        return UpdateVoteToChangeMap();
+    }
+
     void Activate_LoadChallengeMapAsync() override {
         auto app = GetApp();
         while (app.CurrentPlayground is null) yield();
@@ -448,25 +493,61 @@ class ClubServerChallengeRun : ChallengeRun {
         challengeRunActive = true;
         // todo: flag for first server joining. if not, then we always want to vote to restart. if yes, then we'll just accept it as an ongoing game.
         if (SHUTDOWN) return;
-        do {
-            while (app.Network.ClientManiaAppPlayground is null) yield();
-            @cmap = app.Network.ClientManiaAppPlayground;
-            while (!InExpectedMap() && IsPlayingOrFinished(cmap.UI.UISequence)) {
-                if (cp.Arena.Rules.RulesStateStartTime < uint(-1000))
-                    priorRulesStart = cp.Arena.Rules.RulesStateStartTime;
-                LoadExpectedMapByVoting();
-                sleep(250);
+        while (!SHUTDOWN && UpdateLoadMapByVoting()) yield();
+        // do {
+        //     while (app.Network.ClientManiaAppPlayground is null) yield();
+        //     @cmap = app.Network.ClientManiaAppPlayground;
+        //     while (!InExpectedMap() && IsPlayingOrFinished(cmap.UI.UISequence)) {
+        //         if (cp.Arena.Rules.RulesStateStartTime < uint(-1000))
+        //             priorRulesStart = cp.Arena.Rules.RulesStateStartTime;
+        //         // LoadExpectedMapByVoting();
+        //         sleep(250);
+        //     }
+        //     // while (true) {
+        //     //     yield();
+        //     //     if (SHUTDOWN) return;
+        //     //     @cp = cast<CSmArenaClient>(GetApp().CurrentPlayground);
+        //     //     if (cp is null || cp.Arena is null || cp.Arena.Rules is null) continue;
+        //     //     auto newRulesStart = cp.Arena.Rules.RulesStateStartTime;
+        //     //     trace("waiting for new rules; prior: " + priorRulesStart + "; new: " + newRulesStart);
+        //     //     if (newRulesStart > priorRulesStart && newRulesStart < uint(-1000)) break;
+        //     // }
+        // } while (!SHUTDOWN && !InExpectedMap());
+    }
+
+    bool UpdateLoadMapByVoting() {
+        if (SHUTDOWN) return false;
+        auto @voteInst = this.getExpectedVote();
+        // waiting for voting instructions
+        if (voteInst is null) return true;
+        // no more votes expected
+        switch (voteInst.GetType()) {
+            case Json::Type::Object: {
+                string type = voteInst.Get('type', '??');
+                if (type == "VOTE_DONE") return false;
+                if (type == "VOTE_WAIT") return true;
+                if (type == "VOTE_QUESTION")
+                    return CheckExpectedVote(voteInst);
+                warn("Unknown vote msg: " + Json::Write(voteInst));
             }
-            while (true) {
-                yield();
-                if (SHUTDOWN) return;
-                @cp = cast<CSmArenaClient>(GetApp().CurrentPlayground);
-                if (cp is null || cp.Arena is null || cp.Arena.Rules is null) continue;
-                auto newRulesStart = cp.Arena.Rules.RulesStateStartTime;
-                trace("waiting for new rules; prior: " + priorRulesStart + "; new: " + newRulesStart);
-                if (newRulesStart > priorRulesStart && newRulesStart < uint(-1000)) break;
-            }
-        } while (!SHUTDOWN && !InExpectedMap());
+            case Json::Type::Null:
+            default: break;
+        }
+        warn("Unknown JSON type: " + tostring(voteInst.GetType()));
+        return false;
+    }
+
+    bool CheckExpectedVote(Json::Value@ vi) {
+        auto net = GetApp().Network;
+        if (net is null || net.PlaygroundClientScriptAPI is null) return true;
+        if (!net.InCallvote) return true;
+        auto pgcsa = net.PlaygroundClientScriptAPI;
+        if (!pgcsa.Vote_CanVote) return true;
+        expectedPromptEnd = vi.Get('question', '??');
+        bool voteYes = VoteQuestionIsExpected(pgcsa);
+        pgcsa.Vote_Cast(voteYes);
+        warn("Voted: " + tostring(voteYes) + " for question: " + pgcsa.Vote_Question);
+        return true;
     }
 
     bool IsPlayingOrFinished(CGamePlaygroundUIConfig::EUISequence seq) {
@@ -487,7 +568,7 @@ class ClubServerChallengeRun : ChallengeRun {
         hideChallengeWindowInServer = true;
     }
 
-    uint lastVotedNo = 0;
+    // uint lastVotedNo = 0;
     // return false to exit main loop
     bool Main_Pre_Check_Finish() override {
         auto net = GetApp().Network;
@@ -512,24 +593,25 @@ class ClubServerChallengeRun : ChallengeRun {
 
     uint priorRulesStart = 0;
     void LoadExpectedMapByVoting() {
-        votingState = VotingState::NoVoteActive;
-        voteDone_setNextMap = false;
-        while (cast<CSmArenaClient>(GetApp().CurrentPlayground) is null) yield();
-        auto cp = cast<CSmArenaClient>(GetApp().CurrentPlayground);
-        while (cp.Map is null || cp.Map.MapInfo is null) yield();
-        if (InExpectedMap() && !SHUTDOWN) {
-            warn('in expected map; same as last? ' + tostring(mapSameAsLast));
-            if (!mapSameAsLast) return;
-            while (UpdateVoteToRestart() && !SHUTDOWN) {
-                // sleep(50);
-                yield();
-            }
-        } else {
-            while (UpdateVoteToChangeMap() && !SHUTDOWN) {
-                // sleep(50);
-                yield();
-            }
-        }
+        throw("Deprecated");
+        // votingState = VotingState::NoVoteActive;
+        // voteDone_setNextMap = false;
+        // while (cast<CSmArenaClient>(GetApp().CurrentPlayground) is null) yield();
+        // auto cp = cast<CSmArenaClient>(GetApp().CurrentPlayground);
+        // while (cp.Map is null || cp.Map.MapInfo is null) yield();
+        // if (InExpectedMap() && !SHUTDOWN) {
+        //     warn('in expected map; same as last? ' + tostring(mapSameAsLast));
+        //     if (!mapSameAsLast) return;
+        //     while (UpdateVoteToRestart() && !SHUTDOWN) {
+        //         // sleep(50);
+        //         yield();
+        //     }
+        // } else {
+        //     while (UpdateVoteToChangeMap() && !SHUTDOWN) {
+        //         // sleep(50);
+        //         yield();
+        //     }
+        // }
     }
 
     VotingState votingState = VotingState::NoVoteActive;
@@ -537,15 +619,15 @@ class ClubServerChallengeRun : ChallengeRun {
     // return false to break, true if we are not yet done
     bool UpdateVoteToRestart() {
         vote_currRequestType = VoteRequestType::RestartMap;
-        expectedPromptEnd = ExpVoteQuestionEndsWith_GoToNextMap();
+        // expectedPromptEnd = ExpVoteQuestionEndsWith_GoToNextMap();
         return Vote_UpdateGeneric();
     }
 
     bool voteDone_setNextMap = false;
     VoteRequestType vote_currRequestType = VoteRequestType::None;
     bool UpdateVoteToChangeMap() {
-        // if we're in the right map then always just exit
-        if (InExpectedMap()) return false;
+        // // if we're in the right map then always just exit
+        // if (InExpectedMap()) return false;
         if (!voteDone_setNextMap) {
             auto setNextMapLoop = UpdateVote_SetNextMap();
             if (!setNextMapLoop) {
@@ -556,20 +638,31 @@ class ClubServerChallengeRun : ChallengeRun {
             auto goToNextLoop = UpdateVote_GoToNextMap();
             if (!goToNextLoop) {
                 voteDone_setNextMap = false;
+                // wait for map change, need to wait at least 15s for server to change
+                uint _timeout = Time::Now + 20000;
+                while (Time::Now < _timeout && CurrentlyPlayingOrFinished()) yield();
+                while (Time::Now < _timeout && GetApp().CurrentPlayground !is null) yield();
+                while (GetApp().CurrentPlayground is null) yield();
             }
             return goToNextLoop;
         }
     }
 
+    bool CurrentlyPlayingOrFinished() {
+        auto cmap = GetApp().Network.ClientManiaAppPlayground;
+        if (cmap is null || cmap.UI is null) return false;
+        return IsPlayingOrFinished(cmap.UI.UISequence);
+    }
+
     bool UpdateVote_SetNextMap() {
         vote_currRequestType = VoteRequestType::SetNextMap;
-        expectedPromptEnd = ExpVoteQuestionEndsWith_SetNextMapNoCodes();
+        // expectedPromptEnd = ExpVoteQuestionEndsWith_SetNextMapNoCodes();
         return Vote_UpdateGeneric();
     }
 
     bool UpdateVote_GoToNextMap() {
         vote_currRequestType = VoteRequestType::GoToNextMap;
-        expectedPromptEnd = ExpVoteQuestionEndsWith_GoToNextMap();
+        // expectedPromptEnd = ExpVoteQuestionEndsWith_GoToNextMap();
         return Vote_UpdateGeneric();
     }
 
@@ -629,6 +722,18 @@ class ClubServerChallengeRun : ChallengeRun {
         return matches;
     }
 
+    void WaitPropagateExpectedVote() {
+        sleep(500);
+    }
+
+    // call this to reset voting state, e.g., the vote question is wrong
+    void ResetVotingState() {
+        setExpectedVote("VOTE_QUESTION", "dummy question, reset voting state " + Time::Now);
+        votingState = VotingState::WrongVoteActive;
+        // wait for server ping
+        WaitPropagateExpectedVote();
+    }
+
     /**
      * if NoVoteActive:
      * - start a vote for the right thing
@@ -641,8 +746,7 @@ class ClubServerChallengeRun : ChallengeRun {
         }
         // no req in progress
         if (net.InCallvote) {
-            if (pgcsa.Vote_Question.Length == 0) return true;
-            _CheckVoteQuestionAndUpdateState(pgcsa);
+            ResetVotingState();
             return true;
         }
         // no req and no vote in progress
@@ -655,6 +759,7 @@ class ClubServerChallengeRun : ChallengeRun {
         if (pgcsa.Vote_Question.Length == 0) return;
         if (VoteQuestionIsExpected(pgcsa)) {
             votingState = VotingState::CallVoteActive;
+
         } else {
             warn('question end not as expected: ' + expectedPromptEnd + ' vs ' + StripFormatCodes(pgcsa.Vote_Question));
             votingState = VotingState::WrongVoteActive;
@@ -662,6 +767,7 @@ class ClubServerChallengeRun : ChallengeRun {
     }
 
     void _CreateVoteRequest(CGamePlaygroundClientScriptAPI@ pgcsa) {
+        if (SHUTDOWN) return;
         warn("Initiating vote of type: " + tostring(vote_currRequestType));
         switch (vote_currRequestType) {
             case VoteRequestType::None: {
@@ -698,13 +804,24 @@ class ClubServerChallengeRun : ChallengeRun {
     }
 
     bool Vote_WaitForCallVote(CGamePlaygroundClientScriptAPI@ pgcsa, CGameCtnNetwork@ net) {
-        if (net.InCallvote) {
-            _CheckVoteQuestionAndUpdateState(pgcsa);
-            return Vote_UpdateGeneric();
-        }
         if (pgcsa.Request_IsInProgress)
             return true;
+        if (!pgcsa.Request_Success && net.InCallvote) {
+            ResetVotingState();
+            return true;
+        }
+        if (net.InCallvote) {
+            votingState = VotingState::CallVoteActive;
+            string question = StripFormatCodes(pgcsa.Vote_Question);
+            setExpectedVote("VOTE_QUESTION", question);
+            return Vote_UpdateGeneric();
+        }
+        if (!pgcsa.Request_Success) {
+            votingState = VotingState::CallVoteComplete;
+            return true;
+        }
         warn("Waiting for call vote but request not in prog");
+        votingState = VotingState::NoVoteActive;
         return true;
     }
 
@@ -714,21 +831,16 @@ class ClubServerChallengeRun : ChallengeRun {
     bool Vote_CallVoteActive(CGamePlaygroundClientScriptAPI@ pgcsa, CGameCtnNetwork@ net) {
         if (!net.InCallvote) {
             votingState = VotingState::CallVoteComplete;
+            setExpectedVote("VOTE_WAIT", "");
+            WaitPropagateExpectedVote();
             return true;
         } else {
-            if (!VoteQuestionIsExpected(pgcsa)) {
-                _CheckVoteQuestionAndUpdateState(pgcsa);
+            lastYes = net.VoteNbYes;
+            lastNo = net.VoteNbNo;
+            if (lastYes == 0 && lastNo == 0) {
+                prediction = -1;
             } else {
-                if (pgcsa.Vote_CanVote) {
-                    pgcsa.Vote_Cast(true);
-                }
-                lastYes = net.VoteNbYes;
-                lastNo = net.VoteNbNo;
-                if (lastYes == 0 && lastNo == 0) {
-                    prediction = -1;
-                } else {
-                    prediction = lastYes > lastNo ? 1 : 0;
-                }
+                prediction = lastYes > lastNo ? 1 : 0;
             }
         }
         return true;

@@ -39,6 +39,7 @@ class TicTacGoState {
 
     TTGMode mode = TTGMode::Standard;
     TTGGameState state = TTGGameState::PreStart;
+    uint gameStartTS = uint(-1);
 
     SquareState[][] boardState;
     int2 lastColRow = int2(-1, -1);
@@ -74,6 +75,7 @@ class TicTacGoState {
     MapGoal opt_MapGoal = MapGoal::Finish;
 
     Json::Value@ lastVoteInstruction;
+    // uint lastExpectedVoteSet
 
     TicTacGoState(Game::Client@ client) {
         @challengeResult = ChallengeResultState();
@@ -225,6 +227,7 @@ class TicTacGoState {
             }
         }
 
+        gameStartTS = Time::Stamp;
         state = TTGGameState::WaitingForMove;
         if (opt_FirstRoundForCenter) {
             @gameLog[0] = TTGGameEvent_StartingForCenter();
@@ -544,7 +547,8 @@ class TicTacGoState {
                     lastColRowRaw = xy;
                 }
 
-                currChallengeRun.Shutdown();
+                if (currChallengeRun !is null)
+                    currChallengeRun.Shutdown();
                 challengeResult.Reset();
                 challengeEndedAt = Time::Now;
                 @lastVoteInstruction = null;
@@ -655,6 +659,14 @@ class TicTacGoState {
                 return;
             }
         } else {
+            // on turn 0, wait till we've joined the server properly to continue
+            while (turnCounter == 0 && GetApp().CurrentPlayground is null) yield();
+            // don't start an admin's server challenge run less than 5 seconds after the game has started.
+            // one of the first things we do is voting, so this gives a bit of time for ppl to connect etc.
+            uint _waitFrom = gameStartTS;
+            bool isAdmin = client.IsPlayerMainAdmin(client.clientUid);
+            while (turnCounter == 0 && isAdmin && Time::Stamp < _waitFrom + 5) yield();
+            // sleep a little before initializing, allow other msgs to be processed for crChecks
             sleep(300);
             bool crChecks = beginChallengeLatestNonce == myNonce
                 && !challengeResult.HasResultFor(client.clientUid)
@@ -681,11 +693,29 @@ class TicTacGoState {
         currChallengeRun.Initialize(
             "TTG! - " + string(currMap.Get("Name", "???")), "Go Team " + MyLeadersName + "!",
             mapUid, mapName, currTrackId, sameAsLastMap,
-            IsInServer, opt_AutoDNF_ms, opt_EnableRecords,
+            IsInServer, client.IsPlayerMainAdmin(client.clientUid),
+            opt_AutoDNF_ms, opt_EnableRecords,
             ChallengeRunReport(ReportChallengeResult),
+            CR_GetExpectedVote(GetLastExpectedVote),
+            CR_SetExpectedVote(SetExpectedVote),
             challengeResult
         );
         currChallengeRun.StartRunCoro();
+    }
+
+    Json::Value@ GetLastExpectedVote() {
+        return lastVoteInstruction;
+    }
+
+    void SetExpectedVote(const string &in type, const string &in question) {
+        auto j = Json::Object();
+        j['type'] = type;
+        if (type == "VOTE_QUESTION") {
+            j['question'] = question;
+        }
+        j['col'] = challengeResult.col;
+        j['row'] = challengeResult.row;
+        client.SendPayload("G_SERVER_EXPECT_VOTE", j);
     }
 
     Json::Value@ GetMap(int col, int row) {

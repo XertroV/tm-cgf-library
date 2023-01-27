@@ -42,8 +42,12 @@ bool S_TTG_DrawGameDebugInfo = false;
 void Render_Settings_Changelog() {
     UI::Markdown(" # " + Meta::ExecutingPlugin().Version + """
 
+ - Move TTG to the 'Game' category in the Plugins menu.
  - Completely refactor the challenge loop (loading map, measuring time, voting on servers, etc).
  - Clear temporarily cached maps on plugin load (so it clears maps cached during the last session). Maps are pre-cached to improve load times (esp. on servers).
+ - Fix bug where time would errenously be added for some players in local mode.
+ - Fix crash starting a map in local mode (this affected v0.1.60, but only started appearing after the mid-Jan update).
+ - (Dev) Remove CGF debug client menu entry.
 
  # 0.1.60
 
