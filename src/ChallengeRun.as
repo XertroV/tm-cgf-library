@@ -467,11 +467,17 @@ class ClubServerChallengeRun : ChallengeRun {
         while (!CurrentlyInMap) yield();
     }
 
+    uint lastRulesStart;
+
     void Activate_ManageVotesAsync() override {
         if (!shouldManageVotes) return;
         // wait a bit to make sure we should still be going, and to get the latest vote instructions
         sleep(250);
         do {
+            auto cp = cast<CSmArenaClient>(GetApp().CurrentPlayground);
+            if (cp !is null && cp.Arena !is null && cp.Arena.Rules !is null) {
+                lastRulesStart = cp.Arena.Rules.RulesStateStartTime;
+            }
             while (!SHUTDOWN && Update_ManageVotesAsync()) yield();
         } while (!SHUTDOWN && !InExpectedMap());
         setExpectedVote("VOTE_DONE", "");
@@ -490,6 +496,9 @@ class ClubServerChallengeRun : ChallengeRun {
                     return false;
                 }
             }
+        }
+        if (mapSameAsLast && InExpectedMap()) {
+            return UpdateVoteToRestart();
         }
         return UpdateVoteToChangeMap();
     }
@@ -632,7 +641,24 @@ class ClubServerChallengeRun : ChallengeRun {
     bool UpdateVoteToRestart() {
         vote_currRequestType = VoteRequestType::RestartMap;
         // expectedPromptEnd = ExpVoteQuestionEndsWith_GoToNextMap();
-        return Vote_UpdateGeneric();
+        auto ret = Vote_UpdateGeneric();
+        if (!ret) {
+            while (GetApp().CurrentPlayground is null) yield();
+            uint _timeout = Time::Now + 5000;
+            // ~~wait for ui seq to change~~ ui seq only goes from playing -> finish -> playing
+            // while (Time::Now < _timeout && CurrentlyPlayingOrFinished()) yield();
+            // wait for rules start time to update
+            while (Time::Now < _timeout) {
+                auto cp = cast<CSmArenaClient>(GetApp().CurrentPlayground);
+                if (cp !is null && cp.Arena !is null && cp.Arena.Rules !is null) {
+                    if (lastRulesStart != cp.Arena.Rules.RulesStateStartTime) {
+                        break;
+                    }
+                }
+                yield();
+            }
+        }
+        return ret;
     }
 
     bool voteDone_setNextMap = false;

@@ -453,7 +453,7 @@ class TicTacGo : Game::Engine {
     void DrawTtgMainWindow() {
         UI::SetNextWindowSize(Draw::GetWidth() / 2, Draw::GetHeight() * 3 / 5, UI::Cond::FirstUseEver);
         UI::PushFont(hoverUiFont);
-        if (UI::Begin("Tic Tac GO! ("+stateObj.MyName+")##" + idNonce)) {
+        if (UI::Begin("Tic Tac GO! ("+stateObj.MyName+")    \\$888By XertroV##" + idNonce)) {
             // Tic Tac Toe interface
             auto available = UI::GetContentRegionAvail();
             auto midColSize = available * vec2(.5, 1) - UI::GetStyleVarVec2(UI::StyleVar::FramePadding);

@@ -134,7 +134,7 @@ class TtgGame {
     protected bool BeginMainWindow() {
         // if (!MainWindowOpen) startnew(TTG::NullifyGame);
         UI::SetNextWindowSize(DefaultLobbyWindowWidth, DefaultLobbyWindowHeight, UI::Cond::FirstUseEver);
-        bool ret = UI::Begin("Lobby - Tic Tac GO!##" + instId, MainWindowOpen);
+        bool ret = UI::Begin("Lobby - Tic Tac GO!    \\$888By XertroV##" + instId, MainWindowOpen);
         if (ret) UpdateLobbyWindowSizePos();
         return ret;
     }
