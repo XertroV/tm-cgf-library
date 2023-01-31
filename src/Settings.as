@@ -32,27 +32,40 @@ bool S_TTG_HideRoomNames = false;
 [Setting category="Tic Tac Go" name="Hide Player Events in Game Log?"]
 bool S_TTG_HidePlayerEvents = false;
 
-[Setting category="Tic Tac Go" name="Autostart Maps?"]
+[Setting category="Tic Tac Go" name="Font Selection"]
+FontChoice S_TTG_FontChoice = FontChoice::Normal;
+
+[Setting category="Tic Tac Go" name="Autostart Maps? (Local Mode)"]
 bool S_TTG_AutostartMap = false;
 
+#if DEV
 [Setting category="Tic Tac Go" name="Show Game Debug Info?"]
+#endif
 bool S_TTG_DrawGameDebugInfo = false;
 
 [SettingsTab name="Changelog" order="99"]
 void Render_Settings_Changelog() {
     UI::Markdown(" # " + Meta::ExecutingPlugin().Version + """
 
- - Move TTG to the 'Game' category in the Plugins menu.
  - Completely refactor the challenge loop (loading map, measuring time, voting on servers, etc).
  - Add team colors to TTG board.
- - Change winning squares indicator to a line instead of coloring squares.
  - Use textures for o/x symbols.
+ - Change winning squares indicator to a line instead of coloring squares.
  - Any unrevealed maps are now revealed when the game ends.
+ - Move TTG to the 'Game' category in the Plugins menu.
  - Clear temporarily cached maps on plugin load (so it clears maps cached during the last session). Maps are pre-cached to improve load times (esp. on servers).
+ - (Dev) Remove CGF debug client menu entry.
+ - Remove menu page management (bug now fixed by Nadeo).
+
+ ### Settings
+
+ - Add font choices: Normal, Droid Sans, and Droid Sans Smaller.
+
+ ### Fixes
+
  - Fix server-mode voting (it works now).
  - Fix bug where time would errenously be added for some players in local mode.
  - Fix crash starting a map in local mode (this affected v0.1.60, but only started appearing after the mid-Jan update).
- - (Dev) Remove CGF debug client menu entry.
 
  # 0.1.60
 

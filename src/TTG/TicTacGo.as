@@ -9,12 +9,34 @@ const int AUTO_DNF_TIMEOUT = 10000;
 const int DNF_TIME = 86400999;
 const int DNF_TEST = 86400000;
 
-// loaded in Main()
-UI::Font@ mapUiFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 30, -1, -1, true, true, true);
-UI::Font@ hoverUiFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 20, -1, -1, true, true, true);
-UI::Font@ droidSans16 = UI::LoadFont("DroidSans.ttf", 16.0);
-UI::Font@ droidSans20 = UI::LoadFont("DroidSans.ttf", 20.0);
-UI::Font@ droidSans26 = UI::LoadFont("DroidSans.ttf", 26.0);
+enum FontChoice {
+    Normal,
+    DroidSans,
+    DroidSansSmaller
+}
+
+UI::Font@ mapUiFont {
+    get {
+        if (S_TTG_FontChoice == FontChoice::Normal) return mont_SBI_30_UiFont;
+        if (S_TTG_FontChoice == FontChoice::DroidSans) return droidSans26;
+        if (S_TTG_FontChoice == FontChoice::DroidSansSmaller) return droidSans20;
+        return mont_SBI_30_UiFont;
+    }
+}
+UI::Font@ hoverUiFont {
+    get {
+        if (S_TTG_FontChoice == FontChoice::Normal) return mont_SBI_20_UiFont;
+        if (S_TTG_FontChoice == FontChoice::DroidSans) return droidSans20;
+        if (S_TTG_FontChoice == FontChoice::DroidSansSmaller) return droidSans16;
+        return mont_SBI_20_UiFont;
+    }
+};
+
+UI::Font@ mont_SBI_30_UiFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 30, -1, -1, true, true, true);
+UI::Font@ mont_SBI_20_UiFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 20, -1, -1, true, true, true);
+UI::Font@ droidSans16 = UI::LoadFont("DroidSans.ttf", 16.0, -1, -1, true, true, true);
+UI::Font@ droidSans20 = UI::LoadFont("DroidSans.ttf", 20.0, -1, -1, true, true, true);
+UI::Font@ droidSans26 = UI::LoadFont("DroidSans.ttf", 26.0, -1, -1, true, true, true);
 int nvgFontMessage = nvg::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf");
 // int nvgFontTimer = nvg::LoadFont("fonts/MontserratMono-SemiBoldItalic.ttf");
 int nvgFontTimer = nvg::LoadFont("fonts/OswaldMono-Regular.ttf");
