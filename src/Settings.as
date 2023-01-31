@@ -46,7 +46,10 @@ void Render_Settings_Changelog() {
  - Completely refactor the challenge loop (loading map, measuring time, voting on servers, etc).
  - Add team colors to TTG board.
  - Change winning squares indicator to a line instead of coloring squares.
+ - Use textures for o/x symbols.
+ - Any unrevealed maps are now revealed when the game ends.
  - Clear temporarily cached maps on plugin load (so it clears maps cached during the last session). Maps are pre-cached to improve load times (esp. on servers).
+ - Fix server-mode voting (it works now).
  - Fix bug where time would errenously be added for some players in local mode.
  - Fix crash starting a map in local mode (this affected v0.1.60, but only started appearing after the mid-Jan update).
  - (Dev) Remove CGF debug client menu entry.

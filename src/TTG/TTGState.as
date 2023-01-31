@@ -219,13 +219,7 @@ class TicTacGoState {
         }
         gameLog.InsertLast(TTGGameEvent_StartingPlayer(ActiveLeader, ActiveLeadersName));
 
-        if (opt_RevealMaps) {
-            for (int col = 0; col < 3; col++) {
-                for (int row = 0; row < 3; row++) {
-                    MarkSquareKnown(col, row);
-                }
-            }
-        }
+        if (opt_RevealMaps) MarkAllSquaresKnown();
 
         gameStartTS = Time::Stamp;
         state = TTGGameState::WaitingForMove;
@@ -314,6 +308,14 @@ class TicTacGoState {
         boardState[col][row].seen = true;
     }
 
+    void MarkAllSquaresKnown() {
+        for (int col = 0; col < 3; col++) {
+            for (int row = 0; row < 3; row++) {
+                MarkSquareKnown(col, row);
+            }
+        }
+    }
+
     bool SquareKnown(int col, int row) {
         return boardState[col][row].seen;
     }
@@ -370,7 +372,8 @@ class TicTacGoState {
     }
 
     bool CheckGameWon() {
-        bool gameWon = IsGameFinished
+        if (IsGameFinished) return true;
+        bool gameWon = false
             // diags
             || AreSquaresEqual(int2(0, 0), int2(1, 1), int2(2, 2))
             || AreSquaresEqual(int2(0, 2), int2(1, 1), int2(2, 0))
@@ -383,7 +386,8 @@ class TicTacGoState {
             || AreSquaresEqual(int2(0, 1), int2(1, 1), int2(2, 1))
             || AreSquaresEqual(int2(0, 2), int2(1, 2), int2(2, 2))
             ;
-        if (gameWon) {
+        if (gameWon && !IsGameFinished) {
+            MarkAllSquaresKnown();
             state = TTGGameState::GameFinished;
         }
         return gameWon;

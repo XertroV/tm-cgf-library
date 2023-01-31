@@ -10,9 +10,11 @@ const int DNF_TIME = 86400999;
 const int DNF_TEST = 86400000;
 
 // loaded in Main()
-UI::Font@ boardFont = null;
-UI::Font@ mapUiFont = null;
-UI::Font@ hoverUiFont = null;
+UI::Font@ mapUiFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 30, -1, -1, true, true, true);
+UI::Font@ hoverUiFont = UI::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf", 20, -1, -1, true, true, true);
+UI::Font@ droidSans16 = UI::LoadFont("DroidSans.ttf", 16.0);
+UI::Font@ droidSans20 = UI::LoadFont("DroidSans.ttf", 20.0);
+UI::Font@ droidSans26 = UI::LoadFont("DroidSans.ttf", 26.0);
 int nvgFontMessage = nvg::LoadFont("fonts/Montserrat-SemiBoldItalic.ttf");
 // int nvgFontTimer = nvg::LoadFont("fonts/MontserratMono-SemiBoldItalic.ttf");
 int nvgFontTimer = nvg::LoadFont("fonts/OswaldMono-Regular.ttf");
@@ -660,7 +662,9 @@ class TicTacGo : Game::Engine {
                 UI::TableNextColumn();
                 UI::PushFont(hoverUiFont);
                 bool battleForCenter = stateObj.opt_FirstRoundForCenter && stateObj.turnCounter == 0;
-                if (battleForCenter)
+                if (stateObj.IsGameFinished)
+                    UI::Text("Winner: " + activeName);
+                else if (battleForCenter)
                     UI::Text("Battle for the Center!");
                 else if (stateObj.IsMyTurn)
                     UI::Text(HighlightWin(stateObj.IAmALeader ? "Your Turn!" : "Your Leader's Turn!"));
@@ -726,10 +730,17 @@ class TicTacGo : Game::Engine {
         return player == TTGSquareState::Player1 ? Icons::CircleO : Icons::Times;
     }
 
+    UI::Texture@ TextureForPlayer(TTGSquareState player) {
+        LoadTextures();
+        if (player == TTGSquareState::Player1) return p1Texture;
+        if (player == TTGSquareState::Player2) return p2Texture;
+        return null;
+    }
+
     void DrawTTGSquare(int col, int row, vec2 size) {
         auto sqState = stateObj.GetSquareState(col, row);
         bool squareOpen = sqState.owner == TTGSquareState::Unclaimed;
-        string label = squareOpen ? "" : IconForPlayer(sqState.owner);
+        auto sqTex = TextureForPlayer(sqState.owner);
         string id = "##sq-" + col + "," + row;
 
         bool isWinning = stateObj.IsGameFinished && stateObj.SquarePartOfWin(int2(col, row));
@@ -740,9 +751,7 @@ class TicTacGo : Game::Engine {
         bool isDisabled = ownedByMe || !stateObj.IsWaitingForMove || not stateObj.IsMyTurn || waitingForOwnMove || !stateObj.IAmALeader;
         isDisabled = isDisabled || (stateObj.opt_CannotImmediatelyRepick && stateObj.WasPriorSquare(col, row));
 
-        UI::PushFont(boardFont);
-        bool clicked = _SquareButton(label + id, size, col, row, isBeingChallenged, ownedByMe, ownedByThem, isWinning, isDisabled);
-        UI::PopFont();
+        bool clicked = _SquareButton(sqTex, id, size, col, row, isBeingChallenged, ownedByMe, ownedByThem, isWinning, isDisabled);
 
         if (clicked) log_trace('clicked');
         if (clicked && !ownedByMe) {
@@ -757,7 +766,7 @@ class TicTacGo : Game::Engine {
     vec4 btnChallengeCol = vec4(.8, .4, 0, 1);
     vec4 btnWinningCol = vec4(.8, .4, 0, 1);
 
-    bool _SquareButton(const string &in id, vec2 size, int col, int row, bool isBeingChallenged, bool  ownedByMe, bool ownedByThem, bool isWinning, bool isDisabled) {
+    bool _SquareButton(UI::Texture@ sqTex, const string &in id, vec2 size, int col, int row, bool isBeingChallenged, bool  ownedByMe, bool ownedByThem, bool isWinning, bool isDisabled) {
         bool mapKnown = stateObj.SquareKnown(col, row);
 
         auto teamCol = GetLightColorForTeam(stateObj.GetSquareState(col, row).owner, vec4(.4, .7, .4, .7) * 1.2);
@@ -772,6 +781,10 @@ class TicTacGo : Game::Engine {
         UI::BeginDisabled(isDisabled);
         bool clicked = UI::Button(id, size);
         UI::EndDisabled();
+        if (sqTex !is null) {
+            UI::SetCursorPos(btnPos + size * .15);
+            UI::Image(sqTex, size * .7);
+        }
         UI::SetCursorPos(btnPos);
         clicked = (UI::InvisibleButton(id + "test", size) || clicked) && !isDisabled;
         bool isHovered = UI::IsItemHovered(UI::HoveredFlags::AllowWhenDisabled | UI::HoveredFlags::RectOnly);
