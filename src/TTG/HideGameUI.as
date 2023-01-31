@@ -16,6 +16,7 @@ namespace HideGameUI {
         while (uiConf.UILayers.Length < 10) yield();
         for (uint i = 0; i < uiConf.UILayers.Length; i++) {
             auto layer = uiConf.UILayers[i];
+            if (layer.ManialinkPage.Length < 10) continue;
             string first100Chars = string(layer.ManialinkPage.SubStr(0, 100));
             if (first100Chars.Length < 100) continue;
             auto parts = first100Chars.Trim().Split('manialink name="');

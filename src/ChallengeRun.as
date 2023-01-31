@@ -1007,10 +1007,10 @@ CGameUILayer@ FindWarmUpUILayer() {
     auto cmap = GetApp().Network.ClientManiaAppPlayground;
     if (cmap is null) return null;
     auto layer = cmap.UILayers.Length < 20 ? null : cmap.UILayers[18];
-    if (layer is null || !layer.ManialinkPage.StartsWith('\n<manialink name="UIModule_Race_WarmUp"')) {
+    if (layer is null || layer.ManialinkPage.Length < 10 || !layer.ManialinkPage.StartsWith('\n<manialink name="UIModule_Race_WarmUp"')) {
         for (uint i = 0; i < cmap.UILayers.Length; i++) {
             auto item = cmap.UILayers[i];
-            if (item.ManialinkPage.StartsWith('\n<manialink name="UIModule_Race_WarmUp"')) {
+            if (item.ManialinkPage.Length > 10 && item.ManialinkPage.StartsWith('\n<manialink name="UIModule_Race_WarmUp"')) {
                 @layer = item;
                 break;
             }
