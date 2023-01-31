@@ -10,9 +10,9 @@ const int DNF_TIME = 86400999;
 const int DNF_TEST = 86400000;
 
 enum FontChoice {
-    Normal,
+    DroidSansSmaller,
     DroidSans,
-    DroidSansSmaller
+    Normal
 }
 
 UI::Font@ mapUiFont {
@@ -68,6 +68,8 @@ class TicTacGo : Game::Engine {
     string rematchJoinCode;
     string rematchFromUser;
     bool rematchBeingCreated;
+
+    bool isCompactUI = false;
 
     TicTacGo(Game::Client@ client, bool setRandomNonce = false) {
         // if (setRandomNonce)
@@ -189,16 +191,31 @@ class TicTacGo : Game::Engine {
     void OnGameStart() {
         trace("On game start!");
         stateObj.OnGameStart();
-        startnew(ReturnToMenu);
         startnew(CoroutineFunc(OnGameStartCoro));
     }
 
     void OnGameStartCoro() {
-        AwaitManialinkTitleReady();
+        if (!(stateObj.IsInServer && IsInExpectedServer)) {
+            startnew(ReturnToMenu);
+            AwaitManialinkTitleReady();
+            startnew(CoroutineFunc(JoinClubRoom));
+        }
         while (stateObj.IsPreStart) yield();
         startnew(CoroutineFunc(GameLoop));
-        startnew(CoroutineFunc(JoinClubRoom));
         // startnew(CoroutineFunc(BlackoutLoop));
+    }
+
+    bool IsInExpectedServer {
+        get {
+            // never in expected server if it's a local game
+            if (!stateObj.IsInServer) return false;
+            auto si = cast<CTrackManiaNetworkServerInfo>(GetApp().Network.ServerInfo);
+            if (si is null || si.ServerLogin.Length < 10) return false;
+            if (GetApp().Network.ClientManiaAppPlayground is null) return false;
+            auto @parts = client.roomInfo.join_link.Split("=");
+            if (parts.Length < 2) return false;
+            return parts[1].StartsWith(si.ServerLogin);
+        }
     }
 
     void OnGameEnd() {
@@ -475,29 +492,47 @@ class TicTacGo : Game::Engine {
     }
 
     vec2 WindowPos;
+    vec2 WindowSize;
     vec2 BoardChildTLPos;
+    bool setNextWindowSizeCompactChanged = false;
     void DrawTtgMainWindow() {
         UI::SetNextWindowSize(Draw::GetWidth() / 2, Draw::GetHeight() * 3 / 5, UI::Cond::FirstUseEver);
+        if (setNextWindowSizeCompactChanged) {
+            setNextWindowSizeCompactChanged = false;
+            auto newPos = WindowPos + WindowSize * (isCompactUI ? vec2(.25, 0) : vec2(-.5, 0));
+            auto newSize = isCompactUI ? WindowSize * vec2(.5, 1) : WindowSize * vec2(2.0, 1);
+            UI::SetNextWindowSize(int(newSize.x), int(newSize.y), UI::Cond::Always);
+            UI::SetNextWindowPos(newPos.x, newPos.y, UI::Cond::Always);
+        }
+        auto windowBgColor = UI::GetStyleColor(UI::Col::WindowBg);
+        windowBgColor.w = S_TTG_BG_Opacity;
+        UI::PushStyleColor(UI::Col::WindowBg, windowBgColor);
         UI::PushFont(hoverUiFont);
         if (UI::Begin("Tic Tac GO! ("+stateObj.MyName+")    \\$888By XertroV##" + idNonce)) {
             WindowPos = UI::GetWindowPos();
+            WindowSize = UI::GetWindowSize();
             // Tic Tac Toe interface
-            auto available = UI::GetContentRegionAvail();
-            auto midColSize = available * vec2(.5, 1) - UI::GetStyleVarVec2(UI::StyleVar::FramePadding);
-            midColSize.x = Math::Min(midColSize.x, midColSize.y);
-            auto lrColSize = (available - vec2(midColSize.x, 0)) * vec2(.5, 1) - UI::GetStyleVarVec2(UI::StyleVar::FramePadding) * 2.;
-            // player 1
-            DrawLeftCol(lrColSize);
-            UI::SameLine();
-            BoardChildTLPos = WindowPos + UI::GetCursorPos();
-            // game board
-            DrawMiddleCol(midColSize);
-            UI::SameLine();
-            // player 2
-            DrawRightCol(lrColSize);
+            if (!isCompactUI) {
+                auto available = UI::GetContentRegionAvail();
+                auto midColSize = available * vec2(.5, 1) - framePadding;
+                midColSize.x = Math::Min(midColSize.x, midColSize.y);
+                auto lrColSize = (available - vec2(midColSize.x, 0)) * vec2(.5, 1) - framePadding * 2.;
+                // player 1
+                DrawLeftCol(lrColSize);
+                UI::SameLine();
+                BoardChildTLPos = WindowPos + UI::GetCursorPos();
+                // game board
+                DrawMiddleCol(midColSize);
+                UI::SameLine();
+                // player 2
+                DrawRightCol(lrColSize);
+            } else {
+                DrawMiddleCol(UI::GetContentRegionAvail() - framePadding);
+            }
         }
         UI::End();
         UI::PopFont();
+        UI::PopStyleColor(1);
     }
 
     // player 1 col
@@ -662,6 +697,7 @@ class TicTacGo : Game::Engine {
     }
 
     vec4 lastWinMsgSize = vec4(0, 0, 100, 30);
+    float lastCompactUiBtnWidth = 100;
 
     void DrawTicTacGoBoard(vec2 size) {
         size.y -= UI::GetFrameHeightWithSpacing() * 2.;
@@ -674,7 +710,8 @@ class TicTacGo : Game::Engine {
         bool playerHasInitiative = stateObj.IsMyTurn && stateObj.IAmALeader && stateObj.IsWaitingForMove;
         if (playerHasInitiative)
             UI::PushStyleColor(UI::Col::ChildBg, vec4(.3, 1, 0, Math::Sin(float(Time::Now) / 350.) * .3 + .3));
-        if (UI::BeginChild("ttg-child-status", vec2(size.x, UI::GetTextLineHeightWithSpacing()))) {
+        vec2 headerTL = UI::GetCursorPos();
+        if (UI::BeginChild("ttg-child-status", vec2(size.x, UI::GetFrameHeight()), false, UI::WindowFlags::NoScrollbar)) {
             if (UI::BeginTable("ttg-table-status", 3, UI::TableFlags::SizingStretchSame)) {
                 UI::TableSetupColumn("l", UI::TableColumnFlags::WidthStretch);
                 UI::TableSetupColumn("m", UI::TableColumnFlags::WidthFixed);
@@ -683,6 +720,7 @@ class TicTacGo : Game::Engine {
                 UI::TableNextColumn();
                 UI::TableNextColumn();
                 UI::PushFont(hoverUiFont);
+                UI::AlignTextToFramePadding();
                 bool battleForCenter = stateObj.opt_FirstRoundForCenter && stateObj.turnCounter == 0;
                 if (stateObj.IsGameFinished)
                     UI::Text("Winner: " + activeName);
@@ -692,12 +730,22 @@ class TicTacGo : Game::Engine {
                     UI::Text(HighlightWin(stateObj.IAmALeader ? "Your Turn!" : "Your Leader's Turn!"));
                 else
                     UI::Text(activeName + "'s Turn");
+                UI::TableNextColumn();
+
+                UI::SetCursorPos(headerTL + vec2(size.x - lastCompactUiBtnWidth, 0) - framePadding * vec2(1.5, 2));
+                if (UI::Button(isCompactUI ? "Small UI" : "Large UI")) {
+                    isCompactUI = !isCompactUI;
+                    setNextWindowSizeCompactChanged = true;
+                }
+                lastCompactUiBtnWidth = UI::GetItemRect().z;
+
                 UI::PopFont();
                 UI::EndTable();
             }
         }
         UI::EndChild();
         UI::PopStyleColor(playerHasInitiative ? 1 : 0);
+
         UI::Dummy(vec2(0, yPad));
         UI::Dummy(vec2(xPad, 0));
         UI::SameLine();
@@ -1024,7 +1072,7 @@ class TicTacGo : Game::Engine {
         UI::PushStyleVar(UI::StyleVar::FramePadding, vec2(20, 20));
         UI::PushStyleVar(UI::StyleVar::WindowRounding, 20);
         UI::PushStyleVar(UI::StyleVar::WindowPadding, vec2(20, 20));
-        UI::PushStyleColor(UI::Col::WindowBg, challengeWindowBgCol);
+        UI::PushStyleColor(UI::Col::WindowBg, challengeWindowBgCol * vec4(1, 1, 1, S_TTG_BG_Opacity));
         return UI::Begin("ttg-challenge-window-" + idNonce, flags);
     }
 

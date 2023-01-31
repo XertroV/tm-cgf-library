@@ -32,11 +32,16 @@ bool S_TTG_HideRoomNames = false;
 [Setting category="Tic Tac Go" name="Hide Player Events in Game Log?"]
 bool S_TTG_HidePlayerEvents = false;
 
+[Setting category="Tic Tac Go" name="Autostart Maps? (Local Mode)"]
+bool S_TTG_AutostartMap = false;
+
 [Setting category="Tic Tac Go" name="Font Selection"]
 FontChoice S_TTG_FontChoice = FontChoice::Normal;
 
-[Setting category="Tic Tac Go" name="Autostart Maps? (Local Mode)"]
-bool S_TTG_AutostartMap = false;
+[Setting category="Tic Tac Go" name="Game Window Background Opacity" min=0.9 max=1.0]
+float S_TTG_BG_Opacity = 0.97;
+
+
 
 #if DEV
 [Setting category="Tic Tac Go" name="Show Game Debug Info?"]
@@ -52,15 +57,33 @@ void Render_Settings_Changelog() {
  - Use textures for o/x symbols.
  - Change winning squares indicator to a line instead of coloring squares.
  - Any unrevealed maps are now revealed when the game ends.
+ - Records made visible when you finish a map. Chrono made visible when round over.
  - Move TTG to the 'Game' category in the Plugins menu.
  - Clear temporarily cached maps on plugin load (so it clears maps cached during the last session). Maps are pre-cached to improve load times (esp. on servers).
  - (Dev) Remove CGF debug client menu entry.
  - Remove menu page management (bug now fixed by Nadeo).
+ - Add large/small game UI modes.
+ - Will no longer exit and rejoin a server if already in the right one.
 
  ### Settings
 
  - Add font choices: Normal, Droid Sans, and Droid Sans Smaller.
+ - Add option for changing the game window background opacity.
+    """);
 
+    if (UI::BeginCombo("Font Choice", tostring(S_TTG_FontChoice))) {
+        if (UI::Selectable(tostring(FontChoice(0)), 0 == int(S_TTG_FontChoice)))
+            S_TTG_FontChoice = FontChoice(0);
+        if (UI::Selectable(tostring(FontChoice(1)), 1 == int(S_TTG_FontChoice)))
+            S_TTG_FontChoice = FontChoice(1);
+        if (UI::Selectable(tostring(FontChoice(2)), 2 == int(S_TTG_FontChoice)))
+            S_TTG_FontChoice = FontChoice(2);
+        UI::EndCombo();
+    }
+    S_TTG_BG_Opacity = UI::SliderFloat("Game Window BG Opacity", S_TTG_BG_Opacity, 0.9, 1.0);
+    UI::Text("");
+
+    UI::Markdown("""
  ### Fixes
 
  - Fix server-mode voting (it works now).

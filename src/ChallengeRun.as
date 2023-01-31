@@ -112,6 +112,7 @@ class ChallengeRun {
 
     void _ShutdownIn() {
         while (int(Time::Now) < shutdownAfter) yield();
+        HideGameUI::ShowPage("UIModule_Race_Chrono");
         Shutdown();
     }
 
@@ -266,7 +267,12 @@ class ChallengeRun {
         if (SHUTDOWN || cp is null || cmap is null) return;
         // set start time
         currGameTime = cmap.Playground.GameTime;
-        // auto roundStartTime = cp.Arena.Rules.RulesStateStartTime;
+        /* Rules start time set before intro, so no good.
+        auto rsst = cp.Arena.Rules.RulesStateStartTime;
+        auto pst = player.StartTime;
+        // use the round start time if the player joins late, use their start time otherwise
+        auto roundStartTime = (Math::Abs(pst - rsst) > 500) ? rsst : pst;
+        */
         auto roundStartTime = player.StartTime;
         challengeStartTime = Time::Now + (roundStartTime - currGameTime);
         playerInitStartTime = roundStartTime;
@@ -275,7 +281,7 @@ class ChallengeRun {
         if (challengeStartTime < int(Time::Now)) {
             warn("challengeStartTime is in the past; now - start = " + (int(Time::Now) - challengeStartTime) + ".");
             // the timer should always start at -1.5s, so set it 1.5s in the future
-            challengeStartTime = Time::Now + 1500;
+            // challengeStartTime = Time::Now + 1500;
         }
 
         log_info("Set challenge start time: " + challengeStartTime + " (now: " + Time::Now + ")");

@@ -792,6 +792,8 @@ class TicTacGoState {
         pl['col'] = challengeResult.col;
         pl['row'] = challengeResult.row;
         client.SendPayload("G_CHALLENGE_RESULT", pl);
+        if (!opt_EnableRecords)
+            HideGameUI::ShowPage("UIModule_Race_Record");
     }
 
     void SendForceEnd() {
