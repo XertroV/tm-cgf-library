@@ -87,7 +87,7 @@ void Render_Settings_Changelog() {
  ### Fixes
 
  - Fix server-mode voting (it works now).
- - Fix bug where time would errenously be added for some players in local mode.
+ - Fix bug where time would erroneously be added for some players in local mode.
  - Fix crash starting a map in local mode (this affected v0.1.60, but only started appearing after the mid-Jan update).
 
  # 0.1.60
