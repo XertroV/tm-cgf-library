@@ -502,7 +502,11 @@ class TicTacGo : Game::Engine {
             auto newPos = WindowPos + WindowSize * (isCompactUI ? vec2(.25, 0) : vec2(-.5, 0));
             auto newSize = isCompactUI ? WindowSize * vec2(.5, 1) : WindowSize * vec2(2.0, 1);
             UI::SetNextWindowSize(int(newSize.x), int(newSize.y), UI::Cond::Always);
-            UI::SetNextWindowPos(newPos.x, newPos.y, UI::Cond::Always);
+            UI::SetNextWindowPos(int(newPos.x), int(newPos.y), UI::Cond::Always);
+        }
+        if (isCompactUI && stateObj.IsGameFinished) {
+            setNextWindowSizeCompactChanged = true;
+            isCompactUI = false;
         }
         auto windowBgColor = UI::GetStyleColor(UI::Col::WindowBg);
         windowBgColor.w = S_TTG_BG_Opacity;
@@ -781,15 +785,16 @@ class TicTacGo : Game::Engine {
     void DrawWinningLine(vec2 tl, vec2 size) {
         if (stateObj.WinningSquares.Length == 0) return;
         for (uint i = 1; i < stateObj.WinningSquares.Length; i++) {
-            auto sq1 = stateObj.WinningSquares[i-1];
-            auto sq2 = stateObj.WinningSquares[i];
+            int2 sq1 = stateObj.WinningSquares[i-1];
+            int2 sq2 = stateObj.WinningSquares[i];
             bool xEq = sq1.x == sq2.x, yEq = sq1.y == sq2.y;
-            vec2 gp1 = vec2(sq1.x, sq1.y) * 2.0 + 1.0 + vec2(xEq ? 0 : sq1.x - 1, yEq ? 0 : sq1.y - 1);
-            vec2 gp2 = vec2(sq2.x, sq2.y) * 2.0 + 1.0 + vec2(xEq ? 0 : sq2.x - 1, yEq ? 0 : sq2.y - 1);
+
+            vec2 gp1 = vec2(sq1.x, sq1.y) * 2.0 + vec2(xEq ? 0 : sq1.x - 1, yEq ? 0 : sq1.y - 1) + vec2(1, 1);
+            vec2 gp2 = vec2(sq2.x, sq2.y) * 2.0 + vec2(xEq ? 0 : sq2.x - 1, yEq ? 0 : sq2.y - 1) + vec2(1, 1);
 
             auto fg = UI::GetWindowDrawList();
-            auto pos1 = BoardChildTLPos + tl + gp1 / 6.0 * size;
-            auto pos2 = BoardChildTLPos + tl + gp2 / 6.0 * size;
+            auto pos1 = BoardChildTLPos + tl + gp1 * size / 6.0;
+            auto pos2 = BoardChildTLPos + tl + gp2 * size / 6.0;
             fg.AddLine(pos1, pos2, vec4(1, .7, .1, 1), 0.02 * size.y);
         }
     }
