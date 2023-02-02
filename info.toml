@@ -2,7 +2,7 @@
 name     = "Tic Tac GO!"
 author   = "XertroV"
 category = "Game"
-version  = "0.2.1"
+version  = "0.2.2"
 siteid   = 285
 
 [script]
