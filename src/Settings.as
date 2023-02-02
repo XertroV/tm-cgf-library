@@ -52,6 +52,11 @@ bool S_TTG_DrawGameDebugInfo = false;
 void Render_Settings_Changelog() {
     UI::Markdown(" # " + Meta::ExecutingPlugin().Version + """
 
+ - Fix compile error on non-edge versions of openplanet.
+ - Auto-expand compact UI on game end.
+
+ # 0.2.1
+
  - Completely refactor the challenge loop (loading map, measuring time, voting on servers, etc).
  - Add team colors to TTG board.
  - Use textures for o/x symbols.
