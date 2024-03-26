@@ -1,7 +1,7 @@
 #if DEV || UNIT_TEST
 
 bool QUIET_TESTS = true;
-bool RENDER_TESTS = false;
+bool RENDER_TESTS = true;
 
 void log_test(const string &in msg) {
     if (QUIET_TESTS) return;
@@ -77,6 +77,8 @@ string[][]@ GenTeams(int t1_n = 3, int t2_n = 3) {
 void RenderTests() {
     if (!RENDER_TESTS) return;
     RenderTest_Scoring_Teams();
+    // RenderTest_Scoring_Teams(0.5);
+    // RenderTest_Scoring_Teams(0.75);
 }
 
 void RenderTests_Loops() {
@@ -113,8 +115,8 @@ void RenderTest_Scoring_Teams_Loop() {
     }
 }
 
-void RenderTest_Scoring_Teams() {
-    RenderTeamsScoreBoard(rt_s_t_cr);
+void RenderTest_Scoring_Teams(float scale = 1.0) {
+    RenderTeamsScoreBoard(rt_s_t_cr, scale);
 }
 
 

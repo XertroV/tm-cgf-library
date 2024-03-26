@@ -36,7 +36,10 @@ bool S_TTG_HidePlayerEvents = false;
 bool S_TTG_AutostartMap = false;
 
 [Setting category="Tic Tac Go" name="Teams Mode UI Scale" min="0.1" max="1" drag]
-float S_TeamsScoreboardScale = 0.5;
+float S_TeamsScoreboardScale = 0.75;
+
+[Setting category="Tic Tac Go" name="Teams Mode UI Position Offset" min="-2000" max="2000" drag]
+vec2 S_TeamsScoreboardPositionOffset = vec2();
 
 [Setting category="Tic Tac Go" name="Show Game Debug Info?"]
 bool S_TTG_DrawGameDebugInfo = false;

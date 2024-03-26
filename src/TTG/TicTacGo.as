@@ -1512,16 +1512,22 @@ void DrawBattleModeScoreBar(vec2 posTL, float w, float h, bool isLeft, const str
 }
 
 
-void RenderTeamsScoreBoard(ChallengeResultState@ cr) {
+void RenderTeamsScoreBoard(ChallengeResultState@ cr, float scale = 1.0) {
     // if (cr.ranking.Length == 0) return;
     nvg::Reset();
     vec2 screen = vec2(Draw::GetWidth(), Draw::GetHeight());
     vec2 pos = screen / 2. - vec2(screen.y / 2. * 1.5, screen.y / 4.);
     pos.x = Math::Max(pos.x, 0);
+    pos = pos + S_TeamsScoreboardPositionOffset;
     float elHeight = screen.y / 32.;
     vec2 size = vec2(screen.y / 4., cr.ranking.Length * elHeight);
     vec2 elSize = vec2(size.x, elHeight);
-    nvg::Scale(S_TeamsScoreboardScale, S_TeamsScoreboardScale);
+    if (scale == 1.0) {
+        scale = S_TeamsScoreboardScale;
+    }
+    vec2 s2 = vec2(scale);
+    nvg::Scale(s2);
+    pos /= s2;
     // background
     nvg::BeginPath();
     nvg::Rect(pos, size);
