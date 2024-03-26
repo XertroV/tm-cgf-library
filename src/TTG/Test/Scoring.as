@@ -77,8 +77,8 @@ string[][]@ GenTeams(int t1_n = 3, int t2_n = 3) {
 void RenderTests() {
     if (!RENDER_TESTS) return;
     RenderTest_Scoring_Teams();
-    // RenderTest_Scoring_Teams(0.5);
-    // RenderTest_Scoring_Teams(0.75);
+    RenderTest_Scoring_Teams(0.5);
+    RenderTest_Scoring_Teams(0.75);
 }
 
 void RenderTests_Loops() {
@@ -97,6 +97,7 @@ void RenderTest_Scoring_Teams_Loop() {
         bool team1Advantage = RandomBool();
         int t1p1Time = team1Advantage ? 100 : 111;
         auto cr = rt_s_t_cr;
+        // trace('RenderTest_Scoring_Teams_Loop: reset');
         cr.Reset();
         cr.Activate(1, 1, challenger, TTGGameState::InClaim, teams, teams, TTGMode::Teams, 1);
         sleep(500);
@@ -112,6 +113,7 @@ void RenderTest_Scoring_Teams_Loop() {
         sleep(500);
         cr.SetPlayersTime(teams[1][2], "Team 1, Player 2", DNF_TIME, TTGSquareState::Player2);
         sleep(500);
+        // trace('Updated RenderTest_Scoring_Teams_Loop');
     }
 }
 

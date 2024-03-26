@@ -1633,6 +1633,26 @@ void DrawBattleModeScoreBar(vec2 posTL, float w, float h, bool isLeft, const str
     nvg::Text(posML + textOffset, label);
 }
 
+ChallengeResultState@ _previewCR;
+void RenderTeamsScoreboardPreview() {
+    if (_previewCR is null) {
+        @_previewCR = ChallengeResultState();
+        auto teams = GenTeams(3, 3);
+        auto challenger = RandomTeam();
+        auto defender = TTGSquareState(-(challenger - 1));
+        bool team1Advantage = RandomBool();
+        int t1p1Time = team1Advantage ? 100 : 111;
+        _previewCR.Activate(1, 1, challenger, TTGGameState::InClaim, teams, teams, TTGMode::Teams, 2);
+        _previewCR.SetPlayersTime(teams[0][0], teams[0][0], t1p1Time, TTGSquareState::Player1);
+        _previewCR.SetPlayersTime(teams[0][1], teams[0][1], 222, TTGSquareState::Player1);
+        _previewCR.SetPlayersTime(teams[0][2], teams[0][2], team1Advantage ? 999 : DNF_TIME, TTGSquareState::Player1);
+        _previewCR.SetPlayersTime(teams[1][0], teams[1][0], 111, TTGSquareState::Player2);
+        _previewCR.SetPlayersTime(teams[1][1], teams[1][1], 200, TTGSquareState::Player2);
+        _previewCR.SetPlayersTime(teams[1][2], teams[1][2], DNF_TIME, TTGSquareState::Player2);
+    }
+    RenderTeamsScoreBoard(_previewCR);
+}
+
 
 void RenderTeamsScoreBoard(ChallengeResultState@ cr, float scale = 1.0) {
     // if (cr.ranking.Length == 0) return;

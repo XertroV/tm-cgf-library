@@ -41,6 +41,11 @@ float S_TeamsScoreboardScale = 0.75;
 [Setting category="Tic Tac Go" name="Teams Mode UI Position Offset" min="-2000" max="2000" drag]
 vec2 S_TeamsScoreboardPositionOffset = vec2();
 
+[Setting category="Tic Tac Go" name="Teams Mode UI Render Preview"]
+bool S_TeamsScoreboardRenderPreview = false;
+
+
+
 [Setting category="Tic Tac Go" name="Font Selection"]
 FontChoice S_TTG_FontChoice = FontChoice::Normal;
 

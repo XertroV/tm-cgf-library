@@ -6,9 +6,10 @@ void Main() {
     startnew(ClearLocalTmxMapFolder);
     sleep(100);
     OnSettingsChanged();
+
 #if DEV || UNIT_TEST
     sleep(50);
-    // startnew(TestScoring);
+    startnew(TestScoring);
     // startnew(MapUploadTest);
 #endif
 }
@@ -25,6 +26,10 @@ void Render() {
     // RenderHeartbeatPulse(screenSize / 2., screenSize / 4.);
     RenderTests();
 #endif
+
+    if (S_TeamsScoreboardRenderPreview) {
+        RenderTeamsScoreboardPreview();
+    }
 
     TTG::Render();
     // does nothing without sig_developer
