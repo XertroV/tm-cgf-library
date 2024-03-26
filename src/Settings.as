@@ -35,6 +35,9 @@ bool S_TTG_HidePlayerEvents = false;
 [Setting category="Tic Tac Go" name="Autostart Maps?"]
 bool S_TTG_AutostartMap = false;
 
+[Setting category="Tic Tac Go" name="Teams Mode UI Scale" min="0.1" max="1" drag]
+float S_TeamsScoreboardScale = 0.5;
+
 [Setting category="Tic Tac Go" name="Show Game Debug Info?"]
 bool S_TTG_DrawGameDebugInfo = false;
 

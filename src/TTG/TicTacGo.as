@@ -1521,6 +1521,7 @@ void RenderTeamsScoreBoard(ChallengeResultState@ cr) {
     float elHeight = screen.y / 32.;
     vec2 size = vec2(screen.y / 4., cr.ranking.Length * elHeight);
     vec2 elSize = vec2(size.x, elHeight);
+    nvg::Scale(S_TeamsScoreboardScale, S_TeamsScoreboardScale);
     // background
     nvg::BeginPath();
     nvg::Rect(pos, size);
@@ -1557,6 +1558,7 @@ void RenderTeamsScoreBoard(ChallengeResultState@ cr) {
             }
         }
     }
+    nvg::Scale(1, 1);
 }
 
 void DrawTeamsPlayerScoreEntry(TTGSquareState team, const string &in name, int time, vec2 elPos, vec2 elSize, int i, int nPlayers, bool noPoints) {
