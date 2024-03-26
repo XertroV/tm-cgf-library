@@ -28,6 +28,9 @@ class TtgGame {
     }
 
     void CreateNewGameClient() {
+        if (ttg !is null) {
+            @ttg.client = null;
+        }
         @ttg = TicTacGo(client);
         @client.gameEngine = ttg;
         @ttg.OnRematch = CoroutineFunc(this.OnRematch);
@@ -95,7 +98,10 @@ class TtgGame {
         if (!overlayOpen && client.IsInGameLobby) return;
         if (showPatchNotes) RenderPatchNotesWindow();
         UI::PushFont(hoverUiFont);
-        UI::PushStyleColor(UI::Col::FrameBg, vec4(.2, .2, .2, 1));
+        UI::PushStyleColor(UI::Col::FrameBg, vec4(.1, .2, .3, 1));
+        auto windowBgColor = UI::GetStyleColor(UI::Col::WindowBg);
+        // windowBgColor.w = S_TTG_BG_Opacity;
+        UI::PushStyleColor(UI::Col::WindowBg, windowBgColor);
         if (!hasPerms) RenderNoPerms();
         else if (client is null || client.IsAuthenticating) RenderAuthenticating();
         else if (client.IsAuthError) RenderAuthError();
@@ -119,7 +125,7 @@ class TtgGame {
             RenderLoadingScreen("Unknown client state!", true);
             warn("Unknown client state!");
         }
-        UI::PopStyleColor();
+        UI::PopStyleColor(2);
         UI::PopFont();
     }
 
@@ -131,7 +137,7 @@ class TtgGame {
     protected bool BeginMainWindow() {
         // if (!MainWindowOpen) startnew(TTG::NullifyGame);
         UI::SetNextWindowSize(DefaultLobbyWindowWidth, DefaultLobbyWindowHeight, UI::Cond::FirstUseEver);
-        bool ret = UI::Begin("Lobby - Tic Tac GO!##" + instId, MainWindowOpen);
+        bool ret = UI::Begin("Lobby - Tic Tac GO!    \\$888By XertroV##" + instId, MainWindowOpen);
         if (ret) UpdateLobbyWindowSizePos();
         return ret;
     }
@@ -184,7 +190,7 @@ class TtgGame {
     }
 
     void RenderAuthenticating() {
-        RenderLoadingScreen(Icons::Heartbeat + "  Authenticating... (~3s)");
+        RenderLoadingScreen(Icons::Heartbeat + "  Authenticating... (~3-5s)");
     }
 
     void RenderAuthError() {
@@ -297,21 +303,27 @@ class TtgGame {
         if (client.lobbyInfo is null) {
             UI::Text("Waiting for Lobby info...");
         } else {
-            float cols = 4.;
+            int cols = 5;
+            UI::Columns(cols, "", false);
+            UI::AlignTextToFramePadding();
             auto li = client.lobbyInfo;
-            auto pos = UI::GetCursorPos();
-            auto width = UI::GetWindowContentRegionWidth();
             UI::Text("Public Rooms: " + li.n_public_rooms);
-            UI::SetCursorPos(pos + vec2(width / cols, 0));
+            UI::NextColumn();
             UI::AlignTextToFramePadding();
             UI::Text("Total Rooms: " + li.n_rooms);
-            UI::SetCursorPos(pos + vec2(width / cols * 2., 0));
+            UI::NextColumn();
             UI::AlignTextToFramePadding();
-            UI::Text("Players in Lobby: " + li.n_clients);
-            UI::SetCursorPos(pos + vec2(width / cols * 3., 0));
-            if (UI::Button("Patch Notes")) {
-                showPatchNotes = true;
-            }
+            UI::Text(Icons::Users + " in Lobby: " + li.n_clients);
+            UI::NextColumn();
+            UI::AlignTextToFramePadding();
+            UI::Text(Icons::Users + " Online: " + int(client.latestServerInfo.Get('n_clients', -1)));
+            UI::NextColumn();
+            if (UI::Button("Patch Notes")) showPatchNotes = true;
+            UI::SameLine();
+            if (UI::Button(Icons::SearchMinus)) S_TTG_FontChoice = FontChoice(Math::Max(0, int(S_TTG_FontChoice) - 1));
+            UI::SameLine();
+            if (UI::Button(Icons::SearchPlus)) S_TTG_FontChoice = FontChoice(Math::Min(2, int(S_TTG_FontChoice) + 1));
+            UI::Columns(1);
         }
 
         UI::Separator();
@@ -483,21 +495,20 @@ class TtgGame {
         Indent(2);
         m_isPublic = UI::Checkbox("Is Public?", m_isPublic);
 
+        // don't show the checkbox here if the user isn't able to create an activity in a club,
+        // since we're sort of doing that on their behalf.
+        if (Permissions::CreateActivity()) {
+            Indent(2);
+            m_useClubRoom = UI::Checkbox(Icons::Star + " Play on a server instead of locally.", m_useClubRoom);
+            // AddSimpleTooltip("Experimenal note about voting:\nEach round, each player's client will auto-vote on the next map.\nIf that fails, manually voting to go to the correct map should fix things.");
+        }
+
         Indent(2);
         m_singlePlayer = UI::Checkbox("Single Player Game?", m_singlePlayer);
         AddSimpleTooltip("Note: this will auto-disable the room being public.");
         if (m_singlePlayer) {
             m_isPublic = false;
         }
-
-        // don't show the checkbox here if the user isn't able to create an activity in a club,
-        // since we're sort of doing that on their behalf.
-        if (Permissions::CreateActivity()) {
-            Indent(2);
-            m_useClubRoom = UI::Checkbox("Play on a server instead of locally. (\\$fe1" + Icons::ExclamationTriangle + " Experimental\\$z)", m_useClubRoom);
-            AddSimpleTooltip("Experimenal note about voting:\nEach round, each player's client will auto-vote on the next map.\nIf that fails, manually voting to go to the correct map should fix things.");
-        }
-
     }
 
     void DrawMapOptionsInput() {
@@ -625,7 +636,9 @@ class TtgGame {
         if (UI::BeginCombo("##go-mode", tostring(currMode))) {
             if (!isEditingGameOpts)
                 DrawModeSelectable(TTGMode::SinglePlayer, currMode);
-            DrawModeSelectable(TTGMode::Standard, currMode);
+            if (DrawModeSelectable(TTGMode::Standard, currMode)) {
+                m_playerLimit = 2;
+            };
             if (DrawModeSelectable(TTGMode::Teams, currMode)) {
                 m_playerLimit = 6;
             }
@@ -638,15 +651,24 @@ class TtgGame {
             DrawModeTooltip(currMode);
         }
 
-        if (int(currMode) > 2) {
+        if (int(currMode) > 1) {
             // draw room size dragger
             UI::AlignTextToFramePadding();
             Indent(2);
+            bool isTwoPlayer = int(currMode) == 2;
             UI::Text("Player Limit:");
             UI::SameLine();
             // can bump this up to 64 but lets be conservative for the moment
             uint upperLimit = 64;
-            m_playerLimit = UI::SliderInt("##-playerlimit", m_playerLimit, 3, upperLimit);
+            if (isTwoPlayer) {
+                UI::BeginDisabled(true);
+                UI::SliderInt("##-playerlimit", 2, 2, upperLimit);
+                Indent(2);
+                UI::EndDisabled();
+                UI::Text("\\$c93For more players, select Teams or Battle Mode.");
+            } else {
+                m_playerLimit = UI::SliderInt("##-playerlimit", m_playerLimit, 3, upperLimit);
+            }
         }
 
         if (currMode == TTGMode::BattleMode) {
@@ -743,7 +765,7 @@ class TtgGame {
             case TTGMode::Standard:
                 return "Standard 2 player game. Every time a square is claimed or challenged, the active player (challenger) must win a head-to-head race to claim the square. Ties resolve in favor of the inactive player (defender).";
             case TTGMode::Teams:
-                return "2 teams, scored like in match making / ranked. For a total of X players, 1st place gets X points, 2nd place X-1 points, etc. The team with more points wins the round. The first player on each team is that team's leader. Each Leader is the only player to input tic-tac-toe moves, but all players race. If teams are uneven, the smaller team gets an advantage.";
+                return "2 teams, up to 64 players, scored like in matchmaking / ranked. For a total of X players, 1st place gets X points, 2nd place X-1 points, etc. The team with more points wins the round. The first player on each team is that team's leader. Each Leader is the only player to input tic-tac-toe moves, but all players race. If teams are uneven, the smaller team gets an advantage.";
             case TTGMode::BattleMode:
                 return "Up to 64 players over 2 teams. The first team where X players finish wins the round. The first player on each team is the leader. Each Leader is the only player to input tic-tac-toe moves, but all players race. If not enough players finish, the team with more points wins the round. If the score is equal, the defending team wins. 'Finishes to win' auto-adjusts if it's too high.";
         }

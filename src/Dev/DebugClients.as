@@ -1,7 +1,11 @@
 namespace Debug {
 #if SIG_DEVELOPER
+#if DEV
 [Setting category="Debug" name="Show Clients Debug Window"]
 bool S_ShowClientsDebugWindow = true;
+#else
+bool S_ShowClientsDebugWindow = false;
+#endif
 
 
 Game::Client@[] allClients;
@@ -45,9 +49,11 @@ void RenderInterface() {
 }
 
 void RenderMenu() {
-    if (UI::MenuItem(Icons::ExclamationTriangle + " Client Debug | " + Meta::ExecutingPlugin().Name, "", S_ShowClientsDebugWindow)) {
-        S_ShowClientsDebugWindow = !S_ShowClientsDebugWindow;
-    }
+#if DEV
+    // if (UI::MenuItem(Icons::ExclamationTriangle + " Client Debug | " + Meta::ExecutingPlugin().Name, "", S_ShowClientsDebugWindow)) {
+    //     S_ShowClientsDebugWindow = !S_ShowClientsDebugWindow;
+    // }
+#endif
 }
 
 /** Called whenever the mouse moves. `x` and `y` are the viewport coordinates.

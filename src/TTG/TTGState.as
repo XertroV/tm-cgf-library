@@ -39,9 +39,11 @@ class TicTacGoState {
 
     TTGMode mode = TTGMode::Standard;
     TTGGameState state = TTGGameState::PreStart;
+    uint gameStartTS = uint(-1);
 
     SquareState[][] boardState;
     int2 lastColRow = int2(-1, -1);
+    int2 lastColRowRaw = int2(-1, -1);
     // the next expected sequence number of a game event
     int expectedSeq = 0;
     // bool[][] boardMapKnown;
@@ -72,6 +74,9 @@ class TicTacGoState {
     int opt_FinishesToWin = 1;
     MapGoal opt_MapGoal = MapGoal::Finish;
 
+    Json::Value@ lastVoteInstruction;
+    // uint lastExpectedVoteSet
+
     TicTacGoState(Game::Client@ client) {
         @challengeResult = ChallengeResultState();
         @this.client = client;
@@ -97,8 +102,6 @@ class TicTacGoState {
                 boardState[i][j].Reset();
             }
         }
-
-        ResetChallengeState();
     }
 
     void OnGameStart() {
@@ -133,7 +136,7 @@ class TicTacGoState {
         opt_MapGoal = MapGoal(GetGameOptInt(game_opts, 'map_goal', 0));
 #endif
 
-        if (IsSinglePlayer) opt_FirstRoundForCenter = false;
+        // if (IsSinglePlayer) opt_FirstRoundForCenter = false;
     }
 
     int get_opt_AutoDNF_ms() {
@@ -216,14 +219,9 @@ class TicTacGoState {
         }
         gameLog.InsertLast(TTGGameEvent_StartingPlayer(ActiveLeader, ActiveLeadersName));
 
-        if (opt_RevealMaps) {
-            for (int col = 0; col < 3; col++) {
-                for (int row = 0; row < 3; row++) {
-                    MarkSquareKnown(col, row);
-                }
-            }
-        }
+        if (opt_RevealMaps) MarkAllSquaresKnown();
 
+        gameStartTS = Time::Stamp;
         state = TTGGameState::WaitingForMove;
         if (opt_FirstRoundForCenter) {
             @gameLog[0] = TTGGameEvent_StartingForCenter();
@@ -310,6 +308,14 @@ class TicTacGoState {
         boardState[col][row].seen = true;
     }
 
+    void MarkAllSquaresKnown() {
+        for (int col = 0; col < 3; col++) {
+            for (int row = 0; row < 3; row++) {
+                MarkSquareKnown(col, row);
+            }
+        }
+    }
+
     bool SquareKnown(int col, int row) {
         return boardState[col][row].seen;
     }
@@ -366,7 +372,8 @@ class TicTacGoState {
     }
 
     bool CheckGameWon() {
-        bool gameWon = IsGameFinished
+        if (IsGameFinished) return true;
+        bool gameWon = false
             // diags
             || AreSquaresEqual(int2(0, 0), int2(1, 1), int2(2, 2))
             || AreSquaresEqual(int2(0, 2), int2(1, 1), int2(2, 0))
@@ -379,13 +386,16 @@ class TicTacGoState {
             || AreSquaresEqual(int2(0, 1), int2(1, 1), int2(2, 1))
             || AreSquaresEqual(int2(0, 2), int2(1, 2), int2(2, 2))
             ;
-        if (gameWon) {
+        if (gameWon && !IsGameFinished) {
+            MarkAllSquaresKnown();
             state = TTGGameState::GameFinished;
         }
         return gameWon;
     }
 
-    bool WasPriorSquare(int col, int row) {
+    bool WasPriorSquare(int col, int row, bool ignoreWinStatus = false) {
+        if (ignoreWinStatus)
+            return lastColRowRaw.x == col && lastColRowRaw.y == row;
         return lastColRow.x == col && lastColRow.y == row;
     }
 
@@ -402,9 +412,11 @@ class TicTacGoState {
         if (IsInChallenge || IsInClaim) {
             bool moveIsChallengeRes = msgType == "G_CHALLENGE_RESULT";
             bool moveIsForceEnd = msgType == "G_CHALLENGE_FORCE_END";
-            if (!moveIsChallengeRes && !moveIsForceEnd) return InvalidReason("only challenge result or force end are valid");
-            if (moveIsForceEnd) {
-                return client.IsPlayerAdminOrMod(lastFromUid) || InvalidReason("force end only by admin or mod");
+            bool moveIsVoteInstructions = msgType == "G_SERVER_EXPECT_VOTE";
+            bool isValidType = moveIsChallengeRes || moveIsForceEnd || moveIsVoteInstructions;
+            if (!isValidType) return InvalidReason("only challenge result or force end are valid");
+            if (moveIsForceEnd || moveIsVoteInstructions) {
+                return client.IsPlayerAdminOrMod(lastFromUid) || InvalidReason(msgType + ": only by admin or mod");
             }
             if (IsSinglePlayer && challengeResult.HasResultFor(fromPlayer)) return InvalidReason("got result already");
             if (!IsSinglePlayer && challengeResult.HasResultFor(lastFromUid)) return InvalidReason("got result already: " + challengeResult.GetResultFor(lastFromUid, -1));
@@ -487,20 +499,30 @@ class TicTacGoState {
         if (IsInChallenge || IsInClaim) {
             bool moveIsChallengeRes = msgType == "G_CHALLENGE_RESULT";
             bool moveIsForceEnd = msgType == "G_CHALLENGE_FORCE_END";
-            if (!moveIsChallengeRes && !moveIsForceEnd) throw("not a valid move type: should be impossible");
+            bool moveIsVoteInstructions = msgType == "G_SERVER_EXPECT_VOTE";
+            bool isValidType = moveIsChallengeRes || moveIsForceEnd || moveIsVoteInstructions;
+            if (!isValidType) throw("not a valid move type: should be impossible");
             if (!challengeResult.active) throw("challenge is not active");
+            // primary mutation from each instruction type
             if (moveIsForceEnd) {
                 if (!client.IsPlayerAdminOrMod(lastFromUid)) throw("force end from a non admin/mod");
                 challengeResult.ForceEnd();
                 gameLog.InsertLast(TTGGameEvent_ForceEnd(lastFromUsername, lastFromUid));
                 if (!challengeResult.IsResolved)
                     warn("we just force ended the challenge but it did not resolve!");
-            } else if (IsSinglePlayer) {
-                // if we're in a single player game, set a slightly worse time for the inactive player
-                challengeResult.SetPlayersTime(ActiveLeader, int(pl['time']));
-                challengeResult.SetPlayersTime(InactiveLeader, int(pl['time']) + 100);
+            } else if (moveIsVoteInstructions) {
+                if (!client.IsPlayerAdminOrMod(lastFromUid)) throw("vote instruction from a non admin/mod");
+                @lastVoteInstruction = pl;
+            } else if (moveIsChallengeRes) {
+                if (IsSinglePlayer) {
+                    // if we're in a single player game, set a slightly worse time for the inactive player
+                    challengeResult.SetPlayersTime(ActiveLeader, int(pl['time']));
+                    challengeResult.SetPlayersTime(InactiveLeader, int(pl['time']) + 100);
+                } else {
+                    challengeResult.SetPlayersTime(lastFromUid, lastFromUsername, int(pl['time']), lastFromTeam);
+                }
             } else {
-                challengeResult.SetPlayersTime(lastFromUid, lastFromUsername, int(pl['time']), lastFromTeam);
+                NotifyError("impossible? unknown move type");
             }
             if (challengeResult.IsResolved) {
                 bool challengerWon = challengeResult.Winner == challengeResult.challenger;
@@ -526,10 +548,14 @@ class TicTacGoState {
                 SetSquareState(xy.x, xy.y, sqState);
                 if (opt_CannotImmediatelyRepick) {
                     lastColRow = challengerWon ? xy : int2(-1, -1);
+                    lastColRowRaw = xy;
                 }
 
+                if (currChallengeRun !is null)
+                    currChallengeRun.ShutdownIn(3500);
                 challengeResult.Reset();
                 challengeEndedAt = Time::Now;
+                @lastVoteInstruction = null;
 
                 state = TTGGameState::WaitingForMove;
                 AdvancePlayerTurns();
@@ -545,6 +571,8 @@ class TicTacGoState {
             auto sqState = GetSquareState(col, row);
             auto finishesToWin = IsBattleMode ? opt_FinishesToWin : 1;
             @challengeResult = ChallengeResultState();
+            if (currChallengeRun !is null) currChallengeRun.Shutdown();
+            @currChallengeRun = null;
             if (moveIsChallenging) {
                 if (sqState.IsUnclaimed) throw('invalid, square claimed');
                 if (sqState.IsOwnedBy(ActiveLeader)) throw('invalid, cant challenge self');
@@ -591,9 +619,12 @@ class TicTacGoState {
     Json::Value@ currMap;
     int currTrackId;
     string currTrackIdStr;
+    string mapUid, mapName;
 
     int challengePreWaitPeriod = 3000;
     string beginChallengeLatestNonce;
+    bool sameAsLastMap = false;
+    string lastMapUid;
 
     void BeginChallengeSoon() {
         // this can happen when replaying game events
@@ -608,32 +639,87 @@ class TicTacGoState {
         auto map = GetMap(col, row);
         @currMap = map;
         currTrackId = map['TrackID'];
+        mapUid = map['TrackUID'];
+        mapName = map.Get('Name', "???");
         currTrackIdStr = tostring(currTrackId);
         challengeResult.startTime = Time::Now + challengePreWaitPeriod;
-        hideChallengeWindowInServer = false;
+        sameAsLastMap = WasPriorSquare(col, row, true) || mapUid == lastMapUid;
+        lastMapUid = mapUid;
         trace("Challenge start time: " + challengeResult.startTime);
         trace("Challenge nonce: " + myNonce);
         // autostart if not
-        if (!IsInServer && !IsSinglePlayer && !S_LocalDev) {
+        if (!IsInServer) {
             // we sleep for slightly less to avoid race conditions with the launch map button
             sleep(challengePreWaitPeriod - 30);
             // load map immediately if the CR is the same one and the setting is enabled.
-            bool crChecks = beginChallengeLatestNonce == myNonce && !challengeResult.HasResultFor(client.clientUid);
+            bool crChecks = beginChallengeLatestNonce == myNonce
+                && !challengeResult.HasResultFor(client.clientUid)
+                && !challengeResult.IsResolved;
             if (crChecks && S_TTG_AutostartMap && !CurrentlyInMap) {
                 print("Autostarting map for: " + MyName);
-                startnew(CoroutineFunc(RunChallengeAndReportResult));
+                @currChallengeRun = LocalChallengeRun();
             } else {
-                warn("Skipping challenge b/c one of: crChecks failed, challenge active, not autostart, or currently in map");
+                warn("Skipping challenge b/c one of: crChecks failed, challenge not active, not autostart, or currently in map");
+                return;
             }
-        } else if (IsInServer) {
-            sleep(200);
-            bool crChecks = beginChallengeLatestNonce == myNonce && !challengeResult.HasResultFor(client.clientUid);
+        } else {
+            // on turn 0, wait till we've joined the server properly to continue
+            while (turnCounter == 0 && GetApp().CurrentPlayground is null) yield();
+            // don't start an admin's server challenge run less than 5 seconds after the game has started.
+            // one of the first things we do is voting, so this gives a bit of time for ppl to connect etc.
+            uint _waitFrom = gameStartTS;
+            bool isAdmin = client.IsPlayerMainAdmin(client.clientUid);
+            while (turnCounter == 0 && isAdmin && uint(Time::Stamp) < _waitFrom + 5) yield();
+            // sleep a little before initializing, allow other msgs to be processed for crChecks
+            sleep(300);
+            bool crChecks = beginChallengeLatestNonce == myNonce
+                && !challengeResult.HasResultFor(client.clientUid)
+                && !challengeResult.IsResolved;
             if (crChecks) {
-                startnew(CoroutineFunc(InServerRunChallenge));
+                @currChallengeRun = ClubServerChallengeRun();
             } else {
-                warn("Skipping challenge b/c one of: crChecks failed, challenge active");
+                warn("Skipping challenge b/c one of: crChecks failed, challenge not active");
+                return;
             }
         }
+        if (currChallengeRun !is null) {
+            InitAndRunChallenge();
+        }
+    }
+
+    void StartLocalChallengeFromButton() {
+        @currChallengeRun = LocalChallengeRun();
+        currChallengeRun.disableLaunchMapBtn = true;
+        InitAndRunChallenge();
+    }
+
+    void InitAndRunChallenge() {
+        currChallengeRun.Initialize(
+            "TTG! - " + string(currMap.Get("Name", "???")), "Go Team " + MyLeadersName + "!",
+            mapUid, mapName, currTrackId, sameAsLastMap,
+            IsInServer, client.IsPlayerMainAdmin(client.clientUid),
+            opt_AutoDNF_ms, opt_EnableRecords,
+            ChallengeRunReport(ReportChallengeResult),
+            CR_GetExpectedVote(GetLastExpectedVote),
+            CR_SetExpectedVote(SetExpectedVote),
+            challengeResult
+        );
+        currChallengeRun.StartRunCoro();
+    }
+
+    Json::Value@ GetLastExpectedVote() {
+        return lastVoteInstruction;
+    }
+
+    void SetExpectedVote(const string &in type, const string &in question) {
+        auto j = Json::Object();
+        j['type'] = type;
+        if (type == "VOTE_QUESTION") {
+            j['question'] = question;
+        }
+        j['col'] = challengeResult.col;
+        j['row'] = challengeResult.row;
+        client.SendPayload("G_SERVER_EXPECT_VOTE", j);
     }
 
     Json::Value@ GetMap(int col, int row) {
@@ -653,396 +739,52 @@ class TicTacGoState {
         return client.mapsList[mapIx];
     }
 
-
-
-    void ResetLaunchMapBtnSoon() {
-        // prevents softlock if map cannot load (occasionally happens)
-        sleep(5000);
-        disableLaunchMapBtn = false;
-    }
-
-    // relative to Time::Now to avoid pause menu strats
-    int challengeStartTime = -1;
-    int playerInitStartTime = -1;
-    int lastPlayerStartTime = -1;
-    int challengeEndTime = -1;
-    int challengeScreenTimeout = -1;
-    int currGameTime = -1;
-    int currPeriod = 15;  // frame time
-    bool challengeRunActive = false;
-    bool disableLaunchMapBtn = false;
-    bool hideChallengeWindowInServer = false;
     uint challengeEndedAt;
-    bool showForceEndPrompt = false;
-    bool shouldExitChallenge = false;
-    uint shouldExitChallengeTime = DNF_TIME;
-    bool serverChallengeInExpectedMap = false;
-    uint lastSpamNo = 0;
+    ChallengeRun@ currChallengeRun = null;
 
-    void ResetChallengeState() {
-        showForceEndPrompt = false;
-        shouldExitChallenge = false;
-        hideChallengeWindowInServer = false;
-        challengeStartTime = -1;
-        currGameTime = -1;
-        currPeriod = 15;
-        serverChallengeInExpectedMap = false;
+    bool get_challengeRunActive() {
+        if (currChallengeRun is null) return false;
+        return currChallengeRun.challengeRunActive;
     }
 
-    void RunChallengeAndReportResult() {
-        ResetChallengeState();
-        disableLaunchMapBtn = true;
-        // set menu screen to avoid map-loading issues.
-        MM::setMenuPage("/local");
-        yield();
-        MM::setMenuPageEmpty();
-        SetLoadingScreenText("TTG! - " + string(currMap.Get("Name", "???")), "Go Team " + MyLeadersName + "!");
-        yield();
-        yield();
-        // join map
-        challengeRunActive = true;
-        LoadMapNow(MapUrlTmx(currMap['TrackID']));
-        startnew(CoroutineFunc(ResetLaunchMapBtnSoon));
-        while (!CurrentlyInMap) yield();
-        sleep(50);
-        // wait for UI sequence to be playing
-        while (GetApp().CurrentPlayground is null) yield();
-        auto cp = cast<CSmArenaClient>(GetApp().CurrentPlayground);
-        while (cp.Players.Length < 1) yield();
-        auto player = cast<CSmScriptPlayer>(cast<CSmPlayer>(cp.Players[0]).ScriptAPI);
-        while (cp.UIConfigs.Length < 0) yield();
-        auto uiConfig = cp.UIConfigs[0];
-        while (uiConfig.UISequence != CGamePlaygroundUIConfig::EUISequence::Intro) yield();
-        // re enable the launch map button here, is good enough and pretty close to the first time we can safely re-enable
-        disableLaunchMapBtn = false;
-        while (uiConfig.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
-        yield(); // we don't need to get the time immediately, so give some time for values to update
-        while (player.StartTime < 0) yield();
-        HideGameUI::opt_EnableRecords = opt_EnableRecords;
-        startnew(HideGameUI::OnMapLoad);
-        auto initNbGhosts = GetCurrNbGhosts();
-        yield();
-        yield();
-        // start of challenge
-        if (GetApp().PlaygroundScript is null) {
-            EndChallenge();
-            return;
-        }
-        currGameTime = GetApp().PlaygroundScript.Now;
-        // ! timer bugs sometimes on start hmm
-        challengeStartTime = Time::Now + (player.StartTime - currGameTime);
-        playerInitStartTime = player.StartTime;
-        lastPlayerStartTime = player.StartTime;
-        if (challengeStartTime < int(Time::Now)) {
-            warn("challengeStartTime is in the past; now - start = " + (int(Time::Now) - challengeStartTime) + ". setting to 1.5s in the future.");
-            // the timer should always start at -1.5s, so set it 1.5s in the future
-            challengeStartTime = Time::Now + 1500;
-        }
-
-        log_info("Set challenge start time: " + challengeStartTime);
-        // wait for finish timer
-        int duration;
-        bool hasFinished = false;
-        while (true) {
-            if (!hasFinished && uiConfig.UISequence == CGamePlaygroundUIConfig::EUISequence::Finish) {
-                hasFinished = true;
-                while (initNbGhosts == GetCurrNbGhosts()) yield();
-                auto runTime = GetMostRecentGhostTime();
-                auto endTime = lastPlayerStartTime + runTime;
-                duration = endTime - playerInitStartTime;
-                challengeEndTime = challengeStartTime + duration;
-                // report result
-                ReportChallengeResult(duration);
-            }
-            int oppTime = 0;
-            int timeLeft = DNF_TEST;
-            bool shouldDnf = false;
-            if (!hasFinished) {
-                duration = Time::Now - challengeStartTime;
-                lastPlayerStartTime = player.StartTime;
-                initNbGhosts = GetCurrNbGhosts();
-                oppTime = challengeResult.ranking.Length > 0 ? challengeResult.ranking[0].time : DNF_TIME;
-                timeLeft = oppTime + opt_AutoDNF_ms - duration;
-                shouldDnf = opt_AutoDNF_ms > 0 && timeLeft <= 0;
-            }
-            // if the challenge is resolved (e.g., via force ending) then we want to exit out
-            // ~~also if we already have a result~~ leave players in the map while other ppl haven't finished yet
-            shouldExitChallenge = challengeResult.IsResolved;
-            if (shouldDnf || shouldExitChallenge || GetApp().PlaygroundScript is null || uiConfig is null) {
-                log_trace('should dnf, or exit, or player already did.');
-                if (shouldDnf) {
-                    log_warn("shouldDnf. time left: " + timeLeft + "; oppTime: " + oppTime + ", duration=" + duration);
-                }
-                // don't report a time if the challenge is resolved b/c it's an invalid move
-                if (!shouldExitChallenge && !hasFinished)
-                    ReportChallengeResult(DNF_TIME); // more than 24 hrs, just
-                // if we are still in the map we want to let hte user know before we exit
-                if (shouldExitChallenge) {
-                    shouldExitChallengeTime = Time::Now + 3000;
-                    AwaitShouldExitTimeOrMapLeft();
-                }
-                // player quit (or auto DNF)
-                warn("Map left. Either: player quit, autodnf, or challenge resolved");
-                break;
-            }
-            currGameTime = GetApp().PlaygroundScript.Now;
-            if (!hasFinished)
-                challengeEndTime = Time::Now;
-            currPeriod = GetApp().PlaygroundScript.Period;
-            yield();
-        }
-        EndChallenge();
+    bool get_disableLaunchMapBtn() {
+        if (currChallengeRun is null) return false;
+        return currChallengeRun.disableLaunchMapBtn;
     }
 
-    // black out client UI when in a server when we don't want ppl to see the map
-    bool ShouldBlackout() {
-        return false;
-        // if (!IsInServer) return false;
-        // if (IsInClaimOrChallenge) {
-        //     return !serverChallengeInExpectedMap;
-        // }
-        // if (IsWaitingForMove && turnCounter == 0) {
-        //     return false;
-        // }
-        // return IsWaitingForMove && !challengeRunActive;
+    bool get_hideChallengeWindowInServer() {
+        if (currChallengeRun is null) return false;
+        return currChallengeRun.hideChallengeWindowInServer;
     }
 
-    // todo: refactor this and the above to use mostly the same logic, and abstract differences
-    void InServerRunChallenge() {
-        // warn('InServerRunChallenge');
-        if (!IsInServer) {
-            warn("InServerRunChallenge called when not in a server");
-            return;
-        }
-        ResetChallengeState();
-        SetLoadingScreenText("TTG! - " + string(currMap.Get("Name", "???")), "Go Team " + MyLeadersName + "!");
-        auto app = cast<CGameManiaPlanet>(GetApp());
-        // wait for us to join the server if we haven't yet
-        while (!CurrentlyInMap) yield();
-        // warn('InServerRunChallenge in map');
-        auto cp = cast<CSmArenaClient>(app.CurrentPlayground);
-        while (cp.Map is null) yield();
-        while (app.Network.ClientManiaAppPlayground is null) yield();
-        sleep(250);
-        // warn('setting challenge run active');
-        challengeRunActive = true;
-        auto cmap = app.Network.ClientManiaAppPlayground;
-        auto currUid = cp.Map.MapInfo.MapUid;
-        string expectedUid = currMap.Get('TrackUID', '??');
-        if (expectedUid.Length < 5) warn("Expected uid is bad! " + expectedUid);
-        serverChallengeInExpectedMap = expectedUid == currUid;
-        // warn('serverChallengeInExpectedMap: ' + tostring(serverChallengeInExpectedMap));
-        if (!serverChallengeInExpectedMap) {
-            auto net = app.Network;
-            net.PlaygroundClientScriptAPI.RequestGotoMap(expectedUid);
-            startnew(CoroutineFunc(SpamVoteYesForABit));
-            // todo: monitor vote?
-            // wait for start
-            while (app.RootMap is null || app.RootMap.MapInfo.MapUid != expectedUid) yield();
-            while (app.Network.ClientManiaAppPlayground is null) yield();
-            while (app.CurrentPlayground is null) yield();
-            sleep(100);
-        } else {
-            bool reqAlreadyInProg = app.Network.PlaygroundClientScriptAPI.Request_IsInProgress;
-            // we might be rejoining an ongoing map, only send request restart if there are no times yet
-            app.Network.PlaygroundClientScriptAPI.RequestRestartMap();
-            // while (!reqAlreadyInProg && !app.Network.PlaygroundClientScriptAPI.Request_IsInProgress) yield();
-            startnew(CoroutineFunc(SpamVoteYesForABit));
-            while (app.Network.PlaygroundClientScriptAPI.Request_IsInProgress || cmap.UI.UISequence == CGamePlaygroundUIConfig::EUISequence::Playing) yield();
-        }
-        serverChallengeInExpectedMap = true;
-        while (cmap !is null && cmap.UI !is null && cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Intro) yield();
-        if (cmap is null || cmap.UI is null) return; // exited playground
-        while (cmap !is null && cmap.UI !is null && cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
-        if (cmap is null || cmap.UI is null) return; // exited playground
-        // Now that we're playing, we need to figure out if we're in a warmup or not.
-
-        HideGameUI::opt_EnableRecords = opt_EnableRecords;
-        startnew(HideGameUI::OnMapLoad);
-        auto initNbGhosts = GetCurrNbGhosts();
-
-        auto player = FindLocalPlayersInPlaygroundPlayers(GetApp());
-        while (cmap.UILayers.Length < 20) yield();
-        while (cmap !is null && cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
-        sleep(100);
-        while (cmap !is null && cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
-        while (IsInWarmUp()) yield();
-        sleep(100);
-        while (cmap !is null && cmap.UI.UISequence != CGamePlaygroundUIConfig::EUISequence::Playing) yield();
-        if (cmap is null) return;
-        hideChallengeWindowInServer = true;
-        sleep(750);
-        if ((cmap is null || cmap.Playground is null)) {
-            EndChallenge();
-            return;
-        }
-        currGameTime = cmap.Playground.GameTime;
-        challengeStartTime = Time::Now + (player.StartTime - currGameTime);
-        playerInitStartTime = player.StartTime;
-        lastPlayerStartTime = player.StartTime;
-        // while (player.CurrentRaceTime > 0) yield(); // wait for current race time to go negative
-        if (challengeStartTime < int(Time::Now)) {
-            warn("challengeStartTime is in the past; now - start = " + (int(Time::Now) - challengeStartTime) + ".");
-            // the timer should always start at -1.5s, so set it 1.5s in the future
-            // challengeStartTime = Time::Now + 1500;
-        }
-
-        log_info("Set challenge start time: " + challengeStartTime);
-        // wait for finish timer
-        int duration;
-        bool hasFinished = false;
-        while (true) {
-            if (cmap is null || cmap.UI is null || app.Network.PlaygroundClientScriptAPI is null) break;
-            if (lastSpamNo + 5000 < Time::Now) {
-                if (app.Network.PlaygroundClientScriptAPI.Request_IsInProgress && challengeResult.IsEmpty) {
-                    // if there's a vote, and there are no scores yet, vote no a few times
-                    // this can happen if a player rejoins
-                    startnew(CoroutineFunc(SpamVoteNoForABit));
-                    lastSpamNo = Time::Now;
-                } else if (app.Network.PlaygroundClientScriptAPI.Request_IsInProgress && !challengeResult.IsResolved) {
-                    startnew(CoroutineFunc(SpamVoteNoForABitWhileStillUnresolved));
-                    lastSpamNo = Time::Now;
-                }
-            }
-            if (!hasFinished && cmap.UI.UISequence == CGamePlaygroundUIConfig::EUISequence::Finish) {
-                hasFinished = true;
-                while (initNbGhosts == GetCurrNbGhosts()) yield();
-                auto runTime = GetMostRecentGhostTime();
-                auto endTime = lastPlayerStartTime + runTime;
-                duration = endTime - playerInitStartTime;
-                challengeEndTime = challengeStartTime + duration;
-                ReportChallengeResult(duration);
-            }
-            int oppTime = 0;
-            int timeLeft = DNF_TEST;
-            bool shouldDnf = false;
-            if (!hasFinished) {
-                duration = Time::Now - challengeStartTime;
-                lastPlayerStartTime = player.StartTime;
-                initNbGhosts = GetCurrNbGhosts();
-                oppTime = challengeResult.ranking.Length > 0 ? challengeResult.ranking[0].time : DNF_TIME;
-                timeLeft = oppTime + opt_AutoDNF_ms - duration;
-                shouldDnf = opt_AutoDNF_ms > 0 && timeLeft <= 0;
-            }
-            // if the challenge is resolved (e.g., via force ending) then we want to exit out
-            // ~~also if we already have a result~~ leave players in the map while other ppl haven't finished yet
-            shouldExitChallenge = challengeResult.IsResolved;
-            if (shouldDnf || shouldExitChallenge || GetApp().CurrentPlayground is null && app.Switcher.ModuleStack.Length > 0) {
-                log_trace('should dnf, or exit, or player already did.');
-                if (shouldDnf) {
-                    log_warn("shouldDnf. time left: " + timeLeft + "; oppTime: " + oppTime + ", duration=" + duration);
-                }
-                // don't report a time if the challenge is resolved b/c it's an invalid move
-                if (!shouldExitChallenge && !hasFinished)
-                    ReportChallengeResult(DNF_TIME);
-                while (!challengeResult.IsResolved) yield();
-                shouldExitChallengeTime = Time::Now + 3000;
-                AwaitShouldExitTimeOrMapLeft();
-                break;
-            }
-            currGameTime = cmap.Playground.GameTime;
-            if (!hasFinished)
-                challengeEndTime = Time::Now;
-            currPeriod = app.Network.PlaygroundInterfaceScriptHandler.Period;
-            yield();
-        }
-        EndChallenge();
+    bool get_shouldExitChallenge() {
+        if (currChallengeRun is null) return true;
+        return currChallengeRun.shouldExitChallenge;
     }
 
-    void SpamVoteYesForABit() {
-        auto app = cast<CGameManiaPlanet>(GetApp());
-        auto net = app.Network;
-        sleep(500);
-        bool voteInProg = false;
-        bool voteEnded = false;
-        for (uint i = 0; i < 16; i++) {
-            if (net.PlaygroundClientScriptAPI !is null) {
-                if (net.PlaygroundClientScriptAPI.Request_IsInProgress) {
-                    voteInProg = true;
-                    net.PlaygroundClientScriptAPI.Vote_Cast(true);
-                } else if (voteInProg) {
-                    voteEnded = true;
-                    voteInProg = false;
-                    break;
-                }
-            }
-            sleep(500);
-        }
+    uint get_shouldExitChallengeTime() {
+        if (currChallengeRun is null) return DNF_TIME;
+        return currChallengeRun.shouldExitChallengeTime;
     }
 
-    void SpamVoteNoForABit() {
-        auto app = cast<CGameManiaPlanet>(GetApp());
-        auto net = app.Network;
-        sleep(500);
-        for (uint i = 0; i < 8; i++) {
-            if (net.PlaygroundClientScriptAPI !is null) {
-                if (net.PlaygroundClientScriptAPI.Request_IsInProgress)
-                    net.PlaygroundClientScriptAPI.Vote_Cast(false);
-            }
-            sleep(500);
-        }
+    int get_challengeEndTime() {
+        if (currChallengeRun is null) return -1;
+        return currChallengeRun.challengeEndTime;
     }
 
-    void SpamVoteNoForABitWhileStillUnresolved() {
-        auto app = cast<CGameManiaPlanet>(GetApp());
-        auto net = app.Network;
-        for (uint i = 0; i < 8; i++) {
-            uint start = Time::Now;
-            bool keepChecking = net.PlaygroundClientScriptAPI !is null && net.PlaygroundClientScriptAPI.Request_IsInProgress && !challengeResult.IsResolved;
-            while (Time::Now < start + 500 && keepChecking) {
-                yield();
-                keepChecking = net.PlaygroundClientScriptAPI !is null && net.PlaygroundClientScriptAPI.Request_IsInProgress && !challengeResult.IsResolved;
-            }
-            if (!keepChecking) break;
-            net.PlaygroundClientScriptAPI.Vote_Cast(false);
-        }
+    int get_challengeStartTime() {
+        if (currChallengeRun is null) return -1;
+        return currChallengeRun.challengeStartTime;
     }
 
-    bool IsInWarmUp() {
-        auto layer = FindWarmUpUILayer();
-        if (layer is null) return false;
-        auto frame = layer.LocalPage.GetFirstChild("frame-warm-up");
-        if (frame is null) return false;
-        // this is visible only when we're in the warmup
-        return frame.Visible;
-    }
-
-    CGameUILayer@ FindWarmUpUILayer() {
-        auto cmap = GetApp().Network.ClientManiaAppPlayground;
-        if (cmap is null) return null;
-        auto layer = cmap.UILayers.Length < 20 ? null : cmap.UILayers[18];
-        if (layer is null || !layer.ManialinkPageUtf8.StartsWith('\n<manialink name="UIModule_Race_WarmUp"')) {
-            for (uint i = 0; i < cmap.UILayers.Length; i++) {
-                auto item = cmap.UILayers[i];
-                if (item.ManialinkPageUtf8.StartsWith('\n<manialink name="UIModule_Race_WarmUp"')) {
-                    @layer = item;
-                    break;
-                }
-            }
-        }
-        return layer;
-    }
-
-    CSmScriptPlayer@ FindLocalPlayersInPlaygroundPlayers(CGameCtnApp@ app) {
-        auto cp = cast<CGameManiaPlanet>(app).CurrentPlayground;
-        for (uint i = 0; i < cp.Players.Length; i++) {
-            auto item = cast<CSmPlayer>(cp.Players[i]);
-            if (item !is null && item.User.Name == LocalPlayersName) {
-                return cast<CSmScriptPlayer>(item.ScriptAPI);
-            }
-        }
-        return null;
-    }
-
-    // uses shouldExitChallengeTime
-    void AwaitShouldExitTimeOrMapLeft() {
-        while (shouldExitChallengeTime > Time::Now && CurrentlyInMap) yield();
+    int get_currGameTime() {
+        if (currChallengeRun is null) return -1;
+        return currChallengeRun.currGameTime;
     }
 
     void EndChallenge() {
-        challengeRunActive = false;
-        if (!IsInServer && GameInfo !is null && !IsPreStart)
-            startnew(ReturnToMenu);
+        if (currChallengeRun is null) return;
+        currChallengeRun.EndChallenge();
     }
 
     void ReportChallengeResult(int duration) {
@@ -1050,6 +792,8 @@ class TicTacGoState {
         pl['col'] = challengeResult.col;
         pl['row'] = challengeResult.row;
         client.SendPayload("G_CHALLENGE_RESULT", pl);
+        if (!opt_EnableRecords)
+            HideGameUI::ShowPage("UIModule_Race_Record");
     }
 
     void SendForceEnd() {

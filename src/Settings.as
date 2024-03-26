@@ -32,7 +32,7 @@ bool S_TTG_HideRoomNames = false;
 [Setting category="Tic Tac Go" name="Hide Player Events in Game Log?"]
 bool S_TTG_HidePlayerEvents = false;
 
-[Setting category="Tic Tac Go" name="Autostart Maps?"]
+[Setting category="Tic Tac Go" name="Autostart Maps? (Local Mode)"]
 bool S_TTG_AutostartMap = false;
 
 [Setting category="Tic Tac Go" name="Teams Mode UI Scale" min="0.1" max="1" drag]
@@ -41,12 +41,71 @@ float S_TeamsScoreboardScale = 0.75;
 [Setting category="Tic Tac Go" name="Teams Mode UI Position Offset" min="-2000" max="2000" drag]
 vec2 S_TeamsScoreboardPositionOffset = vec2();
 
+[Setting category="Tic Tac Go" name="Font Selection"]
+FontChoice S_TTG_FontChoice = FontChoice::Normal;
+
+[Setting category="Tic Tac Go" name="Game Window Background Opacity" min=0.9 max=1.0]
+float S_TTG_BG_Opacity = 0.97;
+
+
+
+#if DEV
 [Setting category="Tic Tac Go" name="Show Game Debug Info?"]
+#endif
 bool S_TTG_DrawGameDebugInfo = false;
 
 [SettingsTab name="Changelog" order="99"]
 void Render_Settings_Changelog() {
     UI::Markdown(" # " + Meta::ExecutingPlugin().Version + """
+
+ - Fix compile error on non-edge versions of openplanet.
+ - Auto-expand compact UI on game end.
+
+ # 0.2.1
+
+ - Completely refactor the challenge loop (loading map, measuring time, voting on servers, etc).
+ - Add team colors to TTG board.
+ - Use textures for o/x symbols.
+ - Change winning squares indicator to a line instead of coloring squares.
+ - Any unrevealed maps are now revealed when the game ends.
+ - Records made visible when you finish a map. Chrono made visible when round over.
+ - Move TTG to the 'Game' category in the Plugins menu.
+ - Clear temporarily cached maps on plugin load (so it clears maps cached during the last session). Maps are pre-cached to improve load times (esp. on servers).
+ - (Dev) Remove CGF debug client menu entry.
+ - Remove menu page management (bug now fixed by Nadeo).
+ - Add large/small game UI modes.
+ - Will no longer exit and rejoin a server if already in the right one.
+
+ ### Settings
+
+ - Add font choices: Normal, Droid Sans, and Droid Sans Smaller.
+ - Add option for changing the game window background opacity.
+    """);
+
+    if (UI::BeginCombo("Font Choice", tostring(S_TTG_FontChoice))) {
+        if (UI::Selectable(tostring(FontChoice(0)), 0 == int(S_TTG_FontChoice)))
+            S_TTG_FontChoice = FontChoice(0);
+        if (UI::Selectable(tostring(FontChoice(1)), 1 == int(S_TTG_FontChoice)))
+            S_TTG_FontChoice = FontChoice(1);
+        if (UI::Selectable(tostring(FontChoice(2)), 2 == int(S_TTG_FontChoice)))
+            S_TTG_FontChoice = FontChoice(2);
+        UI::EndCombo();
+    }
+    S_TTG_BG_Opacity = UI::SliderFloat("Game Window BG Opacity", S_TTG_BG_Opacity, 0.9, 1.0);
+    UI::Text("");
+
+    UI::Markdown("""
+ ### Fixes
+
+ - Fix server-mode voting (it works now).
+ - Fix bug where time would erroneously be added for some players in local mode.
+ - Fix crash starting a map in local mode (this affected v0.1.60, but only started appearing after the mid-Jan update).
+
+ # 0.1.60
+
+ - Remove useless fonts (saves ~3s load time)
+
+ # 0.1.58
 
  - Refactor voting code to be more tolerant of latency -- less manual voting should be required.
 

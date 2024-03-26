@@ -1,13 +1,11 @@
 [meta]
-name     = "CGF Support Library"
+name     = "Tic Tac GO!"
 author   = "XertroV"
-category = "CGF"
-version  = "0.1.58"
+category = "Game"
+version  = "0.2.3"
 siteid   = 285
 
 [script]
 #__DEFINES__
 # dependencies = ["MLHook", "MLFeedRaceData", "VehicleState", "Camera"]
-# module = "CGF"
-# exports = ["ExportCode.as"]
-# shared_exports = ["ExportShared.as"]
+module = "CGF"

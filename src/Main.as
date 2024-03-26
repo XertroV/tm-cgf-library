@@ -1,19 +1,15 @@
 // Game::Client@ c1 = null;
 
 
-
 void Main() {
-    // startnew(Loop);
-    // startnew(Debug::Main);
+    // clear cached tmx maps
+    startnew(ClearLocalTmxMapFolder);
     sleep(100);
     OnSettingsChanged();
-    // while (MM::getMenuBackgroundLayer() is null) {
-    //     sleep(50);
-    // }
 #if DEV || UNIT_TEST
     sleep(50);
-    startnew(TestScoring);
-    startnew(MapUploadTest);
+    // startnew(TestScoring);
+    // startnew(MapUploadTest);
 #endif
 }
 
@@ -21,10 +17,6 @@ void Main() {
 void OnDestroyed() { _Unload(); }
 void OnDisabled() { _Unload(); }
 void _Unload() {
-    // if the last page was the empty page, then go back to a known good page.
-    if (MM::lastWasEmpty) {
-        MM::setMenuPage("/local");
-    }
 }
 
 void Render() {
@@ -51,10 +43,9 @@ void RenderMenu() {
 /** Render function called every frame intended only for menu items in the main menu of the `UI`.
 */
 void RenderMenuMain() {
-    if (UI::BeginMenu(Icons::Users + " CGF")) {
-        MM::RenderMenuMain_PageControl();
-        UI::EndMenu();
-    }
+    // if (UI::BeginMenu(Icons::Users + " CGF")) {
+    //     UI::EndMenu();
+    // }
 }
 
 UI::InputBlocking OnKeyPress(bool down, VirtualKey key) {
