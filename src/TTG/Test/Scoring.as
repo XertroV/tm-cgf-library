@@ -1,3 +1,26 @@
+
+
+
+string[][]@ GenTeams(int t1_n = 3, int t2_n = 3) {
+    string[][] teams = {{}, {}};
+    for (int i = 0; i < t1_n; i++) teams[0].InsertLast("t1-" + i);
+    for (int i = 0; i < t2_n; i++) teams[1].InsertLast("t2-" + i);
+    return teams;
+}
+
+TTGSquareState RandomTeam() {
+    return TTGSquareState(Math::Rand(0, 2));
+}
+
+bool RandomBool() {
+    return 0 == Math::Rand(0, 2);
+    // float n = Math::Rand(0.0, 100.0);
+    // return n < 50.0;
+}
+
+
+
+
 #if DEV || UNIT_TEST
 
 bool QUIET_TESTS = true;
@@ -53,25 +76,6 @@ void Test_Teams_Scoring() {
 void assert(bool cond, const string &in msg) {
     if (!cond) error('Test failed condition: ' + msg);
 }
-
-TTGSquareState RandomTeam() {
-    return TTGSquareState(Math::Rand(0, 2));
-}
-
-bool RandomBool() {
-    return 0 == Math::Rand(0, 2);
-    // float n = Math::Rand(0.0, 100.0);
-    // return n < 50.0;
-}
-
-
-string[][]@ GenTeams(int t1_n = 3, int t2_n = 3) {
-    string[][] teams = {{}, {}};
-    for (int i = 0; i < t1_n; i++) teams[0].InsertLast("t1-" + i);
-    for (int i = 0; i < t2_n; i++) teams[1].InsertLast("t2-" + i);
-    return teams;
-}
-
 
 
 void RenderTests() {
