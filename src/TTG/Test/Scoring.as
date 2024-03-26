@@ -1,7 +1,7 @@
 #if DEV || UNIT_TEST
 
 bool QUIET_TESTS = true;
-bool RENDER_TESTS = true;
+bool RENDER_TESTS = false;
 
 void log_test(const string &in msg) {
     if (QUIET_TESTS) return;
